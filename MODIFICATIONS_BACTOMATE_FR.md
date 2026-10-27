@@ -4,7 +4,7 @@ Version de travail préparée pour les essais de l’équipe, le 27 octobre 2026
 
 Base de comparaison : BactoMate 2.9.5, commit `2dfd181` du dépôt
 `santinlab-code/BactoMate`. Les changements décrits ici sont présents dans le
-code de l’archive de test ; ils n’ont pas encore été envoyés sur GitHub.
+code de la branche GitHub `test/bactomate-optimisations`.
 
 ## 1. File Conversion : fichiers ND2 avec plusieurs positions XY
 
@@ -169,6 +169,8 @@ pas leur qualité scientifique.
 ## Documentation complémentaire
 
 - `GUIDE_TEST_BACTOMATE_FR.md` : installation et parcours d’essai.
+- `GUIDE_TEST_BACTOMATE_EN.md` : version anglaise du guide d’essai.
+- `MODIFICATIONS_BACTOMATE_EN.md` : version anglaise de ce résumé.
 - `docs/ND2_MULTIPOINTS_FR.md`
 - `docs/SEGMENTATION_CONTOURS_FR.md`
 - `docs/FILTERING_CURATION_FR.md`
