@@ -57,6 +57,19 @@ def test_guess_phase_uses_wavelength_flag():
     assert guess_phase_channel_index(names, channel_wavelengths=wls) == 1
 
 
+def test_nikon_ph3_after_fluorescence_channels():
+    names = ["CT_16bits_GFP", "CT_16bits_mcherry", "CT_16 bits PH3 br "]
+    assert guess_phase_channel_index(names) == 2
+    assert default_fi_indices_for_channels(3, names) == {0, 1}
+    for ring in range(4):
+        assert channel_name_looks_like_phase(f"CT_16 bits PH{ring} br")
+
+
+def test_phase_ring_hint_does_not_match_fluorophore_or_ph_value():
+    for name in ["pHluorin", "GFP_PH7", "mCherry", "sapphire"]:
+        assert not channel_name_looks_like_phase(name)
+
+
 def test_default_fi_skips_phase_index():
     assert default_fi_indices_for_channels(2, ["DIA", "TRITC"]) == {1}
     assert default_fi_indices_for_channels(3, ["TRITC", "DIA", "GFP"]) == {0, 2}

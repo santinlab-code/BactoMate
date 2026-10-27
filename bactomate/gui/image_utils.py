@@ -236,12 +236,18 @@ def build_segmentation_overlay(
     image: np.ndarray,
     mask: np.ndarray,
     alpha: float = 0.5,
+    *,
+    outline_color: Tuple[int, int, int] | None = None,
 ) -> np.ndarray:
     """
-    Build RGB overlay: normalized grayscale image with colored mask on top.
+    Build RGB overlay: filled label colors, or opaque contours when outline_color is set.
     image: (H, W) float or uint; mask: (H, W) int, 0 = background.
+    alpha applies only to filled masks. Outlines preserve an existing uint8 LUT.
     Returns (H, W, 3) uint8. Vectorized (no Python loop over labels).
     """
+    if outline_color is not None:
+        from bactomate.modules.segmentation_display import segmentation_outline_rgb
+        return segmentation_outline_rgb(image, mask, outline_color)
     img = np.asarray(image, dtype=np.float64)
     if img.ndim == 3:
         img = img.mean(axis=-1)

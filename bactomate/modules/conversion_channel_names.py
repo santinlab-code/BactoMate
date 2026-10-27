@@ -50,6 +50,10 @@ def channel_name_looks_like_phase(name: str) -> bool:
     tokens = set(re.sub(r"[^a-z0-9]+", " ", raw).split())
     if tokens & _PHASE_NAME_HINTS:
         return True
+    # Nikon acquisition presets often identify the phase ring as PH1/PH2/PH3
+    # (e.g. "CT_16 bits PH3 br") rather than spelling out "phase".
+    if any(re.fullmatch(r"ph[0-3]", token) for token in tokens):
+        return True
     return any(t.startswith("phase") for t in tokens)
 
 

@@ -9,6 +9,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Any, Optional
+from bactomate.gui.preferences import get_segmentation_outline_color
 import numpy as np
 import tifffile
 _ANSI_ESCAPE = re.compile('\\x1B(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])')
@@ -838,7 +839,7 @@ class UNetSegmentTab(QWidget):
         nav_layout.addWidget(status_label)
         bottom_extra = QWidget()
         bottom_extra.setLayout(nav_layout)
-        nav = PreviewNavigationControls(spec=PreviewNavSpec(frame_count=max(1, num_frames), show_image=False, show_channel=False, show_z=False, show_cell_overlay_toggle=True, show_foci_overlay_toggle=True, cell_overlay_default=True, foci_overlay_available=False, foci_overlay_default=False, debounce_ms=400))
+        nav = PreviewNavigationControls(spec=PreviewNavSpec(frame_count=max(1, num_frames), show_image=False, show_channel=False, show_z=False, show_cell_overlay_toggle=True, show_cell_outline_color=True, show_foci_overlay_toggle=True, cell_overlay_default=True, foci_overlay_available=False, foci_overlay_default=False, debounce_ms=400))
         nav.set_state(PreviewNavState(frame_idx=0), emit=False)
         nav_host = QWidget()
         nav_host_layout = QHBoxLayout(nav_host)
@@ -867,7 +868,7 @@ class UNetSegmentTab(QWidget):
             u8 = apply_lut_to_uint8(disp_frame, state.vmin, state.vmax)
             (disp_scaled, mask_scaled) = scale_for_preview(u8, mask)
             if bool(state.extra.get('show_cells', True)):
-                overlay = build_segmentation_overlay(disp_scaled, mask_scaled, alpha=0.5)
+                overlay = build_segmentation_overlay(disp_scaled, mask_scaled, outline_color=get_segmentation_outline_color())
             else:
                 overlay = disp_scaled
             pm = to_qpixmap(overlay)
@@ -895,6 +896,7 @@ class UNetSegmentTab(QWidget):
         def _on_overlay_changed(key: str, checked: bool) -> None:
             d.set_extra(str(key), bool(checked))
             d.refresh()
+        nav.outline_color_changed.connect(d.refresh)
         nav.overlay_changed.connect(_on_overlay_changed)
 
         def on_resegment() -> None:

@@ -276,6 +276,43 @@ def _nd2_channel_output_filename(
     )
 
 
+def _nd2_position_tcyx(source, sizes, position, frame_start, frame_count,
+                       *, max_z_projection=False, z_slice=None):
+    """Load one XY position/range as TCYX using ND2's authoritative axis names."""
+    if tuple(source.shape) != tuple(sizes.values()):
+        raise ValueError(f"ND2 shape {source.shape} does not match axes {sizes}")
+    index = []
+    remaining = []
+    for axis, size in sizes.items():
+        if axis == 'P':
+            index.append(position)
+        elif axis == 'Z' and not max_z_projection:
+            z = int(z_slice or 1) - 1
+            if not 0 <= z < size:
+                print(f"  Warning: Z-slice {z + 1} out of range; using Z=1")
+                z = 0
+            index.append(z)
+        elif axis not in ('T', 'C', 'Z', 'Y', 'X'):
+            if size != 1:
+                raise ValueError(f"Unsupported ND2 axis {axis} with size {size}")
+            index.append(0)
+        else:
+            index.append(slice(frame_start, frame_start + frame_count) if axis == 'T' else slice(None))
+            remaining.append(axis)
+    selected = source[tuple(index)]
+    if 'Z' in remaining:
+        selected = selected.max(axis=remaining.index('Z'))
+        remaining.remove('Z')
+    data = np.asarray(selected)
+    for axis in 'TC':
+        if axis not in remaining:
+            data = np.expand_dims(data, axis=0)
+            remaining.insert(0, axis)
+    if set(remaining) != set('TCYX') or not data.size:
+        raise ValueError(f"Invalid ND2 image axes/shape: {remaining}, {data.shape}")
+    return data.transpose([remaining.index(axis) for axis in 'TCYX'])
+
+
 def convert_nd2_to_tif(
     input_path: Path,
     output_dir: Optional[Path] = None,
@@ -297,7 +334,7 @@ def convert_nd2_to_tif(
     crop_roi: Optional[Tuple[int, int, int, int]] = None,  # Optional native Y/X crop (x0, y0, x1, y1)
 ) -> None:
     """
-    Convert ND2 files to multi-page TIFF files.
+    Convert every XY position to TIFF, with _XY001 etc. for multiposition files.
     
     Args:
         input_path: Path to directory containing ND2 files or a single ND2 file
@@ -336,6 +373,7 @@ def convert_nd2_to_tif(
     print(f"Found {len(nd2_files)} ND2 file(s) to process")
     print(f"Output directory: {output_dir}")
     
+    failed_files = []
     # Process each ND2 file
     for nd2_file in nd2_files:
         print(f"\nProcessing: {nd2_file.name}")
@@ -461,379 +499,98 @@ def convert_nd2_to_tif(
                                     break
                         # Fallback: compute from frame_metadata() timestamps (relativeTimeMs)
                         if (extracted_time_per_frame is None or extracted_time_per_frame <= 0) and num_time >= 2 and hasattr(nd2_reader, 'frame_metadata'):
-                            try:
-                                fm0 = nd2_reader.frame_metadata(0)
-                                fm1 = nd2_reader.frame_metadata(1)
-                                if not isinstance(fm0, dict) and not isinstance(fm1, dict):
-                                    ch0 = getattr(fm0, 'channels', None)
-                                    ch1 = getattr(fm1, 'channels', None)
-                                    if ch0 and ch1 and len(ch0) > 0 and len(ch1) > 0:
-                                        t0 = getattr(ch0[0], 'time', None)
-                                        t1 = getattr(ch1[0], 'time', None)
-                                        rel0 = getattr(t0, 'relativeTimeMs', None) if t0 else None
-                                        rel1 = getattr(t1, 'relativeTimeMs', None) if t1 else None
-                                        if rel0 is not None and rel1 is not None:
-                                            delta_ms = float(rel1) - float(rel0)
-                                            if delta_ms > 0:
-                                                extracted_time_per_frame = delta_ms / 60000.0
-                                                print(f"  Extracted time per frame (from timestamps): {extracted_time_per_frame:.6f} min ({delta_ms/1000:.4f} s)")
-                            except Exception:
-                                pass
+                            from bactomate.modules.tiff_metadata import _nd2_frame_interval_from_frame_metadata
+                            extracted_time_per_frame = _nd2_frame_interval_from_frame_metadata(nd2_reader)
                     except Exception:
                         pass
                 
-                # Read all frames
-                print(f"  Reading frames...")
-                all_frames = nd2_reader.asarray()
-                
-                # Get the shape and determine dimension order
-                shape = all_frames.shape
-                ndim = len(shape)
-                
-                print(f"  Debug: Loaded array shape: {shape}, ndim: {ndim}, size: {all_frames.size}")
-                print(f"  Debug: Reported sizes - T={num_time}, C={num_channels}, Z={num_z}")
-                
-                # Handle Z dimension using the file's actual axis order (nd2 shape matches sizes key order)
-                # ND2 can return e.g. (T, Z, C, Y, X) — Z is not always axis 2, so we must not assume TCZYX.
-                if num_z > 1:
-                    axis_order = list(nd2_reader.sizes.keys())
-                    if "Z" in axis_order and len(axis_order) == ndim:
-                        z_axis = axis_order.index("Z")
-                        if max_z_projection:
-                            print(f"  Applying max intensity projection across Z={num_z} slices (axis 'Z' at index {z_axis})...")
-                            all_frames = np.max(all_frames, axis=z_axis)
-                            print(f"  ✓ Max Z-projection complete: {all_frames.shape}")
-                        else:
-                            if z_slice is not None:
-                                z_idx = int(z_slice) - 1
-                                if z_idx < 0 or z_idx >= num_z:
-                                    print(f"  Warning: Requested z_slice={z_slice} is out of range (1–{num_z}); using Z=1")
-                                    z_idx = 0
-                                print(f"  Using selected Z-slice (Z={z_idx + 1})")
-                                all_frames = np.take(all_frames, z_idx, axis=z_axis)
-                            else:
-                                print(f"  Using first Z-slice (Z=1)")
-                                all_frames = np.take(all_frames, 0, axis=z_axis)
-                        shape = all_frames.shape
-                        ndim = len(shape)
-                        num_z = 1
-                    else:
-                        print(f"  Warning: Z not in axis order {axis_order} or shape length mismatch; using legacy Z handling later")
-                
-                # Handle different dimension orders
-                # ND2 files can have: T, C, Y, X in various orders (Z already reduced above if present)
-                # We need to extract: T (first frames_to_extract), C (all or selected), Y, X
-                
-                # Determine which dimensions we have
-                # Common orders: TCYX, CTYX, TZYX, TCZYX, TYX, CYX (when T=1), etc.
-                if ndim < 2:
-                    print(f"  ✗ Error: Unexpected array shape: {shape}, skipping")
-                    continue
-                
-                if all_frames.size == 0:
-                    print(f"  ✗ Error: Loaded array is empty! Shape: {shape}")
-                    continue
-                
-                # Detect dimension order by comparing shape with reported sizes
-                # Handle special case: when T=1, ND2 might return (C, Y, X) instead of (T, C, Y, X)
-                # IMPORTANT: Check 3D case FIRST and handle (C, Y, X) before any slicing to avoid losing channels
-                if ndim == 3:
-                    # 3D array - could be (T, Y, X), (C, Y, X), or (Z, Y, X)
-                    # Priority: Check if it's (C, Y, X) when we have multiple channels
-                    if num_channels > 1 and shape[0] == num_channels:
-                        # It's (C, Y, X) - channels first (common when T=1)
-                        print(f"  Debug: Detected (C, Y, X) format - C={num_channels}, reshaping to (T, C, Y, X)")
-                        # Reshape to (T, C, Y, X): add time dimension
-                        all_frames = all_frames[np.newaxis, :, :, :]  # (1, C, Y, X) or (T, C, Y, X)
-                        shape = all_frames.shape
-                        ndim = len(shape)
-                        print(f"  Debug: Reshaped to (T, C, Y, X), new shape: {shape}")
-                    elif num_time > 1 and num_channels == 1 and shape[0] == num_time:
-                        # (T, Y, X) format - single channel, multiple timepoints
-                        print(f"  Debug: Detected (T, Y, X) format")
-                        # Add channel dimension: (T, 1, Y, X)
-                        all_frames = all_frames[:, np.newaxis, :, :]
-                        shape = all_frames.shape
-                        ndim = len(shape)
-                    elif num_time == 1 and num_channels == 1:
-                        # Single frame, single channel: (Y, X) - add both dimensions
-                        print(f"  Debug: Detected single frame/channel, adding dimensions")
-                        all_frames = all_frames[np.newaxis, np.newaxis, :, :]  # (1, 1, Y, X)
-                        shape = all_frames.shape
-                        ndim = len(shape)
-                    else:
-                        # Try to infer from shape[0]
-                        print(f"  Debug: 3D array - shape[0]={shape[0]}, num_time={num_time}, num_channels={num_channels}")
-                        if shape[0] == num_channels and num_channels > 1:
-                            # Treat as (C, Y, X)
-                            print(f"  Debug: Inferring (C, Y, X) from shape[0]==num_channels")
-                            all_frames = all_frames[np.newaxis, :, :, :]
-                            shape = all_frames.shape
-                            ndim = len(shape)
-                        elif shape[0] == num_time and num_time > 1:
-                            # Treat as (T, Y, X)
-                            print(f"  Debug: Inferring (T, Y, X) from shape[0]==num_time")
-                            all_frames = all_frames[:, np.newaxis, :, :]
-                            shape = all_frames.shape
-                            ndim = len(shape)
-                        else:
-                            print(f"  Warning: Cannot determine 3D format, shape[0]={shape[0]}, defaulting to (C, Y, X) if num_channels>1")
-                            # Last resort: if num_channels > 1, assume (C, Y, X)
-                            if num_channels > 1:
-                                all_frames = all_frames[np.newaxis, :, :, :]
-                                shape = all_frames.shape
-                                ndim = len(shape)
-                                print(f"  Debug: Defaulted to (C, Y, X) -> (T, C, Y, X), new shape: {shape}")
-                elif ndim == 4:
-                    # 4D array - could be (T, C, Y, X), (C, T, Y, X), (T, Z, Y, X), etc.
-                    if shape[0] == num_channels and shape[1] == num_time and num_channels > 1:
-                        # Likely CTYX order (channels first)
-                        print(f"  Debug: Detected CTYX dimension order (channels first)")
-                        # Transpose to TCYX: CTYX -> TCYX
-                        all_frames = all_frames.transpose(1, 0, 2, 3)
-                        shape = all_frames.shape
-                        print(f"  Debug: Transposed to TCYX, new shape: {shape}")
-                    elif shape[0] == num_time:
-                        # Likely TCYX order (time first) - this is what we want
-                        print(f"  Debug: Detected TCYX dimension order (time first)")
-                    else:
-                        print(f"  Debug: Dimension order unclear, shape[0]={shape[0]}, num_time={num_time}, num_channels={num_channels}")
-                
-                # Extract time frames: either [frame_idx_0 : frame_idx_0 + frames_to_extract] or [0 : frames_to_extract]
-                if single_frame is not None:
-                    all_frames = all_frames[frame_idx_0:frame_idx_0 + 1]
-                    frames_to_extract = 1
-                    print(f"  Debug: Sliced to single frame {single_frame}, shape: {all_frames.shape}")
-                elif shape[0] > frames_to_extract:
-                    all_frames = all_frames[:frames_to_extract]
-                    print(f"  Debug: Sliced to {frames_to_extract} frames, new shape: {all_frames.shape}, size: {all_frames.size}")
-                elif shape[0] < frames_to_extract:
-                    # If we have fewer frames than requested, use what we have
-                    frames_to_extract = shape[0]
-                    print(f"  Warning: Only {frames_to_extract} frames available, using all available frames")
-                else:
-                    print(f"  Debug: Using all {frames_to_extract} frames")
-                
-                shape = all_frames.shape
-                ndim = len(shape)
-                
-                # Verify we have data
-                if all_frames.size == 0:
-                    print(f"  ✗ Error: Extracted frames array is empty! Shape: {shape}")
-                    print(f"  ✗ This should not happen - check frame extraction logic")
-                    continue
-                
-                # Handle Z dimension first - take first Z slice or max projection if multiple exist
-                # This simplifies subsequent channel handling
-                if num_z > 1:
-                    if max_z_projection:
-                        # Apply max intensity projection across Z-slices
-                        if ndim == 5:  # TCZYX
-                            print(f"  Applying max intensity projection across Z={num_z} slices...")
-                            all_frames = np.max(all_frames, axis=2)  # Max projection: TCYX
-                            shape = all_frames.shape
-                            ndim = len(shape)
-                            print(f"  ✓ Max Z-projection complete: {shape}")
-                        elif ndim == 4 and num_z > 1 and num_channels == 1:  # TZYX (no channels)
-                            print(f"  Applying max intensity projection across Z={num_z} slices...")
-                            all_frames = np.max(all_frames, axis=1)  # Max projection: TYX
-                            shape = all_frames.shape
-                            ndim = len(shape)
-                            print(f"  ✓ Max Z-projection complete: {shape}")
-                    else:
-                        # Use selected Z slice (if provided) else first Z slice
-                        z_idx = 0
-                        if z_slice is not None:
-                            z_idx = int(z_slice) - 1
-                            if z_idx < 0 or z_idx >= num_z:
-                                print(f"  Warning: Requested z_slice={z_slice} is out of range (1–{num_z}); using Z=1")
-                                z_idx = 0
-                        if ndim == 5:  # TCZYX
-                            all_frames = all_frames[:, :, z_idx, :, :]  # Take Z slice: TCYX
-                            shape = all_frames.shape
-                            ndim = len(shape)
-                            print(f"  Using selected Z-slice (Z={z_idx + 1})" if z_idx != 0 else "  Using first Z-slice (Z=1)")
-                        elif ndim == 4 and num_z > 1 and num_channels == 1:  # TZYX (no channels)
-                            all_frames = all_frames[:, z_idx, :, :]  # Take Z slice: TYX
-                            shape = all_frames.shape
-                            ndim = len(shape)
-                            print(f"  Using selected Z-slice (Z={z_idx + 1})" if z_idx != 0 else "  Using first Z-slice (Z=1)")
-                elif ndim == 5 and num_z == 1:
-                    # 5D TCZYX with single Z – reduce to TCYX so downstream sees 4D
-                    all_frames = all_frames[:, :, 0, :, :]  # Take first Z slice: TCYX
-                    shape = all_frames.shape
-                    ndim = len(shape)
-                    print(f"  Debug: Reduced 5D (T,C,Z,Y,X) to 4D (T,C,Y,X), new shape: {shape}")
-
-                # Handle channel selection
-                if channel_index is not None:
-                    # Extract specific channel
-                    if channel_index >= num_channels:
-                        print(f"  Warning: Channel index {channel_index} >= {num_channels}, using channel 0")
-                        channel_index = 0
-                    
-                    if num_channels > 1:
-                        if ndim == 4:  # TCYX (after Z reduction if needed)
-                            all_frames = all_frames[:, channel_index, :, :]  # Extract channel: TYX
-                            print(f"  Extracted channel {channel_index + 1}: {channel_names[channel_index]}")
-                            num_channels = 1  # Now it's single channel
-                        else:
-                            print(f"  Warning: Could not extract channel, unexpected shape: {shape}")
-                
-                # Apply corrections if requested
-                if drift_correct:
-                    print(f"  Applying drift correction (frame-by-frame method)...")
-                    all_frames = drift_correct_stack(all_frames, method='frame_by_frame')
-                    print(f"  ✓ Drift correction complete")
-
-                # Crop after registration so the full image provides motion margin.
-                # Cropping first makes shifted pixels inside the crop fill with zeros.
-                if crop_roi is not None:
-                    if apply_yx_crop is None:
-                        raise RuntimeError("Crop requested but bactomate.modules.conversion_crop is unavailable")
-                    print(
-                        f"  Applying crop ROI: x={crop_roi[0]} y={crop_roi[1]} "
-                        f"w={crop_roi[2] - crop_roi[0]} h={crop_roi[3] - crop_roi[1]}"
+                # Slice by named axes before loading: positions must never become
+                # timepoints or channels, even when dimensions have equal lengths.
+                source = nd2_reader.to_dask()
+                num_positions = int(sizes.get('P', 1))
+                for position in range(num_positions):
+                    print(f"  Position XY {position + 1}/{num_positions}")
+                    all_frames = _nd2_position_tcyx(
+                        source, sizes, position, frame_idx_0, frames_to_extract,
+                        max_z_projection=max_z_projection, z_slice=z_slice,
                     )
-                    all_frames = apply_yx_crop(all_frames, crop_roi)
-                    shape = all_frames.shape
-                
-                if bleach_correct:
-                    ch_list = bleach_channel_indices
-                    if ch_list is not None:
-                        print(f"  Applying bleach correction ({bleach_method}) to channels: {ch_list}...")
-                    else:
-                        print(f"  Applying bleach correction ({bleach_method}) to all channels...")
-                    all_frames = bleach_correct_stack(
-                        all_frames, method=bleach_method, channel_indices=bleach_channel_indices
-                    )
-                    print(f"  ✓ Bleach correction complete")
-                
-                # Process channels
-                # Note: Standard TIFF cannot store multiple grayscale channels per page
-                # Options:
-                # 1. Save channels separately (default): Each file has T pages (timepoints)
-                # 2. Save as OME-TIFF: One file with T*C pages, but OME metadata groups them correctly
-                
-                # Debug: Print final shape before channel processing
-                print(f"  Debug: Final shape before channel processing: {all_frames.shape}, num_channels={num_channels}, separate_channels={separate_channels}")
-                
-                if num_channels > 1 and channel_index is None:
-                    if separate_channels:
-                        # Multi-channel: save each channel separately (default and recommended)
-                        # Check if we have TCYX format (4D) or need to reshape
-                        if len(all_frames.shape) == 4:  # TCYX
-                            # Verify the channel dimension matches
-                            if all_frames.shape[1] == num_channels:
-                                fi_set = set(fi_channel_indices or [])
-                                foci_set = set(foci_channel_indices or [])
-                                print(f"  Saving {num_channels} channels as separate files (each with {frames_to_extract} timepoints)")
-                                phase_used = False
-                                for ch_idx in range(num_channels):
-                                    channel_data = all_frames[:, ch_idx, :, :]  # Extract channel: TYX
-                                    channel_name = channel_names[ch_idx]
-                                    output_filename, phase_used = _nd2_channel_output_filename(
-                                        nd2_file.stem + frame_suffix,
-                                        channel_name,
-                                        ch_idx=ch_idx,
-                                        fi_set=fi_set,
-                                        foci_set=foci_set,
-                                        phase_used=phase_used,
-                                    )
-                                    output_path = output_dir / output_filename
-                                    print(f"    Saving channel {ch_idx + 1}/{num_channels}: {channel_name} (shape: {channel_data.shape}) -> {output_filename}")
-                                    acq_info = build_acquisition_info_string(acquisition_meta, channel_name=channel_name, source_name=nd2_file.name) if build_acquisition_info_string and acquisition_meta else None
-                                    _save_tiff_with_metadata(output_path, channel_data, frames_to_extract, pixel_size=extracted_pixel_size, time_per_frame_min=extracted_time_per_frame, acquisition_info=acq_info)
-                            else:
-                                print(f"  Warning: Shape mismatch - all_frames.shape[1]={all_frames.shape[1]} but num_channels={num_channels}")
-                                print(f"  Falling back to single file output")
-                                output_filename = nd2_file.stem + frame_suffix + '.tif'
-                                output_path = output_dir / output_filename
-                                acq_info = build_acquisition_info_string(acquisition_meta, source_name=nd2_file.name) if build_acquisition_info_string and acquisition_meta else None
-                                _save_tiff_with_metadata(output_path, all_frames, frames_to_extract, pixel_size=extracted_pixel_size, time_per_frame_min=extracted_time_per_frame, acquisition_info=acq_info)
-                        elif len(all_frames.shape) == 3 and num_channels == 1:
-                            # Single channel already extracted
-                            output_filename = nd2_file.stem + frame_suffix + '.tif'
-                            output_path = output_dir / output_filename
-                            acq_info = build_acquisition_info_string(acquisition_meta, source_name=nd2_file.name) if build_acquisition_info_string and acquisition_meta else None
-                            _save_tiff_with_metadata(output_path, all_frames, frames_to_extract, pixel_size=extracted_pixel_size, time_per_frame_min=extracted_time_per_frame, acquisition_info=acq_info)
-                        else:
-                            # Unexpected shape - try to handle it
-                            print(f"  Warning: Unexpected shape {all_frames.shape} for {num_channels} channels")
-                            print(f"  Attempting to save channels separately anyway...")
-                            # Try to reshape if possible
-                            if all_frames.shape[0] == num_channels and len(all_frames.shape) == 4:
-                                # Might be CTYX - transpose
-                                all_frames = all_frames.transpose(1, 0, 2, 3)
-                                print(f"  Transposed to TCYX, new shape: {all_frames.shape}")
-                            if len(all_frames.shape) == 4 and all_frames.shape[1] == num_channels:
-                                fi_set = set(fi_channel_indices or [])
-                                foci_set = set(foci_channel_indices or [])
-                                phase_used = False
-                                for ch_idx in range(num_channels):
-                                    channel_data = all_frames[:, ch_idx, :, :]
-                                    channel_name = channel_names[ch_idx]
-                                    output_filename, phase_used = _nd2_channel_output_filename(
-                                        nd2_file.stem + frame_suffix,
-                                        channel_name,
-                                        ch_idx=ch_idx,
-                                        fi_set=fi_set,
-                                        foci_set=foci_set,
-                                        phase_used=phase_used,
-                                    )
-                                    output_path = output_dir / output_filename
-                                    print(f"    Saving channel {ch_idx + 1}/{num_channels}: {channel_name} -> {output_filename}")
-                                    acq_info = build_acquisition_info_string(acquisition_meta, channel_name=channel_name, source_name=nd2_file.name) if build_acquisition_info_string and acquisition_meta else None
-                                    _save_tiff_with_metadata(output_path, channel_data, frames_to_extract, pixel_size=extracted_pixel_size, time_per_frame_min=extracted_time_per_frame, acquisition_info=acq_info)
-                            else:
-                                # Fallback: save as single file
-                                output_filename = nd2_file.stem + frame_suffix + '.tif'
-                                output_path = output_dir / output_filename
-                                acq_info = build_acquisition_info_string(acquisition_meta, source_name=nd2_file.name) if build_acquisition_info_string and acquisition_meta else None
-                                _save_tiff_with_metadata(output_path, all_frames, frames_to_extract, pixel_size=extracted_pixel_size, time_per_frame_min=extracted_time_per_frame, acquisition_info=acq_info)
-                    else:
-                        # Save as single OME-TIFF file with all channels
-                        output_filename = nd2_file.stem + frame_suffix + '.tif'
-                        output_path = output_dir / output_filename
-                        print(f"  Saving as single OME-TIFF file ({num_channels} channels, {frames_to_extract} timepoints)")
-                        acq_info = build_acquisition_info_string(acquisition_meta, source_name=nd2_file.name) if build_acquisition_info_string and acquisition_meta else None
+                    position_suffix = f"_XY{position + 1:03d}" if num_positions > 1 else ""
+                    output_stem = nd2_file.stem + position_suffix + frame_suffix
+                    selected_channels = list(range(num_channels))
+                    if channel_index is not None:
+                        selected = channel_index if 0 <= channel_index < num_channels else 0
+                        selected_channels = [selected]
+                        all_frames = all_frames[:, selected:selected + 1]
+
+                    # Corrections and crop apply independently to each XY position.
+                    if drift_correct:
+                        print("  Applying drift correction...")
+                        all_frames = drift_correct_stack(all_frames, method='frame_by_frame')
+                    if crop_roi is not None:
+                        if apply_yx_crop is None:
+                            raise RuntimeError("Crop support is unavailable")
+                        all_frames = apply_yx_crop(all_frames, crop_roi)
+                    if bleach_correct:
+                        correction_channels = bleach_channel_indices
+                        if correction_channels is not None:
+                            correction_channels = [
+                                i for i, ch in enumerate(selected_channels)
+                                if ch in correction_channels
+                            ]
+                        all_frames = bleach_correct_stack(
+                            all_frames, method=bleach_method,
+                            channel_indices=correction_channels,
+                        )
+
+                    def acquisition_info(channel_name=None):
+                        info = (build_acquisition_info_string(
+                            acquisition_meta, channel_name=channel_name, source_name=nd2_file.name,
+                        ) if build_acquisition_info_string and acquisition_meta else "")
+                        if num_positions > 1:
+                            info = (info or "") + f"\nXY position: {position + 1} of {num_positions}"
+                        return info or None
+
+                    if len(selected_channels) > 1 and not separate_channels:
                         _save_multichannel_tiff_with_metadata(
-                            output_path,
-                            all_frames,
-                            frames_to_extract,
-                            num_channels,
-                            channel_names,
+                            output_dir / (output_stem + '.tif'), all_frames,
+                            frames_to_extract, num_channels, channel_names,
                             pixel_size=extracted_pixel_size,
                             time_per_frame_min=extracted_time_per_frame,
-                            acquisition_info=acq_info,
+                            acquisition_info=acquisition_info(),
                         )
-                else:
-                    # Single channel (either only one channel, or specific channel selected)
-                    if channel_index is not None:
-                        channel_suffix = f"_{channel_names[channel_index]}"
                     else:
-                        channel_suffix = ""
-                    
-                    output_filename = nd2_file.stem + frame_suffix + channel_suffix + '.tif'
-                    output_path = output_dir / output_filename
-                    ch_name = channel_names[channel_index] if channel_index is not None and channel_index < len(channel_names) else None
-                    acq_info = build_acquisition_info_string(acquisition_meta, channel_name=ch_name, source_name=nd2_file.name) if build_acquisition_info_string and acquisition_meta else None
-
-                    # Normalize to TYX: squeeze singleton C and Z so _save_tiff gets (T, Y, X)
-                    if len(all_frames.shape) == 5:  # TCZYX
-                        all_frames = all_frames[:, 0, 0, :, :]  # TYX (single C, single Z)
-                    elif len(all_frames.shape) == 4:  # TCYX
-                        ch_idx = 0 if channel_index is None else channel_index
-                        all_frames = all_frames[:, ch_idx, :, :]  # TYX
-                    
-                    _save_tiff_with_metadata(output_path, all_frames, frames_to_extract, pixel_size=extracted_pixel_size, time_per_frame_min=extracted_time_per_frame, acquisition_info=acq_info)
+                        phase_used = False
+                        for local_channel, ch_idx in enumerate(selected_channels):
+                            channel_name = channel_names[ch_idx]
+                            if channel_index is not None:
+                                from bactomate.modules.conversion_channel_names import sanitize_channel_name_for_filename
+                                filename = output_stem + '_' + sanitize_channel_name_for_filename(channel_name) + '.tif'
+                            elif num_channels > 1:
+                                filename, phase_used = _nd2_channel_output_filename(
+                                    output_stem, channel_name, ch_idx=ch_idx,
+                                    fi_set=set(fi_channel_indices or []),
+                                    foci_set=set(foci_channel_indices or []),
+                                    phase_used=phase_used,
+                                )
+                            else:
+                                filename = output_stem + '.tif'
+                            print(f"    Saving channel {ch_idx + 1}: {channel_name} -> {filename}")
+                            _save_tiff_with_metadata(
+                                output_dir / filename, all_frames[:, local_channel],
+                                frames_to_extract, pixel_size=extracted_pixel_size,
+                                time_per_frame_min=extracted_time_per_frame,
+                                acquisition_info=acquisition_info(channel_name),
+                            )
             
         except Exception as e:
             print(f"  ✗ Error processing {nd2_file.name}: {e}")
             import traceback
             traceback.print_exc()
+            failed_files.append(nd2_file.name)
             continue
     
+    if failed_files:
+        raise RuntimeError("ND2 conversion failed for: " + ", ".join(failed_files))
     print(f"\n✓ Conversion complete!")
 
 

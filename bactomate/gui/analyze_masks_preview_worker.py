@@ -504,6 +504,11 @@ class AnalyzeMasksPreviewWorker(QObject):
                         except Exception:
                             pass
                 all_labels = set(np.unique(mask_work)) - {0}
+                for label, keep in params.get('_manual_cells', {}).items():
+                    if keep and int(label) in all_labels:
+                        accepted_labels.add(int(label))
+                    elif not keep:
+                        accepted_labels.discard(int(label))
                 rejected_labels = all_labels - accepted_labels
                 accepted_list = list(accepted_labels)
                 rejected_list = list(rejected_labels)

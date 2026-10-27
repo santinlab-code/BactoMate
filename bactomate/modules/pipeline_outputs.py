@@ -95,9 +95,9 @@ def regenerate_segmentation_overlay(
     log: LogFn = None,
 ) -> Path | None:
     """
-    Regenerate ``overlays/{stem}_overlay.tif`` from mask + phase with Cell ID labels.
+    Regenerate ``overlays/{stem}_overlay.tif`` from mask + phase with cell outlines.
 
-    Uses the mask pixel values as Cell ID labels (persistent IDs when assigned).
+    Uses label boundaries, including boundaries between touching cells.
     """
     mask_path = Path(mask_path)
     if not mask_path.is_file():
@@ -146,7 +146,7 @@ def regenerate_segmentation_overlay(
             except Exception:
                 pass
         if log is not None:
-            log(f"Segmentation overlay (Cell IDs): {mask_path.name} → overlays/{overlay_path.name}\n")
+            log(f"Segmentation outlines: {mask_path.name} → overlays/{overlay_path.name}\n")
         return overlay_path
     except Exception as exc:
         _logger.warning("Overlay regeneration failed for %s: %s", mask_path, exc)

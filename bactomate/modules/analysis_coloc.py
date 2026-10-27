@@ -43,8 +43,8 @@ SPARSE_COMPONENT_THRESHOLD = 200_000
 class ColocSettings:
     """Colocalization parameters (distances in pixels)."""
 
-    coloc_max_distance: Optional[float] = 8.0
-    coloc_threshold: Optional[float] = 4.0
+    coloc_max_distance: Optional[float] = 3.0
+    coloc_threshold: Optional[float] = 2.0
     coloc_filter_boundaries: bool = True
     coloc_edge_tolerance: float = 0.0
     coloc_save_unmatched: bool = False

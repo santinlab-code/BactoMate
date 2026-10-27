@@ -715,244 +715,40 @@ def concatenate_masks(masks, output_path, source_image_path=None):
     print("✓ Masks saved")
 
 
-def overlay_masks_on_images(images, masks, output_path, alpha=0.5, colormap='gist_ncar'):
-    """
-    Create overlay of masks on original images.
-    
-    Parameters:
-    -----------
-    images : array
-        Original image sequence (T, C, Y, X) or (T, Y, X)
-    masks : list
-        List of mask arrays
-    output_path : str
-        Path to save overlay
-    alpha : float
-        Transparency of overlay (0-1)
-    colormap : str
-        Colormap name for masks
-    """
-    try:
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import ListedColormap
-    except ImportError:
-        print("WARNING: matplotlib not available, skipping overlay creation")
-        return
-    
-    print(f"\nCreating overlay visualization...")
-    
-    # Normalize images to 0-255
-    # Handle different input dimensions
-    if images.ndim == 2:
-        # Single 2D image (Y, X) - add time dimension
-        images = images[np.newaxis, ...]  # (1, Y, X)
-    elif images.ndim == 3:
-        # Could be (T, Y, X) or (Y, X, C) or (C, Y, X)
-        if images.shape[-1] < 10:  # Likely channels last (Y, X, C)
-            images = images.transpose(2, 0, 1)[np.newaxis, ...]  # (1, C, Y, X)
-            if images.shape[1] == 1:
-                images = images[:, 0, :, :]  # (1, Y, X)
-            else:
-                images = images[:, 0, :, :]  # Take first channel
-        elif images.shape[0] < 10:  # Likely channels first (C, Y, X)
-            images = images.transpose(1, 2, 0)[np.newaxis, ...]  # (1, Y, X, C)
-            if images.shape[-1] == 1:
-                images = images[:, :, :, 0]  # (1, Y, X)
-            else:
-                images = images[:, :, :, 0]  # Take first channel
-        # Otherwise assume (T, Y, X) - keep as is
-    elif images.ndim == 4:
-        # (T, C, Y, X) - take first channel or convert to grayscale
-        if images.shape[1] == 1:
-            images = images[:, 0, :, :]  # (T, Y, X)
-        else:
-            # Convert to grayscale
-            images = images[:, 0, :, :]  # Take first channel
-    else:
-        raise ValueError(f"Unsupported image dimension: {images.ndim}")
-    
-    # Ensure images are contiguous and have correct shape (T, Y, X)
-    images = np.ascontiguousarray(images)
-    
-    # Final check: ensure we have (T, Y, X) shape
-    if images.ndim != 3:
-        raise ValueError(f"After processing, images should be 3D (T, Y, X), got shape: {images.shape}")
-    
-    # Normalize images
-    images_norm = []
-    for img in images:
-        # Ensure each image is contiguous
-        img = np.ascontiguousarray(img)
-        img_min, img_max = img.min(), img.max()
-        if img_max > img_min:
-            img_norm = ((img - img_min) / (img_max - img_min) * 255).astype(np.uint8)
-        else:
-            img_norm = img.astype(np.uint8)
-        # Ensure normalized image is contiguous
-        img_norm = np.ascontiguousarray(img_norm)
-        images_norm.append(img_norm)
-    images_norm = np.stack(images_norm)
-    
-    # Create colored masks
-    masks_array = np.stack(masks, axis=0)
-    # Ensure masks are contiguous
-    masks_array = np.ascontiguousarray(masks_array)
-    num_cells = int(masks_array.max())
-    
-    # Generate colormap
-    cmap = plt.get_cmap(colormap)
-    # Ensure we have enough colors (add buffer to avoid index errors)
-    num_colors = max(num_cells + 1, 1000)
-    colors = cmap(np.linspace(0, 1, num_colors))[:num_cells + 1]
-    colors[0] = [0, 0, 0, 0]  # Background transparent
-    # Ensure colors array is contiguous and properly formatted
-    colors = np.ascontiguousarray(colors)
-    
-    # Create overlay with CellID labels
-    overlays = []
-    # Ensure we don't go out of bounds
-    num_frames = min(len(images_norm), len(masks_array))
-    
-    # Try to import PIL for text rendering
-    try:
-        from PIL import Image
-        from skimage.measure import regionprops
-        PIL_AVAILABLE = True
-    except ImportError:
-        PIL_AVAILABLE = False
-        print("WARNING: Pillow missing (required dependency); overlay labels disabled. Run: pip install -r requirements.txt")
-    
-    for i in tqdm(range(num_frames), desc="Creating overlays", **tqdm_kwargs):
-        img = images_norm[i]
-        mask = masks_array[i]
-        
-        # Ensure img is 2D (Y, X)
-        if img.ndim != 2:
-            print(f"Warning: Image at frame {i} has unexpected shape {img.shape}, expected 2D (Y, X)")
-            if img.ndim == 1:
-                # Try to reshape if it's 1D (shouldn't happen, but handle it)
-                print(f"Error: Image is 1D with shape {img.shape}, cannot create overlay")
-                continue
-            elif img.ndim == 3:
-                # Take first channel if it's (Y, X, C)
-                img = img[:, :, 0]
-            else:
-                print(f"Error: Cannot handle image with {img.ndim} dimensions")
-                continue
-        
-        # Ensure mask is 2D (Y, X)
-        if mask.ndim != 2:
-            print(f"Warning: Mask at frame {i} has unexpected shape {mask.shape}, expected 2D (Y, X)")
-            if mask.ndim == 1:
-                print(f"Error: Mask is 1D with shape {mask.shape}, cannot create overlay")
-                continue
-            elif mask.ndim == 3:
-                # Take first channel if it's (Y, X, C)
-                mask = mask[:, :, 0]
-            else:
-                print(f"Error: Cannot handle mask with {mask.ndim} dimensions")
-                continue
-        
-        # Verify shapes match
-        if img.shape != mask.shape:
-            print(f"Warning: Image shape {img.shape} doesn't match mask shape {mask.shape} at frame {i}")
-            # Try to fix by resizing mask to match image
-            from skimage.transform import resize
-            mask = resize(mask, img.shape, order=0, preserve_range=True, anti_aliasing=False).astype(mask.dtype)
-            print(f"Resized mask to {mask.shape}")
-        
-        # Ensure mask values are within valid range for colormap indexing
-        mask_clipped = np.clip(mask, 0, num_cells).astype(np.int32)
-        # Ensure mask is contiguous
-        mask_clipped = np.ascontiguousarray(mask_clipped)
-        
-        # Convert grayscale to RGB - ensure img is 2D first
-        if img.ndim != 2:
-            print(f"Error: img must be 2D for RGB conversion, got shape {img.shape}")
-            continue
-        img_rgb = np.stack([img, img, img], axis=-1)
-        img_rgb = np.ascontiguousarray(img_rgb, dtype=np.uint8)
-        
-        # Colorize mask - use a more robust indexing method
-        # Flatten mask, index colors, then reshape
-        mask_flat = mask_clipped.flatten()
-        colors_flat = colors[mask_flat][:, :3] * 255
-        mask_rgb = colors_flat.reshape(mask_clipped.shape[0], mask_clipped.shape[1], 3)
-        mask_rgb = np.ascontiguousarray(mask_rgb.astype(np.uint8))
-        
-        # Verify img_rgb and mask_rgb have matching shapes
-        if img_rgb.shape != mask_rgb.shape:
-            print(f"Error: img_rgb shape {img_rgb.shape} doesn't match mask_rgb shape {mask_rgb.shape} at frame {i}")
-            # Force matching shapes
-            min_h = min(img_rgb.shape[0], mask_rgb.shape[0])
-            min_w = min(img_rgb.shape[1], mask_rgb.shape[1])
-            img_rgb = img_rgb[:min_h, :min_w, :]
-            mask_rgb = mask_rgb[:min_h, :min_w, :]
-        
-        # Blend
-        overlay = (img_rgb * (1 - alpha) + mask_rgb * alpha).astype(np.uint8)
-        
-        # Add CellID labels if PIL is available
-        if PIL_AVAILABLE and mask.max() > 0:
-            try:
-                # Ensure overlay is contiguous and in correct format for PIL
-                # PIL expects uint8 RGB images
-                overlay_contiguous = np.ascontiguousarray(overlay, dtype=np.uint8)
-                
-                # Convert to PIL Image - explicitly specify mode to avoid issues
-                pil_img = Image.fromarray(overlay_contiguous, mode='RGB')
-                
-                # Get cell centroids and labels
-                regions = regionprops(mask)
-                labels_to_draw = []
-                for region in regions:
-                    if region.label == 0:
-                        continue
-                    
-                    # Get centroid
-                    centroid_y, centroid_x = region.centroid
-                    x, y = int(centroid_x), int(centroid_y)
-                    
-                    cell_id_str = str(region.label)
-                    text_x, text_y = x + 2, y - 5
-                    labels_to_draw.append((cell_id_str, text_x, text_y))
+def overlay_masks_on_images(images, masks, output_path, *, outline_color=None, show_cell_ids=False):
+    """Save RGB cell outlines for TYX/TCYX inputs, preserving label masks.
 
-                pil_img = draw_hq_labels(
-                    pil_img,
-                    labels_to_draw,
-                    font_size=12,
-                    scale=2,
-                    stroke_width=2,
-                )
-                
-                # Convert back to numpy array - ensure it's contiguous and correct shape
-                overlay = np.ascontiguousarray(np.array(pil_img), dtype=np.uint8)
-                
-                # Verify shape matches original
-                if overlay.shape != img_rgb.shape:
-                    print(f"Warning: Overlay shape mismatch after PIL conversion: {overlay.shape} vs {img_rgb.shape}")
-                    # Try to fix by ensuring correct shape
-                    if overlay.shape[0] == img_rgb.shape[1] and overlay.shape[1] == img_rgb.shape[0]:
-                        # PIL might have transposed - transpose back
-                        overlay = overlay.transpose(1, 0, 2)
-            except Exception as e:
-                # If text rendering fails, continue without labels
-                import traceback
-                print(f"Warning: Could not add labels to overlay: {e}")
-                traceback.print_exc()
-        
-        # Ensure overlay is contiguous before appending
-        overlay = np.ascontiguousarray(overlay, dtype=np.uint8)
+    Small time series are still TYX: their first axis must not be guessed to be
+    channels just because there are fewer than ten frames.
+    """
+    from bactomate.modules.segmentation_display import segmentation_outline_rgb
+    if outline_color is None:
+        from bactomate.gui.preferences import get_segmentation_outline_color
+        outline_color = get_segmentation_outline_color()
+    images = np.asarray(images)
+    masks = np.asarray(masks)
+    if images.ndim == 2:
+        images = images[np.newaxis]
+    elif images.ndim == 4:
+        images = images[:, 0]  # TCYX; cell segmentation uses the input channel.
+    if masks.ndim == 2:
+        masks = masks[np.newaxis]
+    if images.ndim != 3 or masks.ndim != 3 or images.shape != masks.shape:
+        raise ValueError(f"Overlay images and masks must match in TYX: {images.shape}, {masks.shape}")
+    overlays = []
+    for image, mask in zip(images, masks):
+        overlay = segmentation_outline_rgb(image, mask, outline_color)
+        if show_cell_ids:
+            from PIL import Image
+            from skimage.measure import regionprops
+            labels = [(str(r.label), int(r.centroid[1]) + 2, int(r.centroid[0]) - 5)
+                      for r in regionprops(mask)]
+            overlay = np.asarray(draw_hq_labels(Image.fromarray(overlay), labels,
+                                                font_size=12, scale=2, stroke_width=2))
         overlays.append(overlay)
-    
-    overlay_array = np.stack(overlays, axis=0)
-    # Ensure final array is contiguous
-    overlay_array = np.ascontiguousarray(overlay_array, dtype=np.uint8)
-    
-    print(f"Saving overlay to: {output_path}")
-    # Save with compression to avoid any strip-related issues
-    tifffile.imwrite(output_path, overlay_array, compression='lzw', photometric='rgb')
-    print("✓ Overlay saved")
+    tifffile.imwrite(output_path, np.stack(overlays), compression='lzw',
+                     photometric='rgb', metadata={'axes': 'TYXS'})
+    print(f"✓ Cell outline overlay saved: {output_path}")
 
 
 # Cellpose-SAM (official cellpose + cpsam): inference-only path when --model cellpose_sam

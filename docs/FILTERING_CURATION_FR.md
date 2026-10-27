@@ -1,0 +1,54 @@
+# Sélection manuelle et suivi du filtrage
+
+Dans l’aperçu de **Filtering**, ouvrir **Cell table / Manual selection / History**.
+La sélection manuelle porte sur des objets déjà détectés : elle ne dessine pas
+de nouvelles cellules ou de nouveaux foci et ne modifie pas les masques sources.
+
+## Cellules
+
+La table indique l’identifiant de chaque cellule, si elle est retenue, sa surface
+en pixels carrés et son centre. Choisir une ou plusieurs lignes (Ctrl/Cmd pour une
+sélection multiple). Un double-clic centre l’image sur la cellule. Un clic sur
+une cellule dans l’image sélectionne sa ligne.
+
+- **Keep selected objects** : retenir les objets même si les filtres les rejettent.
+- **Exclude selected objects** : exclure les objets même si les filtres les acceptent.
+- **Use filters for selected objects** : retirer le choix manuel pour ces objets.
+
+Les règles sont recalculées après chaque action, avec les choix manuels appliqués
+en dernier. Les boutons sont désactivés pendant le calcul.
+
+## Foci
+
+Afficher la **Foci table** existante, puis choisir **Foci — nom du canal** dans
+le nouveau panneau. Sélectionner les lignes et utiliser les mêmes boutons.
+Un clic près d’un focus dans l’image sélectionne le focus le plus proche dans
+ce canal (distance maximale de dix pixels natifs). Les choix GFP et mCherry
+sont indépendants. La table et l’export CSV prennent en compte la sélection manuelle.
+
+## Historique
+
+Le menu présente les effectifs avant et après chaque application et chaque
+action manuelle, avec le total segmenté et la variation. Les valeurs des filtres
+de l’étape choisie sont affichées sous le menu. Les effectifs de foci sont
+séparés par canal. Les chiffres concernent **l’instant affiché**, pas la somme du
+film entier. L’historique ne sert pas à restaurer un ancien état.
+
+Les filtres sont réappliqués aux objets sources ; une réintégration reste donc
+possible. Les choix sont propres à chaque fichier, instant et canal. Ils sont
+enregistrés dans un fichier `.curation.json` à côté du masque source et repris
+lors de l’export des masques et des CSV filtrés. Conserver ce fichier avec les
+masques pour retrouver la curation et l’historique après fermeture.
+
+Une empreinte du masque protège contre la réutilisation des choix sur une nouvelle
+segmentation. Si les masques sont remplacés, l’ancien fichier de curation doit
+être archivé avant de recommencer.
+
+## Validation
+
+Les tests couvrent garder/exclure/retour aux filtres, plusieurs instants et
+canaux, sauvegarde et réouverture, historique, sélection multiple et exports
+TIFF et CSV. L’essai sur le ND2 fourni utilise les 144 cellules segmentées de
+XY001, avec un filtre de surface et des corrections manuelles, vérifiées dans
+le TIFF exporté. Les tests de foci utilisent des données contrôlées ; la
+détection réelle GFP/mCherry sera évaluée à l’étape dédiée.

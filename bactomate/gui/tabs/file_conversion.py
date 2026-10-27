@@ -412,6 +412,7 @@ class ND2ConversionTab(QWidget):
         separate_row = QHBoxLayout()
         self.separate_channels = QCheckBox('Save channels separately')
         self.separate_channels.setChecked(True)
+        self.separate_channels.setToolTip('ND2: all XY positions are exported automatically. Each position gets its own TIFFs, with _XY001, _XY002, etc. in the filenames.')
         separate_row.addWidget(self.separate_channels, 0)
         separate_row.addStretch(1)
         _add_correction_row(separate_row)
@@ -1431,7 +1432,7 @@ class ND2ConversionTab(QWidget):
             pixel_size = meta.get('pixel_size_um')
             time_per_frame_min = meta.get('time_per_frame_min')
             metadata_str = format_metadata_for_display(meta)
-            self._update_file_info_ui(file_path, 'nd2', num_time, num_channels, num_z, channel_names, pixel_size, metadata_str, time_per_frame_min=time_per_frame_min)
+            self._update_file_info_ui(file_path, 'nd2', num_time, num_channels, num_z, channel_names, pixel_size, metadata_str, time_per_frame_min=time_per_frame_min, num_positions=meta.get('position_count', 1))
             return
         except ImportError:
             show_message_dialog(self, 'ND2 Library Missing', "The 'nd2' library is not installed.\n\nInstall it with: pip install nd2", kind='warning')
@@ -1595,9 +1596,10 @@ class ND2ConversionTab(QWidget):
             show_message_dialog(self, 'Error Loading TIFF', f'Could not load TIFF file:\n{str(e)}', kind='error')
             self.parent_window.log_output(f'Error: {str(e)}\n')
 
-    def _update_file_info_ui(self, file_path, file_type, num_time, num_channels, num_z, channel_names, pixel_size, metadata_str=None, time_per_frame_min=None, channel_names_source: str=''):
+    def _update_file_info_ui(self, file_path, file_type, num_time, num_channels, num_z, channel_names, pixel_size, metadata_str=None, time_per_frame_min=None, channel_names_source: str='', num_positions: int=1):
         """Update UI with file information (common for all file types)."""
         self.file_info = {'path': file_path, 'file_type': file_type, 'num_time': num_time, 'num_channels': num_channels, 'num_z': num_z, 'channel_names': channel_names, 'pixel_size': pixel_size, 'time_per_frame_min': time_per_frame_min}
+        self.file_info['num_positions'] = num_positions
         line_txt = (self.file_path.text() or '').strip()
         try:
             lp = Path(line_txt)
@@ -1616,6 +1618,10 @@ class ND2ConversionTab(QWidget):
         self._rebuild_channel_options(channel_names, num_channels, names_source=channel_names_source)
         metadata_content = f'File: {Path(file_path).name} ({file_type.upper()})\n'
         metadata_content += f'Dimensions: T={num_time} frames, C={num_channels} channels, Z={num_z} slices\n'
+        if file_type == 'nd2':
+            metadata_content += f'XY positions: {num_positions} — all positions will be exported.\n'
+            if num_positions > 1:
+                metadata_content += 'Preview shows XY position 1. Export names include _XY001, _XY002, etc.\n'
         if num_channels > 1:
             metadata_content += f"Channels: {', '.join(channel_names)}\n"
             if channel_names_source:
@@ -2727,7 +2733,11 @@ class ND2ConversionTab(QWidget):
                     num_time = int(shp[axis_keys.index('T')]) if 'T' in axis_keys else 1
                     num_channels = int(shp[axis_keys.index('C')]) if 'C' in axis_keys else 1
                     num_z = int(shp[axis_keys.index('Z')]) if 'Z' in axis_keys else 1
-                all_frames = np.ascontiguousarray(nd2_reader.asarray()).copy()
+                all_frames = np.asarray(nd2_reader.asarray(position=0))
+                if axis_keys is not None and 'P' in axis_keys:
+                    all_frames = np.take(all_frames, 0, axis=axis_keys.index('P'))
+                    axis_keys = tuple(axis for axis in axis_keys if axis != 'P')
+                all_frames = np.ascontiguousarray(all_frames).copy()
             self._show_file_conversion_preview(all_frames=all_frames, num_time=num_time, num_channels=num_channels, num_z=num_z, file_path=file_path, nd2_axis_keys=axis_keys)
         except ImportError as e:
             error_msg = str(e)

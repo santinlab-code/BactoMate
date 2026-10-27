@@ -471,6 +471,7 @@ def read_metadata_from_path(image_path: Optional[Path]) -> dict[str, Any]:
         "channel_filter_snippet": [],
         "bits_per_component": None,
         "dia_percent": None,  # DIA/phase condenser % when found in description (e.g. 50)
+        "position_count": 1,
         "nd2_axis_order": None,  # list of axis names matching ndarray shape (from nd2.ND2File.sizes)
     }
     if not image_path or not image_path.is_file():
@@ -685,6 +686,7 @@ def _read_nd2_metadata_into(path: Path, out: dict[str, Any]) -> None:
                 out["frame_count"] = sizes.get("T", 1)
                 out["channel_count"] = sizes.get("C", 1)
                 out["z_count"] = sizes.get("Z", 1)
+                out["position_count"] = sizes.get("P", 1)
             meta = getattr(r, "metadata", None)
             if meta is None:
                 ps, tp = read_calibration_from_path(path)
@@ -829,20 +831,31 @@ def _nd2_rel_time_ms(frame_meta: Any) -> Optional[float]:
 
 def _nd2_frame_interval_from_frame_metadata(nd2_reader: Any) -> Optional[float]:
     """Compute time per frame (min) from frame_metadata timestamps. Supports object and dict return types.
-    Tries frame 0 vs 1 first; then frame 0 vs last if needed."""
+    Compare timepoints at the same XY position and Z plane."""
     try:
         sizes = getattr(nd2_reader, "sizes", None)
         n = sizes.get("T", 1) if sizes else 1
         if n < 2:
             return None
-        r0 = _nd2_rel_time_ms(nd2_reader.frame_metadata(0))
-        r1 = _nd2_rel_time_ms(nd2_reader.frame_metadata(1))
+        # Frame indices enumerate acquisition loops, not just timepoints.
+        # Adjacent frames can belong to different XY positions or Z planes.
+        loops = getattr(nd2_reader, "loop_indices", None)
+        def time_index(t):
+            if loops is not None:
+                return next(i for i, coords in enumerate(loops)
+                            if coords.get("T", 0) == t
+                            and all(v == 0 for k, v in coords.items() if k != "T"))
+            if sizes and (sizes.get("P", 1) > 1 or sizes.get("Z", 1) > 1):
+                raise ValueError("Acquisition loop indices required for multiposition timing")
+            return t
+        r0 = _nd2_rel_time_ms(nd2_reader.frame_metadata(time_index(0)))
+        r1 = _nd2_rel_time_ms(nd2_reader.frame_metadata(time_index(1)))
         if r0 is not None and r1 is not None:
             delta_ms = float(r1) - float(r0)
             if delta_ms > 0:
                 return delta_ms / 60000.0
         # Fallback: first and last frame
-        r_last = _nd2_rel_time_ms(nd2_reader.frame_metadata(int(n) - 1))
+        r_last = _nd2_rel_time_ms(nd2_reader.frame_metadata(time_index(int(n) - 1)))
         if r0 is not None and r_last is not None and n > 1:
             delta_ms = float(r_last) - float(r0)
             if delta_ms > 0:

@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
+from bactomate.gui.preferences import get_segmentation_outline_color
 import numpy as np
 import tifffile
 
@@ -237,12 +238,11 @@ def render_segmentation_tile_rgb(
     disp = _to_display_u8(plane)
     empty = np.zeros_like(mask, dtype=mask.dtype)
     disp_s, mask_s = scale_for_preview(disp, mask if mask is not None else empty, max_size=max_display)
-    has_foci = bool(foci_layers) and any(bool(layer[0]) for layer in foci_layers)
     if mask is None:
         overlay = build_segmentation_overlay(disp_s, np.zeros(disp_s.shape[:2], dtype=np.uint16), alpha=0.0)
     else:
-        # Softer cell tint when foci QC markers are present so dots stay readable.
-        overlay = build_segmentation_overlay(disp_s, mask_s, alpha=0.32 if has_foci else 0.5)
+        # Cell interiors stay visible under the foci markers.
+        overlay = build_segmentation_overlay(disp_s, mask_s, outline_color=get_segmentation_outline_color())
     if foci_layers:
         phase_shape = (int(plane.shape[0]), int(plane.shape[1]))
         for layer in foci_layers:

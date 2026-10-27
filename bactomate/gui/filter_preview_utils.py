@@ -259,8 +259,7 @@ def ensure_foci_channels_map(settings: dict[str, Any]) -> dict[str, dict[str, An
 def seed_foci_channel_settings(settings: dict[str, Any], foci_sources: list[Path]) -> None:
     """Create per-channel entries for each foci stack (copy legacy defaults for new tags)."""
     channels = ensure_foci_channels_map(settings)
-    legacy = legacy_foci_settings_slice(settings)
-    template = {**default_foci_channel_settings(), **legacy}
+    template = channels.get('_default') or default_foci_channel_settings()
     for fp in foci_sources:
         key = foci_channel_key_for_path(fp)
         if key not in channels:

@@ -4,8 +4,11 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QColorDialog,
+    QPushButton,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -68,6 +71,7 @@ class PreviewNavSpec:
     show_frame_of_total: bool = True
     show_frame_slider: bool = False
     show_cell_overlay_toggle: bool = False
+    show_cell_outline_color: bool = False
     show_foci_overlay_toggle: bool = False
     cell_overlay_default: bool = True
     foci_overlay_available: bool = False
@@ -101,6 +105,7 @@ class PreviewNavigationControls(QWidget):
     """
 
     nav_changed = pyqtSignal(object, str)  # (PreviewNavState, reason)
+    outline_color_changed = pyqtSignal()
     overlay_changed = pyqtSignal(str, bool)  # ("show_cells"|"show_foci", checked)
     foci_channel_overlay_changed = pyqtSignal(int, bool)  # (channel_index, checked)
 
@@ -175,6 +180,9 @@ class PreviewNavigationControls(QWidget):
         self._frame_of_label = QLabel("")
         self._show_cells_cb = QCheckBox("Show cell overlay")
         self._show_cells_cb.setToolTip("Show or hide the segmentation/filter mask overlay.")
+        self._outline_color_btn = QPushButton("Outline color…")
+        self._outline_color_btn.setToolTip("Choose the cell outline color without re-running segmentation.")
+        self._outline_color_btn.clicked.connect(self._choose_outline_color)
         self._show_foci_cb = QCheckBox("Show foci overlay")
         self._show_foci_cb.setToolTip("Show or hide foci markers without re-running detection.")
         self._foci_channel_cbs: list[QCheckBox] = []
@@ -278,6 +286,19 @@ class PreviewNavigationControls(QWidget):
             return self._spec.image_sources[idx]
         except Exception:
             return None
+
+    def _update_outline_color_button(self) -> None:
+        from bactomate.gui.preferences import get_segmentation_outline_color
+        color = QColor(*get_segmentation_outline_color())
+        self._outline_color_btn.setStyleSheet(f"QPushButton {{ border-bottom: 4px solid {color.name()}; }}")
+
+    def _choose_outline_color(self) -> None:
+        from bactomate.gui.preferences import get_segmentation_outline_color, set_segmentation_outline_color
+        color = QColorDialog.getColor(QColor(*get_segmentation_outline_color()), self, "Cell outline color")
+        if color.isValid():
+            set_segmentation_outline_color(color.name())
+            self._update_outline_color_button()
+            self.outline_color_changed.emit()
 
     def foci_channel_overlay_visible(self) -> list[bool]:
         """Per-channel foci ring visibility (empty when using the single foci toggle)."""
@@ -540,7 +561,11 @@ class PreviewNavigationControls(QWidget):
             self._overlay_widgets.append(self._nav_separator())
 
         if self._spec.show_cell_overlay_toggle:
+            self._show_cells_cb.setText("Show cell outlines" if self._spec.show_cell_outline_color else "Show cell overlay")
             self._overlay_widgets.append(self._show_cells_cb)
+            if self._spec.show_cell_outline_color:
+                self._update_outline_color_button()
+                self._overlay_widgets.append(self._outline_color_btn)
 
         if _foci_ch_labels:
             _nav_cb_style = "QCheckBox { font-size: 10pt; color: #dce4ee; spacing: 6px; }"

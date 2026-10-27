@@ -688,6 +688,13 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         fs_foci0 = resolve_foci_settings_for_source(dict(fs0), None)
     settings_host = QWidget()
     settings_outer = QVBoxLayout(settings_host)
+    preset_row = QHBoxLayout()
+    for label, callback in [('Import filter settings…', tab.import_filter_preset),
+                            ('Save filter settings…', tab.export_filter_preset)]:
+        button = QPushButton(label)
+        button.clicked.connect(callback)
+        preset_row.addWidget(button)
+    settings_outer.addLayout(preset_row)
     settings_outer.setContentsMargins(0, 0, 0, 0)
     settings_outer.setSpacing(6)
 
@@ -895,6 +902,33 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     foci_table_section = CollapsibleSection('Foci table', foci_table_host, parent=settings_host, expanded=True, compact=True)
     foci_table_section.setVisible(False)
     settings_outer.addWidget(foci_table_section)
+    from bactomate.gui.object_curation_panel import ObjectCurationPanel
+
+    def _curation_changed():
+        # Re-evaluate from the original objects, not the previously curated result.
+        dlg._last_preview = {}
+        dlg._foci_pass_fail_cache = {}
+        _clear_preview_layer_caches(dlg)
+        apply_current()
+
+    def _focus_curated_cell(label, y, x):
+        fid = int(dlg.state().frame_idx)
+        shape = np.asarray(_preview_mask_stack()[fid]).shape
+        dx, dy = _preview_display_xy(y, x, shape)
+        dlg.canvas.center_on_image_point(dx, dy)
+
+    curation_panel = ObjectCurationPanel(
+        foci_table, lambda: _active_foci_channel_key(), _curation_changed, _focus_curated_cell)
+    curation_section = CollapsibleSection('Cell table / Manual selection / History', curation_panel,
+                                         parent=settings_host, expanded=False, compact=True)
+    settings_outer.addWidget(curation_section)
+
+    def _current_curation():
+        from bactomate.modules.object_curation import ObjectCuration
+        path = Path(getattr(dlg, '_preview_mask_path_key', None) or mask_path)
+        if curation_panel.cur is None or curation_panel.cur.mask_path != path.resolve():
+            curation_panel.cur = ObjectCuration(path)
+        return curation_panel.cur
 
     class _FociTableColumnFitFilter(QObject):
 
@@ -1252,6 +1286,25 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             cache[int(frame_idx), str(mpk_pf or ''), ch_sig, acc_key, ch_key] = (list(payload.get('pass_peaks') or []), list(payload.get('fail_peaks') or []))
 
     def _commit_filter_apply_result(*, frame_idx: int, accepted: set[int], rejected: set[int], n_obj: Optional[int], foci_channels_last: dict[str, dict[str, list]], request_settings_sig: str, cell_settings_sig: str, foci_channel_sigs: dict[str, str], request_source_key: tuple, foci_txt: str='') -> None:
+        cur = _current_curation()
+        all_labels = accepted | rejected
+        accepted = cur.cells(frame_idx, accepted, all_labels)
+        rejected = all_labels - accepted
+        for key, payload in foci_channels_last.items():
+            passed, failed = cur.peaks(frame_idx, key, payload.get('pass_peaks') or [], payload.get('fail_peaks') or [])
+            payload['pass_peaks'], payload['fail_peaks'] = passed, failed
+        if not any(h['frame'] == frame_idx for h in cur.data['history']):
+            cur.record(frame_idx, len(all_labels), len(all_labels), {}, action='Initial segmentation')
+        baseline = next(h for h in cur.data['history'] if h['frame'] == frame_idx)
+        if not baseline.get('foci'):
+            baseline['foci'] = {k: {'selected': len(v['pass_peaks']) + len(v['fail_peaks']),
+                                   'total': len(v['pass_peaks']) + len(v['fail_peaks'])}
+                                for k, v in foci_channels_last.items()}
+        cur.record(frame_idx, len(all_labels), len(accepted),
+                   dict(tab.get_filter_settings()), action=getattr(curation_panel, 'pending_action', 'Apply filters'), foci={k: {'selected': len(v['pass_peaks']),
+                   'total': len(v['pass_peaks']) + len(v['fail_peaks'])} for k, v in foci_channels_last.items()})
+        curation_panel.pending_action = 'Apply filters'
+        curation_panel.refresh_history()
         source_key = tuple(request_source_key)
         active_ch = _active_foci_channel_key()
         pass_peaks = list(foci_channels_last.get(active_ch, {}).get('pass_peaks') or [])
@@ -1911,6 +1964,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             display_params['filter_peaks'] = {'prob_thresh': float(fs.get('foci_prob_thresh', 0.5)) if bool(fs.get('foci_prob_enabled', False)) else None, 'min_peak_raw': float(fs.get('foci_min_int', 0.0)) if bool(fs.get('foci_min_int_enabled', False)) else None, 'per_cell_ratio': float(fs.get('foci_per_cell_ratio', 2.0)) if bool(fs.get('foci_per_cell_ratio_enabled', False)) else None}
         except Exception:
             display_params['filter_peaks'] = {}
+        params['_manual_cells'] = dict(_current_curation().data['cells'].get(str(int(frame_idx)), {}))
         request_foci_apply_bundle = dict(foci_apply_bundle or {})
         plan_line = str(request_foci_apply_bundle.get('apply_plan_summary') or '').strip()
         try:
@@ -1929,6 +1983,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         except Exception:
             pass
         worker = AnalyzeMasksPreviewWorker(rid, frame_idx, mask_2d, params, fi_image=None, display_params=display_params, skip_vis=True, latest_request_id=lambda : int(getattr(dlg, '_preview_request_id', rid)), foci_apply=request_foci_apply_bundle)
+        curation_panel.setEnabled(False)
         thread = QThread(dlg)
         thread.setObjectName('AnalyzeMasksPreviewWorkerThread')
         worker.moveToThread(thread)
@@ -1958,6 +2013,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         worker.progress.connect(on_progress, Qt.ConnectionType.QueuedConnection)
 
         def _set_primary_idle() -> None:
+            curation_panel.setEnabled(True)
             try:
                 dlg.set_primary_action(apply_current, label='Apply current filters', enabled=True, visible=False)
                 reapply_btn.setEnabled(True)
@@ -2232,6 +2288,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 frame_rows = list(frame_rows)[:cap]
         except Exception:
             pass
+        pass_peaks, fail_peaks = _current_curation().peaks(fid, _active_foci_channel_key(), pass_peaks, fail_peaks)
         populate_foci_preview_table(foci_table, frame_rows=frame_rows, pass_peaks=pass_peaks, fail_peaks=fail_peaks, selected_yx=sel if isinstance(sel, tuple) else None, mask_2d=mask_2d, foci_plane=foci_plane, foci_settings=ch_fs)
         try:
             if not bool(getattr(dlg, '_foci_table_fitted_once', False)):
@@ -2441,6 +2498,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             foci_fs = tab.get_filter_settings() if hasattr(tab, 'get_filter_settings') else {}
         except Exception:
             foci_fs = {}
+        accepted = curation_panel.context(
+            getattr(dlg, '_preview_mask_path_key', None) or mask_path, int(state.frame_idx), mask_2d, accepted)
+        rejected = set(int(x) for x in np.unique(mask_2d) if x > 0) - accepted
         accepted_for_foci_gating = accepted_cell_labels_for_foci(accepted, cell_filter_applied=cell_filter_applied)
         overlay_only = bool(state.extra.get('overlay_only'))
         nav_only = bool(state.extra.get('nav_only'))
@@ -2496,6 +2556,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 info_text = f'{info_text}  |  Foci(frame): {raw_n} detected (apply filters for pass/fail)'.strip()
         if cell_filter_applied and accepted_for_foci_gating and (pass_peaks or fail_peaks):
             (pass_peaks, fail_peaks) = sync_foci_peaks_with_accepted_cells(pass_peaks, fail_peaks, mask_2d=mask_2d, accepted_cell_labels=accepted_for_foci_gating, settings=dict(foci_fs or {}))
+        pass_peaks, fail_peaks = _current_curation().peaks(int(state.frame_idx), _active_foci_channel_key(), pass_peaks, fail_peaks)
         if show_foci and (pass_peaks or fail_peaks):
             preview_total = len(pass_peaks) + len(fail_peaks)
             # Keep status informative; do not truncate the drawn set (see _foci_preview_draw_cap).
@@ -2570,6 +2631,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                         (ch_pass, ch_fail) = ([], [])
                     else:
                         (ch_pass, ch_fail) = _foci_pass_fail_cached(fid, ('file', -1), dict(ch_fs), mask_2d=mask_2d, foci_plane=ch_plane, frame_rows=ch_rows, accepted_cell_labels=accepted_cell_labels_for_foci(accepted, cell_filter_applied=cell_filter_applied))
+                    ch_pass, ch_fail = _current_curation().peaks(fid, ch_key, ch_pass, ch_fail)
                     ch_plane_arr = np.asarray(ch_plane)
                     (pass_draw, pass_drawn, pass_total) = _cap_peaks_for_preview(ch_pass)
                     (fail_draw, fail_drawn, fail_total) = _cap_peaks_for_preview(ch_fail)
@@ -3097,6 +3159,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             except Exception:
                 pass
             src = _selected_source()
+            _settings_to_ui()
             _reapply_last_settings_for_preview_image(source_key=src)
         image_combo.currentIndexChanged.connect(_on_image_combo_changed)
 
@@ -3121,6 +3184,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                     image_combo.blockSignals(True)
                     image_combo.setCurrentIndex(idx)
                     image_combo.blockSignals(False)
+                    _settings_to_ui()
             except Exception:
                 return
             try:
@@ -3240,7 +3304,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 except Exception:
                     return None
             tab.set_filter_settings({'pixel_size': float(w_pixel.value()), 'min_aspect_ratio': float(w_min_ar.value()), 'max_aspect_ratio': float(w_max_ar.value()), 'min_eccentricity': float(w_min_ecc.value()), 'min_solidity': float(w_min_sol.value()), 'min_area_um2': _opt0(w_min_area), 'max_area_um2': _opt0(w_max_area), 'min_width_um': _opt0(w_min_w), 'max_width_um': _opt0(w_max_w), 'min_length_um': _opt0(w_min_len), 'max_length_um': _opt0(w_max_len), 'exclude_border': bool(w_excl_border.isChecked()), 'focus_filter_enabled': bool(w_focus_en.isChecked()), 'focus_min_fraction_of_median': float(w_focus_frac.value()), 'focus_modality': str(w_focus_mod.currentData() or 'phase')})
-            ch_key = _active_foci_channel_key()
+            ch_key = getattr(dlg, '_pf_widget_channel', _active_foci_channel_key())
             ch_payload = {'foci_prob_enabled': bool(w_prob_en.isChecked()), 'foci_prob_thresh': float(w_prob_thr.value()), 'foci_min_int_enabled': bool(w_minint_en.isChecked()), 'foci_min_int': float(w_minint.value()), 'foci_per_cell_ratio_enabled': bool(w_ratio_en.isChecked()), 'foci_per_cell_ratio': float(w_ratio.value()), 'foci_exclude_outside_clear': bool(w_foci_excl_outside_clear.isChecked()), 'foci_exclude_outside_touching': bool(w_foci_excl_outside_touch.isChecked()), 'foci_exclude_outside_cells': bool(w_foci_excl_outside_clear.isChecked() and w_foci_excl_outside_touch.isChecked()), 'foci_blob_threshold_frac': float(w_blob_size.currentData() or 0.9), 'foci_blob_max_radius': int(w_blob_radius.value()), 'foci_min_area_px_enabled': bool(w_minarea_en.isChecked()), 'foci_min_area_px': int(w_minarea.value())}
             if hasattr(tab, 'set_foci_channel_settings'):
                 tab.set_foci_channel_settings(ch_key, ch_payload)
@@ -3250,6 +3314,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         def _settings_to_ui() -> None:
             fs = tab.get_filter_settings() if hasattr(tab, 'get_filter_settings') else {}
             ch_key = _active_foci_channel_key()
+            dlg._pf_widget_channel = ch_key
             try:
                 if hasattr(tab, 'get_foci_channel_settings'):
                     fs_ch = tab.get_foci_channel_settings(ch_key)
@@ -3279,8 +3344,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 w_pixel.setValue(float(fs.get('pixel_size', 0.108) or 0.108))
                 w_min_ar.setValue(float(fs.get('min_aspect_ratio', 1.5) or 1.5))
                 w_max_ar.setValue(float(fs.get('max_aspect_ratio', 10.0) or 10.0))
-                w_min_ecc.setValue(float(fs.get('min_eccentricity', 0.5) or 0.5))
-                w_min_sol.setValue(float(fs.get('min_solidity', 0.7) or 0.7))
+                w_min_ecc.setValue(float(fs.get('min_eccentricity', 0.5)))
+                w_min_sol.setValue(float(fs.get('min_solidity', 0.7)))
                 w_min_area.setValue(float(fs.get('min_area_um2') or 0.0))
                 w_max_area.setValue(float(fs.get('max_area_um2') or 0.0))
                 w_min_w.setValue(float(fs.get('min_width_um') or 0.0))
@@ -3289,11 +3354,11 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 w_max_len.setValue(float(fs.get('max_length_um') or 0.0))
                 w_excl_border.setChecked(bool(fs.get('exclude_border', False)))
                 w_focus_en.setChecked(bool(fs.get('focus_filter_enabled', False)))
-                w_focus_frac.setValue(float(fs.get('focus_min_fraction_of_median', 0.5) or 0.5))
+                w_focus_frac.setValue(float(fs.get('focus_min_fraction_of_median', 0.5)))
                 _mod = str(fs.get('focus_modality', 'phase') or 'phase').strip().lower()
                 w_focus_mod.setCurrentIndex(1 if _mod in ('bf', 'brightfield', 'bright-field', 'transmission') else 0)
                 w_prob_en.setChecked(bool(fs_ch.get('foci_prob_enabled', False)))
-                w_prob_thr.setValue(float(fs_ch.get('foci_prob_thresh', 0.5) or 0.5))
+                w_prob_thr.setValue(float(fs_ch.get('foci_prob_thresh', 0.5)))
                 w_minint_en.setChecked(bool(fs_ch.get('foci_min_int_enabled', False)))
                 w_minint.setValue(float(fs_ch.get('foci_min_int', 0.0) or 0.0))
                 w_ratio_en.setChecked(bool(fs_ch.get('foci_per_cell_ratio_enabled', False)))
@@ -3370,6 +3435,36 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             foci_table.cellDoubleClicked.connect(_focus_foci_from_table)
         except Exception:
             pass
+        def _pick_curated_object(x, y):
+            shape = np.asarray(_preview_mask_stack()[int(dlg.state().frame_idx)]).shape
+            size = getattr(dlg.canvas, '_image_size', None)
+            if not size:
+                return
+            native_x, native_y = x * shape[1] / size[0], y * shape[0] / size[1]
+            if curation_panel.kind.currentIndex() == 0:
+                if not (0 <= native_x < shape[1] and 0 <= native_y < shape[0]):
+                    return
+                label = int(_preview_mask_stack()[int(dlg.state().frame_idx)][int(native_y), int(native_x)])
+                for row in range(curation_panel.table.rowCount()):
+                    if int(curation_panel.table.item(row, 0).text()) == label:
+                        curation_section.set_expanded(True)
+                        curation_panel.table.selectRow(row)
+                        curation_panel.table.scrollToItem(curation_panel.table.item(row, 0))
+                        break
+            else:
+                w_show_foci_table.setChecked(True)
+                best = None
+                for row in range(foci_table.rowCount()):
+                    item = foci_table.item(row, 2)
+                    coords = item.data(Qt.ItemDataRole.UserRole) if item else None
+                    if coords:
+                        distance = (float(coords[0])-native_y)**2 + (float(coords[1])-native_x)**2
+                        if best is None or distance < best[0]:
+                            best = (distance, row)
+                if best is not None and best[0] <= 100:
+                    foci_table.selectRow(best[1])
+                    _focus_foci_from_table(best[1], 0)
+        dlg.canvas.clicked_image.connect(_pick_curated_object)
         try:
 
             def _on_foci_header_double_clicked(logical_index: int) -> None:

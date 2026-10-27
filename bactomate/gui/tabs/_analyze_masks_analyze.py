@@ -645,14 +645,14 @@ class AnalyzeTab(AnalyzeMasksBase):
         self.coloc_merge_max_distance = QDoubleSpinBox()
         self.coloc_merge_max_distance.setRange(0.1, 500.0)
         self.coloc_merge_max_distance.setDecimals(1)
-        self.coloc_merge_max_distance.setValue(8.0)
+        self.coloc_merge_max_distance.setValue(3.0)
         self.coloc_merge_max_distance.setSuffix(' px')
         self.coloc_merge_max_distance.setMinimumWidth(72)
         self.coloc_merge_max_distance.setMaximumWidth(88)
         self.coloc_merge_threshold = QDoubleSpinBox()
         self.coloc_merge_threshold.setRange(0.1, 500.0)
         self.coloc_merge_threshold.setDecimals(1)
-        self.coloc_merge_threshold.setValue(4.0)
+        self.coloc_merge_threshold.setValue(2.0)
         self.coloc_merge_threshold.setSuffix(' px')
         self.coloc_merge_threshold.setMinimumWidth(72)
         self.coloc_merge_threshold.setMaximumWidth(88)
@@ -664,6 +664,9 @@ class AnalyzeTab(AnalyzeMasksBase):
         coloc_row.addWidget(QLabel('Threshold:'), 0)
         coloc_row.addWidget(self.coloc_merge_threshold, 0)
         coloc_row.addWidget(self.coloc_merge_same_cell_only, 0)
+        preview_coloc = QPushButton('Preview distances…')
+        preview_coloc.clicked.connect(self._preview_coloc_distances)
+        coloc_row.addWidget(preview_coloc)
         coloc_row.addStretch(1)
         foci_analysis_layout.addLayout(coloc_row)
         self._coloc_param_widgets = (self.coloc_merge_max_distance, self.coloc_merge_threshold, self.coloc_merge_same_cell_only)
@@ -682,6 +685,13 @@ class AnalyzeTab(AnalyzeMasksBase):
         self._update_coloc_param_state()
         self._refresh_foci_csv_hint()
         return outer
+
+    def _preview_coloc_distances(self) -> None:
+        from bactomate.gui.coloc_distance_preview import open_distance_preview
+        try:
+            open_distance_preview(self)
+        except Exception as exc:
+            show_message_dialog(self, 'Distance preview', str(exc), kind='warning')
 
     def _update_coloc_param_state(self, *_args) -> None:
         """Grey out colocalization parameters when the feature is disabled."""
@@ -1870,7 +1880,7 @@ class AnalyzeTab(AnalyzeMasksBase):
 
     def get_session_params(self) -> dict[str, Any]:
         d = super().get_session_params()
-        d.update({'analyze_fi': self._safe_checked(getattr(self, 'analyze_fi', None), default=False), 'fi_match_by_name': self._safe_checked(getattr(self, 'fi_mode_match_by_name', None), default=True), 'single_fi_path': str(self._single_fi_path) if getattr(self, '_single_fi_path', None) is not None else '', 'analyze_fi_contour': self._safe_checked(getattr(self, 'analyze_fi_contour', None), default=False), 'fi_contour_thickness': int(self._safe_value(getattr(self, 'fi_contour_thickness', None), default=1)), 'use_filtered_masks': self._safe_checked(getattr(self, 'use_filtered_masks_cb', None), default=True), 'coloc_merge_max_distance': self._safe_value(getattr(self, 'coloc_merge_max_distance', None), default=8.0), 'coloc_merge_threshold': self._safe_value(getattr(self, 'coloc_merge_threshold', None), default=4.0), 'coloc_merge_same_cell_only': self._safe_checked(getattr(self, 'coloc_merge_same_cell_only', None), default=True), 'coloc_calc_all_pairs': self._safe_checked(getattr(self, 'coloc_calc_all_pairs', None), default=False), 'include_foci_from_detection': self._safe_checked(getattr(self, 'include_foci_from_detection', None), default=False)})
+        d.update({'analyze_fi': self._safe_checked(getattr(self, 'analyze_fi', None), default=False), 'fi_match_by_name': self._safe_checked(getattr(self, 'fi_mode_match_by_name', None), default=True), 'single_fi_path': str(self._single_fi_path) if getattr(self, '_single_fi_path', None) is not None else '', 'analyze_fi_contour': self._safe_checked(getattr(self, 'analyze_fi_contour', None), default=False), 'fi_contour_thickness': int(self._safe_value(getattr(self, 'fi_contour_thickness', None), default=1)), 'use_filtered_masks': self._safe_checked(getattr(self, 'use_filtered_masks_cb', None), default=True), 'coloc_merge_max_distance': self._safe_value(getattr(self, 'coloc_merge_max_distance', None), default=3.0), 'coloc_merge_threshold': self._safe_value(getattr(self, 'coloc_merge_threshold', None), default=2.0), 'coloc_merge_same_cell_only': self._safe_checked(getattr(self, 'coloc_merge_same_cell_only', None), default=True), 'coloc_calc_all_pairs': self._safe_checked(getattr(self, 'coloc_calc_all_pairs', None), default=False), 'include_foci_from_detection': self._safe_checked(getattr(self, 'include_foci_from_detection', None), default=False)})
         return d
 
     def set_session_params(self, data: dict[str, Any]) -> None:

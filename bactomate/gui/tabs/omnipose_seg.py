@@ -11,6 +11,7 @@ import traceback
 import csv
 from pathlib import Path
 from typing import Any, Callable, Optional
+from bactomate.gui.preferences import get_segmentation_outline_color
 import numpy as np
 import tifffile
 from PyQt6.QtCore import Qt, QThread, QTimer, QObject, QCoreApplication, pyqtSignal
@@ -2926,7 +2927,7 @@ class OmniposeSegTab(QWidget):
                 display_uint8 = ((np.asarray(display_frame).astype(np.float64) - vmin) / vrange * 255).clip(0, 255).astype(np.uint8)
                 (disp_scaled, mask_scaled) = scale_for_preview(display_uint8, mask, max_size=PREVIEW_SEG_MAX_SIZE)
                 if bool(preview_dialog.state().extra.get('show_cells', True)):
-                    overlay = build_segmentation_overlay(disp_scaled, mask_scaled, alpha=0.5)
+                    overlay = build_segmentation_overlay(disp_scaled, mask_scaled, outline_color=get_segmentation_outline_color())
                 else:
                     overlay = np.stack([disp_scaled, disp_scaled, disp_scaled], axis=-1).astype(np.uint8)
                 try:
@@ -4346,7 +4347,7 @@ class OmniposeSegTab(QWidget):
                         for (si, fp) in enumerate(fps_nav):
                             srcs.append(PreviewSource(key=('foci', si), label=f'Foci {fp.name}', kind='image', resets_lut=True))
                     use_per_channel = bool(foci_ch_labels)
-                    return PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=srcs, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, show_foci_overlay_toggle=bool(include_foci_items and fps_nav and (not use_per_channel)), cell_overlay_default=True, foci_overlay_available=bool(include_foci_items and fps_nav), foci_overlay_default=bool(include_foci_items and fps_nav), foci_channel_overlay_labels=foci_ch_labels, foci_channel_overlay_defaults=tuple((True for _ in foci_ch_labels)), debounce_ms=400)
+                    return PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=srcs, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, show_cell_outline_color=True, show_foci_overlay_toggle=bool(include_foci_items and fps_nav and (not use_per_channel)), cell_overlay_default=True, foci_overlay_available=bool(include_foci_items and fps_nav), foci_overlay_default=bool(include_foci_items and fps_nav), foci_channel_overlay_labels=foci_ch_labels, foci_channel_overlay_defaults=tuple((True for _ in foci_ch_labels)), debounce_ms=400)
                 nav_preview_spec_builder = _nav_preview_spec
                 cache_nav_inline = None
                 if embed_seg:
@@ -4862,6 +4863,7 @@ class OmniposeSegTab(QWidget):
                     except Exception:
                         pass
                 try:
+                    nav_ctrl.outline_color_changed.connect(refresh_image_display)
                     nav_ctrl.overlay_changed.connect(_on_overlay_changed)
                     nav_ctrl.foci_channel_overlay_changed.connect(_on_foci_channel_overlay_changed)
                 except Exception:

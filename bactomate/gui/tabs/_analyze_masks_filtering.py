@@ -4,7 +4,7 @@ from typing import Any, Optional
 import numpy as np
 import tifffile
 from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QGroupBox, QHBoxLayout, QLabel, QProgressDialog, QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QProgressDialog, QPushButton, QWidget, QVBoxLayout
 from bactomate.gui.session_params import apply_to_widgets
 from bactomate.gui.styles import FLAT_GROUPBOX_FRAME_STYLESHEET
 from bactomate.gui.utils import safe_imread
@@ -72,7 +72,61 @@ class FilteringTab(AnalyzeMasksBase):
         return True
 
     def _build_stage_controls(self, scroll_layout: QVBoxLayout) -> None:
-        return
+        row = QHBoxLayout()
+        for label, callback in [('Import filter settings…', self.import_filter_preset),
+                                ('Save filter settings…', self.export_filter_preset)]:
+            button = QPushButton(label)
+            button.clicked.connect(callback)
+            row.addWidget(button)
+        scroll_layout.addLayout(row)
+
+    def export_filter_preset(self, checked=False) -> None:
+        from bactomate.modules.filter_presets import save_separate_filter_presets
+        path, _ = QFileDialog.getSaveFileName(self, 'Save cell and foci filter settings',
+                                             'BactoMate_filter_settings.json', 'JSON (*.json)')
+        if path:
+            try:
+                self.sync_filter_settings_from_preview_ui()
+                raw = Path(self.file_path.text())
+                masks = [raw] if raw.is_file() else self._get_mask_files_for_feedback()
+                for mask in masks:
+                    self.ensure_foci_channel_settings_for_sources(self._resolve_foci_paths_for_mask(mask))
+                written = save_separate_filter_presets(path, self.get_filter_settings())
+                show_message_dialog(self, 'Filter settings saved', '\n'.join(str(p) for p in written))
+            except Exception as exc:
+                show_message_dialog(self, 'Settings export failed', str(exc), kind='warning')
+
+    def import_filter_preset(self, checked=False) -> None:
+        if self._filtering_in_progress:
+            return
+        path, _ = QFileDialog.getOpenFileName(self, 'Import cell and foci filter settings', '', 'JSON (*.json)')
+        if path:
+            try:
+                self.load_filter_preset(path)
+            except Exception as exc:
+                show_message_dialog(self, 'Settings import failed', str(exc), kind='warning')
+
+    def load_filter_preset(self, path) -> None:
+        from bactomate.modules.filter_presets import load_filter_preset
+        settings = load_filter_preset(path, self._default_filter_settings())
+        dlg = getattr(self, '_filter_preview_dialog', None)
+        if dlg is not None:
+            thread = getattr(dlg, '_preview_thread', None)
+            if ((thread is not None and thread.isRunning()) or getattr(dlg, '_pending_apply', False)
+                    or dlg.state().extra.get('filter_apply_busy')):
+                raise ValueError('Please wait for filtering to finish before importing settings.')
+        from copy import deepcopy
+        self.sync_filter_settings_from_preview_ui()
+        merged = deepcopy(self.get_filter_settings())
+        channels = merged.setdefault('foci_channels', {})
+        channels.update(settings.get('foci_channels', {}))
+        merged.update({k: v for k, v in settings.items() if k != 'foci_channels'})
+        self._filter_settings = merged
+        if dlg is not None:
+            dlg._pf_settings_to_ui()
+            dlg._last_preview = {}
+            dlg._foci_pass_fail_cache = {}
+            dlg._pf_apply_current()
 
     def _sync_embedded_preview_button_visibility(self) -> None:
         if hasattr(self, 'preview_action_btn'):
@@ -461,7 +515,7 @@ class FilteringTab(AnalyzeMasksBase):
         fs = getattr(self, '_filter_settings', None)
         if not isinstance(fs, dict):
             fs = self._default_filter_settings()
-            self._filter_settings = dict(fs)
+            self._filter_settings = fs
         for (k, v) in self._default_filter_settings().items():
             if k not in fs:
                 fs[k] = v
@@ -567,6 +621,8 @@ class FilteringTab(AnalyzeMasksBase):
         if self.sync_filter_settings_from_preview_ui():
             if hasattr(self.parent_window, 'log_output'):
                 self.parent_window.log_output('[Filtering] Applied current Preview filter settings before batch write.\n')
+        for mask in mask_files:
+            self.ensure_foci_channel_settings_for_sources(self._resolve_foci_paths_for_mask(mask))
         fs = self.get_filter_settings()
         self._filtering_in_progress = True
         self._cancel_filtering_requested = False
@@ -662,6 +718,8 @@ class FilteringTab(AnalyzeMasksBase):
                     if hasattr(self.parent_window, 'log_output'):
                         self.parent_window.log_output(f'[Filtering] Failed to load mask {mask_path.name}: {e}\n')
                     continue
+                from bactomate.modules.object_curation import ObjectCuration
+                curation = ObjectCuration(mask_path)
                 out = np.zeros_like(masks, dtype=np.int32)
                 n_frames = max(1, int(masks.shape[0]))
                 phase_stack = None
@@ -709,6 +767,7 @@ class FilteringTab(AnalyzeMasksBase):
                                 )
                             except Exception:
                                 pass
+                        accepted = curation.cells(fi, accepted, set(int(v) for v in np.unique(frame_mask) if v > 0))
                         if accepted:
                             out_frame = np.where(np.isin(frame_mask, np.array(list(accepted), dtype=np.int32)), frame_mask, 0)
                         else:
@@ -722,6 +781,14 @@ class FilteringTab(AnalyzeMasksBase):
                     QApplication.processEvents()
                     out_path.parent.mkdir(parents=True, exist_ok=True)
                     tifffile.imwrite(str(out_path), out.astype(np.int32))
+                    from bactomate.modules.filter_presets import save_separate_filter_presets
+                    save_separate_filter_presets(out_path.with_suffix('.filter_settings.json'), fs)
+                    for frame_index in range(len(out)):
+                        total = int(np.unique(masks[frame_index][masks[frame_index] > 0]).size)
+                        selected = int(np.unique(out[frame_index][out[frame_index] > 0]).size)
+                        if not any(h['frame'] == frame_index for h in curation.data['history']):
+                            curation.record(frame_index, total, total, {}, action='Initial segmentation')
+                        curation.record(frame_index, total, selected, fs, action='Export filtered masks')
                     if hasattr(self.parent_window, 'log_output'):
                         self.parent_window.log_output(f'[Filtering] Wrote filtered mask: {out_path}\n')
                     try:
@@ -786,9 +853,32 @@ class FilteringTab(AnalyzeMasksBase):
                         ch_fs = self.get_settings_for_foci_source(Path(src))
                         _foci_progress('Scoring filters', 0.35, extra=f'{len(raw_rows):,} peaks')
                         filtered_rows = process_foci_rows_for_mask(raw_rows, foci_tyx, np.asarray(out), ch_fs)
+                        from bactomate.gui.filter_preview_utils import foci_channel_key_for_path
+                        curated_rows = []
+                        for frame_index in sorted({int(r.get('frame', 0)) for r in raw_rows}):
+                            raw_frame = [r for r in raw_rows if int(r.get('frame', 0)) == frame_index]
+                            passed_frame = [r for r in filtered_rows if int(r.get('frame', 0)) == frame_index]
+                            channel_rules = curation.data['foci'].get(foci_channel_key_for_path(Path(src)), {}).get(str(frame_index), {})
+                            if any(channel_rules.values()):
+                                from bactomate.gui.foci_filter_pipeline import measure_foci_rows_metrics
+                                measured = measure_foci_rows_metrics(
+                                    raw_frame, foci_tyx[min(frame_index, len(foci_tyx)-1)],
+                                    label_plane=masks[min(frame_index, len(masks)-1)], settings=ch_fs)
+                                raw_frame = [measured.get((int(float(r['y'])), int(float(r['x']))), r) for r in raw_frame]
+                            passed_frame, _ = curation.peaks(frame_index, foci_channel_key_for_path(Path(src)),
+                                                           passed_frame, raw_frame)
+                            curated_rows.extend(passed_frame)
+                        filtered_rows = curated_rows
                         out_csv = filtered_foci_csv_path(pipeline_dir, mask_path=mask_path, foci_source_path=src)
                         _foci_progress('Writing CSV', 0.62, extra=f'Output: {out_csv.name} ({len(filtered_rows):,} rows)')
                         write_filtered_foci_csv(out_csv, filtered_rows, include_frame=include_frame)
+                        for frame_index in sorted({int(r.get('frame', 0)) for r in raw_rows}):
+                            event = next((h for h in reversed(curation.data['history']) if h['frame'] == frame_index), None)
+                            if event is not None:
+                                event['foci'][foci_channel_key_for_path(Path(src))] = {
+                                    'selected': sum(int(r.get('frame', 0)) == frame_index for r in filtered_rows),
+                                    'total': sum(int(r.get('frame', 0)) == frame_index for r in raw_rows)}
+                        curation.save()
                         if hasattr(self.parent_window, 'log_output'):
                             self.parent_window.log_output(f'[Filtering] Wrote filtered foci CSV: {out_csv}\n')
                         try:
