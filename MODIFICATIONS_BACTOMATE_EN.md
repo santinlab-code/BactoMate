@@ -36,6 +36,16 @@ display function, not the biological accuracy of every segmented cell.
 
 ## 3. Filtering: manual curation
 
+The image opens in a separate window by default and can be moved to a second
+screen. **Attach image** returns it to the panel; **Detach image** detaches it
+again. Closing the image window reattaches it without closing the settings.
+
+Choose **Cells** or **Foci — current channel**, then click an object in the image
+to select its table row. A yellow box marks the selection, including objects
+selected in a table. Clicking without an object clears the selection.
+**Delete** or **Backspace** excludes the active selection when the image or a table
+has keyboard focus. This exclusion is reversible.
+
 Users can select already detected cells or foci and:
 
 - keep them even when automatic filters reject them;
@@ -139,7 +149,7 @@ message is shown. No artificial foci are added.
 
 ## Verification and test limitations
 
-The latest complete automated run produced **542 passing tests and 5 skipped
+The latest complete automated run produced **544 passing tests and 5 skipped
 tests**. A focused preview check also passed after the final adjustments.
 
 The reference file is `2025-10-02-Snaps-AP-GL2430-GA178-Cd16.nd2`. Real-data tests

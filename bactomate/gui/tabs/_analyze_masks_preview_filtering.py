@@ -3436,6 +3436,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         except Exception:
             pass
         def _pick_curated_object(x, y):
+            if not curation_panel.isEnabled():
+                return
+            dlg.canvas.setFocus()
             shape = np.asarray(_preview_mask_stack()[int(dlg.state().frame_idx)]).shape
             size = getattr(dlg.canvas, '_image_size', None)
             if not size:
@@ -3445,6 +3448,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 if not (0 <= native_x < shape[1] and 0 <= native_y < shape[0]):
                     return
                 label = int(_preview_mask_stack()[int(dlg.state().frame_idx)][int(native_y), int(native_x)])
+                curation_panel.table.clearSelection()
                 for row in range(curation_panel.table.rowCount()):
                     if int(curation_panel.table.item(row, 0).text()) == label:
                         curation_section.set_expanded(True)
@@ -3464,7 +3468,12 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 if best is not None and best[0] <= 100:
                     foci_table.selectRow(best[1])
                     _focus_foci_from_table(best[1], 0)
+                else:
+                    foci_table.clearSelection()
         dlg.canvas.clicked_image.connect(_pick_curated_object)
+        from bactomate.gui.curation_image_window import CurationImageWindow
+        dlg._curation_image_window = CurationImageWindow(dlg, curation_panel,
+            lambda: _preview_mask_stack()[int(dlg.state().frame_idx)])
         try:
 
             def _on_foci_header_double_clicked(logical_index: int) -> None:

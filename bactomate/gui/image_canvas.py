@@ -32,6 +32,7 @@ class ImageCanvas(QWidget):
         super().__init__(parent)
         self._pixmap: Optional[QPixmap] = None
         self._image_size: Optional[Tuple[int, int]] = None
+        self.object_selection_boxes = []  # Display-image coordinates; display only.
         self._zoom = 1.0
         self._pan_offset = QPointF(0.0, 0.0)
         self._dragging = False
@@ -478,6 +479,11 @@ class ImageCanvas(QWidget):
             )
             source = QRect(0, 0, self._pixmap.width(), self._pixmap.height())
             painter.drawPixmap(target, self._pixmap, source)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor('yellow'), 3))
+            for x, y, width, height in self.object_selection_boxes:
+                painter.drawRect(QRectF(offset.x()+x*scale, offset.y()+y*scale,
+                                        width*scale, height*scale))
             for roi in (self._editable_roi, self._pending_roi):
                 if roi is None:
                     continue

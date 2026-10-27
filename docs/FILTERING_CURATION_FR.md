@@ -1,5 +1,15 @@
 # Sélection manuelle et suivi du filtrage
 
+L’image de Filtering est détachée par défaut pour être déplacée sur un autre écran.
+**Attach image** (ou fermer la fenêtre d’image) la réintègre ; **Detach image**
+la détache à nouveau. Les réglages restent dans l’interface principale.
+Choisir **Cells** ou **Foci — current channel** dans la fenêtre d’image, puis
+cliquer sur un objet sélectionne sa ligne de table. Un cadre jaune marque la
+sélection, également lorsqu’elle vient de la table. Cliquer sans objet désélectionne.
+Avec le focus clavier dans l’image ou une table, **Supprimer** ou **Retour arrière**
+exclut les objets sélectionnés. Ce choix reste réversible avec **Keep selected objects**
+ou **Use filters for selected objects**. Le clavier n’exclut rien pendant un calcul.
+
 Dans l’aperçu de **Filtering**, ouvrir **Cell table / Manual selection / History**.
 La sélection manuelle porte sur des objets déjà détectés : elle ne dessine pas
 de nouvelles cellules ou de nouveaux foci et ne modifie pas les masques sources.

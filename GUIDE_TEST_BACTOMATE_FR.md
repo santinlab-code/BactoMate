@@ -79,6 +79,12 @@ Utiliser une copie du ND2 et un nouveau dossier de résultats pour ces essais.
 
 ### C. Filtering et curation
 
+L’image s’ouvre séparément : la déplacer sur le deuxième écran si souhaité.
+Choisir Cells ou Foci dans cette fenêtre, cliquer sur un objet et vérifier
+le cadre jaune et la ligne sélectionnée dans la table. Appuyer sur Supprimer
+ou Retour arrière pour l’exclure, puis le réintégrer avec Keep selected objects.
+Fermer la fenêtre d’image pour la réintégrer ; Detach image la détache à nouveau.
+
 1. Ouvrir Preview filters et le panneau Cell table / Manual selection / History.
 2. Noter le nombre initial de cellules ; appliquer un filtre de taille.
 3. Vérifier le nouveau nombre et les critères dans l’historique.

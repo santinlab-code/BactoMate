@@ -41,6 +41,16 @@ toutes les cellules segmentées.
 
 ## 3. Filtering : curation manuelle
 
+L’image s’ouvre par défaut dans une fenêtre séparée, déplaçable sur un second
+écran. **Attach image** la réintègre ; **Detach image** la détache à nouveau.
+Fermer la fenêtre d’image la réintègre sans fermer les réglages.
+
+Choisir **Cells** ou **Foci — current channel**, puis cliquer sur un objet dans
+l’image sélectionne sa ligne de table. Un cadre jaune signale l’objet choisi,
+y compris lors d’une sélection dans la table. Un clic sans objet désélectionne.
+La touche **Supprimer** ou **Retour arrière** exclut la sélection active lorsque
+l’image ou une table a le focus clavier. Cette exclusion est réversible.
+
 Il est possible de sélectionner des cellules ou des foci déjà détectés pour :
 
 - les garder dans la sélection, même si les filtres automatiques les rejettent ;
@@ -151,7 +161,7 @@ message d’information. Aucun focus artificiel n’est ajouté.
 
 ## Vérifications et limites des essais
 
-La dernière exécution complète des tests automatisés donne **542 tests réussis,
+La dernière exécution complète des tests automatisés donne **544 tests réussis,
 5 ignorés**. Une vérification ciblée de l’aperçu a également réussi après les
 derniers ajustements.
 

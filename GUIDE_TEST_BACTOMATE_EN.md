@@ -76,6 +76,12 @@ Use a copy of the ND2 file and a new results folder for these tests.
 
 ### C. Filtering and curation
 
+The image opens separately: move it to a second screen if desired. Choose Cells
+or Foci in that window, click an object, and check the yellow box and selected
+table row. Press Delete or Backspace to exclude it, then restore it with Keep
+selected objects. Closing the image window reattaches it; Detach image detaches
+it again.
+
 1. Open Preview filters and the Cell table / Manual selection / History panel.
 2. Record the initial cell count, then apply an area filter.
 3. Check the new count and the criteria recorded in the history.
