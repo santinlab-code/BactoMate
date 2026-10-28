@@ -68,3 +68,11 @@ calibration Pixel size de Filtering. Les axes de l’ellipse équivalente donnen
 longueur et largeur. X/Y sont les coordonnées du centre en pixels.
 Un clic gauche simple sélectionne la cellule sous le pointeur ; un glisser
 sert à déplacer l’image. Le clic tient compte du zoom et du déplacement.
+
+Dans la fenêtre détachée, les commandes Keep selected objects / Exclude selected
+objects / Use filters for selected objects et la LUT sont accessibles avec l’image.
+Rattacher l’image remet ces contrôles dans le panneau d’origine, avec leurs valeurs.
+Le clic droit sur un objet détecté le garde dans la sélection, même s’il avait été
+exclu. Si l’objet appartient déjà à une sélection multiple, le clic droit garde
+cette sélection entière. Cliquer droit dans le fond n’ajoute rien. Cette commande
+ne dessine pas de nouveaux objets. Pour les foci, elle concerne le canal actif.

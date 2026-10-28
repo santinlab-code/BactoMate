@@ -43,7 +43,9 @@ bornés pour l’affichage. Ces réglages ne changent ni les pixels sources, ni 
 mesures, ni l’appariement.
 
 La molette zoome et dézoome autour du pointeur dans chacune des deux vues.
-Pan permet de déplacer l’image. Changer de cellule recentre le zoom ; changer
+Maintenir le clic gauche et glisser déplace directement l’image, dans les deux vues.
+Un clic simple dans la vue d’ensemble choisit toujours la cellule.
+Les icônes Maison et déplacement ont été retirées. Changer de cellule recentre le zoom ; changer
 une LUT ou un seuil conserve la zone observée. Le bouton Zoom n’est plus requis.
 Les petits **(?)** près de Max distance et Threshold expliquent le rayon de
 recherche et le seuil de colocalisation.

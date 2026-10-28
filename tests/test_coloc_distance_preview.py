@@ -172,3 +172,36 @@ def test_xy_switch_reloads_mask_images_channels_and_calibration(qapp):
     finally:
         dlg.close()
         tab.close()
+
+
+def test_left_drag_pans_without_selecting_cell(qapp):
+    from matplotlib.backend_bases import MouseEvent
+    from bactomate.gui.coloc_distance_preview import PreviewToolbar
+    tab, mask, backgrounds = _preview_with_layers()
+    dlg = DistancePreview(tab, {0: mask}, backgrounds['Phase'], [], backgrounds=backgrounds)
+    try:
+        assert not {'Home', 'Back', 'Forward', 'Pan', 'Zoom'} & {
+            item[0] for item in PreviewToolbar.toolitems}
+        dlg.canvas.draw()
+        for ax in list(dlg.figure.axes):
+            xlim, ylim = ax.get_xlim(), ax.get_ylim()
+            # Use real canvas mouse events: hold left, move, release.
+            x, y = ax.bbox.x0+ax.bbox.width/2, ax.bbox.y0+ax.bbox.height/2
+            for name, px, py in [('button_press_event', x, y),
+                                 ('motion_notify_event', x+20, y+10),
+                                 ('button_release_event', x+20, y+10)]:
+                event = MouseEvent(name, dlg.canvas, px, py, button=1)
+                dlg.canvas.callbacks.process(name, event)
+            assert dlg.cell.currentData() == 1
+            new_x, new_y = ax.get_xlim(), ax.get_ylim()
+            assert new_x != xlim and new_y != ylim
+            np.testing.assert_allclose(new_x[1]-new_x[0], xlim[1]-xlim[0])
+            np.testing.assert_allclose(new_y[1]-new_y[0], ylim[1]-ylim[0])
+        # A simple left click still selects a cell in the overview.
+        x, y = dlg.overview.transData.transform((35, 24))
+        for name in ('button_press_event', 'button_release_event'):
+            dlg.canvas.callbacks.process(name, MouseEvent(name, dlg.canvas, x, y, button=1))
+        assert dlg.cell.currentData() == 2
+    finally:
+        dlg.close()
+        tab.close()

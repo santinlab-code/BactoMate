@@ -33,10 +33,27 @@ def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp):
         assert _wait_for_apply_generation(dlg, rid_before=rid)
         assert 1 not in dlg._last_preview['accepted']
         assert panel.cur.data['cells']['0']['1'] is False
+        assert panel.manual_controls.parentWidget() is controller.window
+        assert dlg.lut_section.parentWidget() is controller.window
+        assert _wait_until(lambda: panel.isEnabled())
+        # Right click restores the excluded object at its image location.
+        scale = canvas.view_scale()
+        click = canvas._total_offset(scale) + QPointF(image_x*scale, image_y*scale)
+        rid = dlg._preview_request_id
+        QTest.mouseClick(canvas, Qt.MouseButton.RightButton, pos=click.toPoint())
+        assert _wait_for_apply_generation(dlg, rid_before=rid)
+        assert 1 in dlg._last_preview['accepted']
+        assert panel.cur.data['cells']['0']['1'] is True
+        slots = list(controller._docked)
         controller.window.close()
         assert not controller.window.isVisible()
         assert dlg.canvas.parentWidget() is controller.home
+        assert dlg.lut_section.parentWidget() is dlg
+        for widget, layout, index in slots:
+            assert layout.indexOf(widget) == index
         controller.detach()
+        assert dlg.lut_section.parentWidget() is controller.window
+        assert panel.manual_controls.parentWidget() is controller.window
         assert controller.window.isVisible()
         dlg.hide()
         assert not controller.window.isVisible()
@@ -67,5 +84,15 @@ def test_foci_table_highlight_and_backspace_are_channel_specific(tmp_path, qapp)
         QTest.keyClick(dlg.canvas, Qt.Key.Key_Backspace)
         assert called
         assert panel.cur.peaks(0, panel.channel(), [{'y':34, 'x':40}], [])[0] == []
+        size = dlg.canvas._image_size
+        shape = np.asarray(controller.mask()).shape
+        image_x, image_y = 40*size[0]/shape[1], 34*size[1]/shape[0]
+        dlg.canvas.center_on_image_point(image_x, image_y)
+        scale = dlg.canvas.view_scale()
+        point = dlg.canvas._total_offset(scale) + QPointF(image_x*scale, image_y*scale)
+        QTest.mouseClick(dlg.canvas, Qt.MouseButton.RightButton, pos=point.toPoint())
+        assert len(called) == 2
+        assert panel.cur.peaks(0, panel.channel(), [{'y':34, 'x':40}], []) == ([{'y':34, 'x':40}], [])
+        assert panel.cur.peaks(0, 'unrelated', [], [{'y':34, 'x':40}]) == ([], [{'y':34, 'x':40}])
     finally:
         _shutdown(tab, parent)

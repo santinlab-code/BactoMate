@@ -20,9 +20,11 @@ def test_segmentation_image_detach_attach_and_lifecycle(qapp):
         controller.button.click()
         assert original.parentWidget() is controller.window
         assert controller.window.isVisible()
+        assert preview.lut_section.parentWidget() is controller.window
         assert preview.lut_widget.current_lut() == (20, 80)
         controller.window.close()
         assert original.parentWidget() is controller.home
+        assert preview.lut_section.parentWidget() is preview
         controller.button.click()
         preview.hide()
         assert not controller.window.isVisible()

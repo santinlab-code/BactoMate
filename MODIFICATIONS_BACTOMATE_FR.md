@@ -227,3 +227,16 @@ Validation de ces ajustements : 44 tests ciblés réussis, dont un vrai clic sou
 sur une image zoomée/déplacée suivi de Delete, les dimensions calibrées et
 les interactions des LUT. Chargement et affichage vérifiés sur les trois XY
 réelles disponibles. Les essais natifs sur Mac restent à faire.
+
+## Commandes dans l’image détachée et navigation directe — 28 octobre 2026
+
+Les commandes Keep/Exclude/Use filters et le même histogramme LUT suivent
+maintenant l’image Filtering détachée. Les LUT suivent aussi l’image en
+Segmentation. Rattacher l’image restaure les widgets et leurs valeurs.
+Un clic droit sur un objet détecté le garde, ou garde toute la sélection si
+l’objet en fait déjà partie. Le fond n’ajoute aucun objet ; les foci restent
+propres au canal actif.
+Dans Preview distances, les icônes Maison et déplacement sont retirées :
+maintenir le clic gauche et glisser déplace l’image dans chacune des deux vues,
+sans changer la cellule. Un clic simple sélectionne toujours une cellule.
+Les boutons de cellule précédente/suivante restent disponibles.

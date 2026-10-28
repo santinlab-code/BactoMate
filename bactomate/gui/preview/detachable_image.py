@@ -10,12 +10,14 @@ class _ImageWindow(QDialog):
 
 
 class DetachablePreviewImage(QObject):
-    def __init__(self, preview, *, title='Segmentation — image', auto_detach=False):
+    def __init__(self, preview, *, title='Segmentation — image', auto_detach=False, extra_widgets=()):
         super().__init__(preview)
         self.preview, self.canvas = preview, preview.canvas
         self.home = self.canvas.parentWidget()
         self.layout = self.home.layout()
         self.index = self.layout.indexOf(self.canvas)
+        self._docked = [(widget, widget.parentWidget().layout(), 0)
+                        for widget in (self.canvas, *extra_widgets, preview.lut_section)]
         self.window = _ImageWindow(preview, Qt.WindowType.Window)
         self.window.controller = self
         self.window.setWindowTitle(title)
@@ -36,14 +38,21 @@ class DetachablePreviewImage(QObject):
 
     def detach(self):
         if self.canvas.parentWidget() is self.home:
+            self._docked = [(widget, layout, layout.indexOf(widget))
+                            for widget, layout, _ in self._docked]
             self.index = self.layout.indexOf(self.canvas)
+        # Manual actions above the image; the same LUT widget below it.
+        for widget, _, _ in self._docked[1:-1]:
+            self.floating_layout.addWidget(widget)
         self.floating_layout.addWidget(self.canvas, 1)
+        self.floating_layout.addWidget(self.preview.lut_section)
         self.button.setEnabled(False)
         self.window.show()
         self.highlight()
 
     def attach(self):
-        self.layout.insertWidget(self.index, self.canvas, 1)
+        for widget, layout, index in sorted(self._docked, key=lambda slot: slot[2]):
+            layout.insertWidget(index, widget, 1 if widget is self.canvas else 0)
         self.window.hide()
         self.button.setEnabled(True)
 

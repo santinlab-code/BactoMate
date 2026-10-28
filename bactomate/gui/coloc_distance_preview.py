@@ -15,7 +15,7 @@ from bactomate.modules.analysis_coloc import ColocSettings, analyze_colocalizati
 class PreviewToolbar(NavigationToolbar2QT):
     # History arrows are replaced by explicit cell navigation.
     toolitems = tuple(item for item in NavigationToolbar2QT.toolitems
-                      if item[0] not in ('Back', 'Forward', 'Zoom'))
+                      if item[0] not in ('Home', 'Back', 'Forward', 'Pan', 'Zoom'))
 
 
 class DistancePreview(QDialog):
@@ -29,6 +29,7 @@ class DistancePreview(QDialog):
         self.dataset_loader = dataset_loader
         self.current_path = current_path
         self._view_key = None
+        self._drag_state = None
         self.layer_actions, self.luts = {}, {}
         layout = QVBoxLayout(self)
         mask_row = QHBoxLayout()
@@ -123,7 +124,7 @@ class DistancePreview(QDialog):
         layout.addWidget(QLabel('A: cyan · B: magenta · dashed yellow circle: search radius · '
                                 'green circle: threshold · green line: colocalized · orange line: rejected pair.\n'
                                 'Click a cell in the overview to zoom. Grid spacing in the zoom: 1 image pixel. '
-                                'Scroll over either image to zoom at the pointer. Drag with Pan to move. '
+                                'Scroll over either image to zoom at the pointer. Hold left click and drag to move. '
                                 'Values changed here also update Foci analysis.'))
         self.frame.valueChanged.connect(self._show_lut)
         self.frame.valueChanged.connect(self.populate_cells)
@@ -134,7 +135,9 @@ class DistancePreview(QDialog):
         self.same.toggled.connect(self.redraw)
         self.mask_selector.currentIndexChanged.connect(self._switch_dataset)
         self.canvas.mpl_connect('scroll_event', self.scroll_zoom)
-        self.canvas.mpl_connect('button_press_event', self.click_cell)
+        self.canvas.mpl_connect('button_press_event', self._mouse_press)
+        self.canvas.mpl_connect('motion_notify_event', self._mouse_move)
+        self.canvas.mpl_connect('button_release_event', self._mouse_release)
         self.populate_cells()
 
     def _plane(self, name):
@@ -262,6 +265,40 @@ class DistancePreview(QDialog):
         self.cell.blockSignals(False)
         self.redraw()
 
+    def _mouse_press(self, event):
+        if event.button != 1 or event.inaxes not in self.figure.axes:
+            return
+        self._drag_state = dict(ax=event.inaxes, x=event.x, y=event.y,
+                                xlim=event.inaxes.get_xlim(), ylim=event.inaxes.get_ylim(),
+                                moved=False)
+
+    def _mouse_move(self, event):
+        state = self._drag_state
+        if state is None:
+            return
+        ax = state['ax']
+        if ax not in self.figure.axes or event.x is None or event.y is None:
+            return
+        dx, dy = event.x-state['x'], event.y-state['y']
+        if not state['moved'] and abs(dx)+abs(dy) <= 4:
+            return
+        state['moved'] = True
+        xlim, ylim = state['xlim'], state['ylim']
+        shift_x = dx*(xlim[1]-xlim[0])/ax.bbox.width
+        shift_y = dy*(ylim[1]-ylim[0])/ax.bbox.height
+        ax.set_xlim(xlim[0]-shift_x, xlim[1]-shift_x)
+        ax.set_ylim(ylim[0]-shift_y, ylim[1]-shift_y)
+        self.canvas.setCursor(Qt.CursorShape.ClosedHandCursor)
+        self.canvas.draw_idle()
+
+    def _mouse_release(self, event):
+        if event.button != 1:
+            return
+        state, self._drag_state = self._drag_state, None
+        self.canvas.unsetCursor()
+        if state is not None and not state['moved'] and event.inaxes is state['ax']:
+            self.click_cell(event)
+
     def click_cell(self, event):
         if event.inaxes is not self.overview or event.xdata is None or event.ydata is None:
             return
@@ -273,6 +310,7 @@ class DistancePreview(QDialog):
                 self.cell.setCurrentIndex(idx)
 
     def redraw(self, *_):
+        self._drag_state = None
         frame = self.frame.value()-1
         mask = self.masks[frame]
         image = self._composite(mask.shape)

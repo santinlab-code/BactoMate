@@ -35,6 +35,7 @@ réel, les superpositions des trois positions ont été relues et vérifiées.
 
 Les aperçus de segmentation Omnipose et U-Net proposent Detach image pour
 déplacer l’image sur un autre écran. La même image, son zoom et ses données
-restent actifs ; les réglages et la LUT restent dans le panneau principal.
+restent actifs. La LUT suit l’image dans la fenêtre détachée ; les réglages de
+segmentation restent dans le panneau principal.
 Attach image ou fermer la fenêtre d’image réintègre le canevas. Masquer ou
 fermer l’aperçu masque aussi sa fenêtre d’image.
