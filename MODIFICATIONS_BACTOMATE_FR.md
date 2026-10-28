@@ -4,7 +4,7 @@ Version BactoMate_custom préparée pour les essais de l’équipe, le 28 octobr
 
 Base de comparaison : BactoMate 2.9.5, commit `2dfd181` du dépôt
 `santinlab-code/BactoMate`. Les changements décrits ici sont regroupés dans la branche
-`BactoMate_custom` de GitHub, pour les essais.
+`test/bactomate-optimisations` de GitHub, pour les essais.
 
 ## 1. File Conversion : fichiers ND2 avec plusieurs positions XY
 
@@ -70,7 +70,7 @@ réappliqués automatiquement à de nouveaux identifiants de cellules.
 ## 4. Filtering : table des cellules
 
 Une table présente les identifiants des cellules, leur statut de sélection,
-leur aire en pixels carrés, leur longueur et leur largeur en pixels, ainsi que leur position.
+leur aire en µm², leur longueur et leur largeur en µm, ainsi que leur position.
 Les dimensions sont les grand et petit axes de l’ellipse équivalente au masque
 (même méthode que les mesures morphologiques), pas une longueur de squelette.
 On peut sélectionner plusieurs lignes ou cliquer sur une cellule dans l’image.
@@ -205,3 +205,25 @@ un sélecteur de masque/position XY et des aides (?) sur les deux distances.
 Les boutons ← Cell / Cell → et les touches fléchées naviguent entre cellules.
 La molette zoome autour du pointeur dans les deux vues. Les LUT et la visibilité
 des images ne changent pas les résultats de colocalisation.
+
+## Ajustements après essais sur Mac — 28 octobre 2026
+
+- Segmentation (Omnipose et U-Net) : Detach image ouvre le même canevas dans une
+  fenêtre séparée. Attach image ou fermer cette fenêtre le réintègre. Les réglages
+  et la LUT restent dans le panneau principal.
+- Filtering : un clic gauche simple sélectionne l’objet et sa ligne de table,
+  même après zoom ou déplacement. Glisser conserve le déplacement de l’image.
+  Delete ou Backspace exclut la sélection ; Keep/Use filters permet de revenir
+  sur ce choix. La sélection reste signalée par un cadre jaune.
+- Cell table : aire en µm², longueur et largeur en µm, avec la calibration de
+  Filtering. Changer la calibration actualise les valeurs. Sans calibration valide,
+  les mesures physiques affichent un tiret. X/Y restent en pixels.
+- Preview distances : l’histogramme interactif LUT de BactoMate remplace les
+  champs numériques. LUT channel choisit le canal à ajuster ; chaque canal garde
+  son intervalle. Les lignes Min/Max se déplacent à la souris. Auto LUT reste
+  disponible. Le zoom à la molette est limité à environ 5 % par événement.
+
+Validation de ces ajustements : 44 tests ciblés réussis, dont un vrai clic souris
+sur une image zoomée/déplacée suivi de Delete, les dimensions calibrées et
+les interactions des LUT. Chargement et affichage vérifiés sur les trois XY
+réelles disponibles. Les essais natifs sur Mac restent à faire.

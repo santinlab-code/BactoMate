@@ -1986,6 +1986,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             pass
         worker = AnalyzeMasksPreviewWorker(rid, frame_idx, mask_2d, params, fi_image=None, display_params=display_params, skip_vis=True, latest_request_id=lambda : int(getattr(dlg, '_preview_request_id', rid)), foci_apply=request_foci_apply_bundle)
         curation_panel.setEnabled(False)
+        curation_panel.manual_controls.setEnabled(False)
         thread = QThread(dlg)
         thread.setObjectName('AnalyzeMasksPreviewWorkerThread')
         worker.moveToThread(thread)
@@ -2016,6 +2017,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
 
         def _set_primary_idle() -> None:
             curation_panel.setEnabled(True)
+            curation_panel.manual_controls.setEnabled(True)
             try:
                 dlg.set_primary_action(apply_current, label='Apply current filters', enabled=True, visible=False)
                 reapply_btn.setEnabled(True)
@@ -2504,7 +2506,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         except Exception:
             foci_fs = {}
         accepted = curation_panel.context(
-            getattr(dlg, '_preview_mask_path_key', None) or mask_path, int(state.frame_idx), mask_2d, accepted)
+            getattr(dlg, '_preview_mask_path_key', None) or mask_path, int(state.frame_idx), mask_2d, accepted, pixel_size=float(w_pixel.value()))
         rejected = set(int(x) for x in np.unique(mask_2d) if x > 0) - accepted
         accepted_for_foci_gating = accepted_cell_labels_for_foci(accepted, cell_filter_applied=cell_filter_applied)
         overlay_only = bool(state.extra.get('overlay_only'))

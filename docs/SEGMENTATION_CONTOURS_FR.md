@@ -30,3 +30,11 @@ Les tests vérifient le choix et la mémorisation de couleur, l’annulation,
 les frontières entre cellules, les bords d’image, la conservation du contraste
 et des masques, ainsi que les exports sur plusieurs instants. Sur le fichier
 réel, les superpositions des trois positions ont été relues et vérifiées.
+
+## Image détachable
+
+Les aperçus de segmentation Omnipose et U-Net proposent Detach image pour
+déplacer l’image sur un autre écran. La même image, son zoom et ses données
+restent actifs ; les réglages et la LUT restent dans le panneau principal.
+Attach image ou fermer la fenêtre d’image réintègre le canevas. Masquer ou
+fermer l’aperçu masque aussi sa fenêtre d’image.

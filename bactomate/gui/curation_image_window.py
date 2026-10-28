@@ -1,52 +1,30 @@
 """Detachable Filtering canvas and keyboard/table selection feedback."""
 import numpy as np
-from PyQt6.QtCore import Qt, QEvent, QObject
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox, QLabel
+from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtWidgets import QComboBox, QLabel
 
 
-class _ImageWindow(QDialog):
-    def closeEvent(self, event):
-        self.controller.attach()
-        event.ignore()
+from bactomate.gui.preview.detachable_image import DetachablePreviewImage
 
 
-class CurationImageWindow(QObject):
+class CurationImageWindow(DetachablePreviewImage):
     def __init__(self, preview, panel, mask):
-        super().__init__(preview)
-        self.preview, self.panel, self.mask = preview, panel, mask
-        self.canvas = preview.canvas
-        self.home = self.canvas.parentWidget()
-        self.layout = self.home.layout()
-        self.index = self.layout.indexOf(self.canvas)
-        self.window = _ImageWindow(preview, Qt.WindowType.Window)
-        self.window.controller = self
-        self.window.setWindowTitle('Filtering — image (click to select; Delete to exclude)')
-        self.window.resize(1000, 800)
-        layout = QVBoxLayout(self.window)
-        row = QHBoxLayout()
-        row.addWidget(QLabel('Select objects:'))
+        self.panel, self.mask = panel, mask
+        super().__init__(preview, title='Filtering — image (click to select; Delete to exclude)')
         self.kind = QComboBox()
         self.kind.addItems(['Cells', 'Foci — current channel'])
         self.kind.currentIndexChanged.connect(panel.kind.setCurrentIndex)
         panel.kind.currentIndexChanged.connect(self.kind.setCurrentIndex)
         panel.kind.currentIndexChanged.connect(self.highlight)
-        row.addWidget(self.kind)
-        attach = QPushButton('Attach image')
-        attach.clicked.connect(self.attach)
-        row.addWidget(attach)
-        layout.addLayout(row)
-        layout.addWidget(QLabel('Mouse wheel: zoom · drag: pan · click: select · Delete/Backspace: exclude'))
-        self.floating_layout = layout
-        self.button = QPushButton('Detach image')
-        self.button.clicked.connect(self.detach)
-        preview._layout.addWidget(self.button)
+        self.controls_layout.insertWidget(0, QLabel('Select objects:'))
+        self.controls_layout.insertWidget(1, self.kind)
+        self.floating_layout.insertWidget(1, QLabel('Click: select · Delete/Backspace: exclude'))
         panel.table.itemSelectionChanged.connect(self.highlight)
         panel.foci_table.itemSelectionChanged.connect(self.highlight)
         panel.table.cellClicked.connect(lambda *_: panel.kind.setCurrentIndex(0))
         panel.foci_table.cellClicked.connect(lambda *_: panel.kind.setCurrentIndex(1))
         for widget in (self.canvas, panel.table, panel.foci_table):
             widget.installEventFilter(self)
-        preview.installEventFilter(self)
         self.detach()
 
     def exclude(self):
@@ -54,18 +32,9 @@ class CurationImageWindow(QObject):
         if self.panel.isEnabled() and table.selectionModel().selectedRows():
             self.panel.edit(False)
 
-    def detach(self):
-        self.floating_layout.addWidget(self.canvas, 1)
-        self.button.setEnabled(False)
-        self.window.show()
-        self.highlight()
-
-    def attach(self):
-        self.layout.insertWidget(self.index, self.canvas, 1)
-        self.window.hide()
-        self.button.setEnabled(True)
-
     def eventFilter(self, obj, event):
+        if not hasattr(self, 'preview'):
+            return False
         if obj is not self.preview:
             if event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
                 if obj is self.panel.table:
@@ -75,11 +44,7 @@ class CurationImageWindow(QObject):
                 self.exclude()
                 return True
             return False
-        if event.type() == QEvent.Type.Hide:
-            self.window.hide()
-        elif event.type() == QEvent.Type.Show and self.canvas.parentWidget() is self.window:
-            self.window.show()
-        return False
+        return super().eventFilter(obj, event)
 
     def highlight(self, *_):
         self.canvas.object_selection_boxes = []

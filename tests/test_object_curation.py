@@ -206,11 +206,16 @@ def test_cell_table_dimensions(tmp_path, qapp):
     path = tmp_path / 'mask.tif'
     tifffile.imwrite(path, mask)
     panel = ObjectCurationPanel(QTableWidget(), lambda: 'GFP', lambda: None, lambda *args: None)
-    panel.context(path, 0, mask, {1})
+    panel.context(path, 0, mask, {1}, pixel_size=.2)
     region = regionprops(mask)[0]
     assert panel.table.columnCount() == 7
-    assert panel.table.horizontalHeaderItem(3).text() == 'Length (px)'
-    assert float(panel.table.item(0, 3).text()) == pytest.approx(region.major_axis_length, abs=.005)
-    assert float(panel.table.item(0, 4).text()) == pytest.approx(region.minor_axis_length, abs=.005)
-    assert float(panel.table.item(0, 2).text()) == 192
+    assert panel.table.horizontalHeaderItem(3).text() == 'Length (µm)'
+    assert float(panel.table.item(0, 3).text()) == pytest.approx(region.major_axis_length * .2, abs=.00005)
+    assert float(panel.table.item(0, 4).text()) == pytest.approx(region.minor_axis_length * .2, abs=.00005)
+    assert float(panel.table.item(0, 2).text()) == pytest.approx(192*.2**2)
+    # Calibration changes must invalidate the table, even for the same labels.
+    panel.context(path, 0, mask, {1}, pixel_size=.1)
+    assert float(panel.table.item(0, 2).text()) == pytest.approx(192*.1**2)
+    panel.context(path, 0, mask, {1})
+    assert panel.table.item(0, 2).text() == '—'
     panel.close()

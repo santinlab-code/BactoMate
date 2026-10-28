@@ -2838,6 +2838,8 @@ class OmniposeSegTab(QWidget):
             embed_seg = mount is not None
             from bactomate.gui.preview.preview_window import PreviewDialogBase, WorkerGuard
             preview_dialog = PreviewDialogBase(dlg_parent, title='Segmentation Preview', primary_action_label='Re-detect', primary_action_callback=None, render_callback=None, worker_guard=None, minimum_size=(900, 700), embedded=embed_seg, show_close_button=not embed_seg)
+            from bactomate.gui.preview.detachable_image import DetachablePreviewImage
+            preview_dialog._detachable_image = DetachablePreviewImage(preview_dialog)
             if embed_seg:
                 try:
                     style_path_row_browse_button(preview_dialog.primary_button)

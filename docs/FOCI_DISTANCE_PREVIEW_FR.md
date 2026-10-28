@@ -35,8 +35,8 @@ chemin d’analyse. Une position est affichée à la fois. Changer de masque rec
 ses images, ses cellules, ses canaux, ses détections et sa calibration ; les
 positions XY ne sont pas superposées.
 
-**LUT channel** choisit l’image à régler, même si elle est masquée. Min/Max fixent
-les intensités affichées entre noir et la couleur choisie. Auto LUT utilise les
+**LUT channel** choisit l’image à régler, même si elle est masquée. L’histogramme interactif est le même que dans Segmentation/Filtering : déplacer
+les lignes Min/Max pour régler le contraste du canal choisi. Auto LUT utilise les
 percentiles 1 et 99,5 de la frame courante. Chaque image garde sa propre LUT
 pendant l’observation de cette position. Les canaux cochés sont additionnés puis
 bornés pour l’affichage. Ces réglages ne changent ni les pixels sources, ni les
@@ -47,3 +47,6 @@ Pan permet de déplacer l’image. Changer de cellule recentre le zoom ; changer
 une LUT ou un seuil conserve la zone observée. Le bouton Zoom n’est plus requis.
 Les petits **(?)** près de Max distance et Threshold expliquent le rayon de
 recherche et le seuil de colocalisation.
+
+Le zoom à la molette progresse par environ 5 % au maximum par événement,
+pour permettre un réglage plus fin, notamment au pavé tactile.

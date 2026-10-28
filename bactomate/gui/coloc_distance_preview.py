@@ -91,23 +91,17 @@ class DistancePreview(QDialog):
         bg_row.addWidget(QLabel('LUT channel'))
         self.lut_channel = QComboBox()
         bg_row.addWidget(self.lut_channel)
-        self.lut_min, self.lut_max = QDoubleSpinBox(), QDoubleSpinBox()
-        for label, spin in (('Min', self.lut_min), ('Max', self.lut_max)):
-            spin.setRange(-1e15, 1e15)
-            spin.setDecimals(3)
-            bg_row.addWidget(QLabel(label))
-            bg_row.addWidget(spin)
-            spin.valueChanged.connect(self._edit_lut)
-        self.lut_color = QComboBox()
-        self.lut_color.addItems(['Gray', 'Green', 'Magenta', 'Cyan', 'Red', 'Blue', 'Yellow'])
-        self.lut_color.currentTextChanged.connect(self._edit_lut)
-        bg_row.addWidget(self.lut_color)
         auto = QPushButton('Auto LUT')
         auto.clicked.connect(self._auto_lut)
         bg_row.addWidget(auto)
         self.lut_channel.currentTextChanged.connect(self._show_lut)
+        from bactomate.gui.preview.preview_window import HistogramLUTWidget, CollapsibleSection
+        self.lut_widget = HistogramLUTWidget(self)
+        self.lut_widget.lut_changed.connect(self._edit_lut)
         self._populate_layers()
         layout.addLayout(bg_row)
+        self.lut_section = CollapsibleSection('LUTs', self.lut_widget, expanded=True, compact=True)
+        layout.addWidget(self.lut_section)
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -131,6 +125,7 @@ class DistancePreview(QDialog):
                                 'Click a cell in the overview to zoom. Grid spacing in the zoom: 1 image pixel. '
                                 'Scroll over either image to zoom at the pointer. Drag with Pan to move. '
                                 'Values changed here also update Foci analysis.'))
+        self.frame.valueChanged.connect(self._show_lut)
         self.frame.valueChanged.connect(self.populate_cells)
         for widget in (self.cell, self.a, self.b):
             widget.currentIndexChanged.connect(self.redraw)
@@ -169,20 +164,16 @@ class DistancePreview(QDialog):
         lut = self.luts.get(self.lut_channel.currentText())
         if lut is None:
             return
-        for widget in (self.lut_min, self.lut_max, self.lut_color):
-            widget.blockSignals(True)
-        self.lut_min.setValue(lut[0])
-        self.lut_max.setValue(lut[1])
-        self.lut_color.setCurrentText(lut[2])
-        for widget in (self.lut_min, self.lut_max, self.lut_color):
-            widget.blockSignals(False)
+        self.lut_widget.blockSignals(True)
+        self.lut_widget.set_lut(lut[0], lut[1])
+        self.lut_widget.set_frame(self._plane(self.lut_channel.currentText()), preserve_user_lut=True)
+        self.lut_widget.blockSignals(False)
 
-    def _edit_lut(self, *_):
+    def _edit_lut(self, lo, hi):
         name = self.lut_channel.currentText()
-        lo, hi = self.lut_min.value(), self.lut_max.value()
         if name not in self.luts or hi <= lo:
             return
-        self.luts[name] = [lo, hi, self.lut_color.currentText()]
+        self.luts[name][:2] = [lo, hi]
         self.redraw()
 
     def _auto_lut(self):
@@ -213,7 +204,7 @@ class DistancePreview(QDialog):
         if event.inaxes not in self.figure.axes or event.xdata is None or event.ydata is None:
             return
         ax = event.inaxes
-        scale = 1.25 ** (-event.step)
+        scale = 1.05 ** (-max(-1.0, min(1.0, event.step)))
         xlim, ylim = ax.get_xlim(), ax.get_ylim()
         # Preserve image orientation and center the scale on the pointer.
         if not (1 <= abs(xlim[1]-xlim[0])*scale <= self.masks[self.frame.value()-1].shape[1]*10):

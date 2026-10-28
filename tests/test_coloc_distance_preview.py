@@ -65,8 +65,20 @@ def _preview_with_layers():
     return tab, mask, backgrounds
 
 
+def _drag_lut(dlg, lo, hi):
+    from types import SimpleNamespace
+    widget = dlg.lut_widget
+    assert widget.has_histogram()
+    for start, end in ((widget.current_lut()[0], lo), (widget.current_lut()[1], hi)):
+        widget._on_press(SimpleNamespace(inaxes=widget._ax, xdata=start))
+        widget._on_motion(SimpleNamespace(inaxes=widget._ax, xdata=end))
+        widget._on_release(None)
+
+
 def test_multi_channel_luts_do_not_change_pairing(qapp):
     tab, mask, backgrounds = _preview_with_layers()
+    for stack in backgrounds.values():
+        stack[0, 0, 1], stack[0, 0, 2] = 20, 0
     channels = [('GFP', [{'x': 6, 'y': 6, 'frame': 0, 'cell_id': 1}]),
                 ('mCherry', [{'x': 8, 'y': 6, 'frame': 0, 'cell_id': 1}])]
     dlg = DistancePreview(tab, {0: mask}, backgrounds['Phase'], channels, backgrounds=backgrounds)
@@ -75,14 +87,10 @@ def test_multi_channel_luts_do_not_change_pairing(qapp):
         for name in backgrounds:
             dlg.layer_actions[name].setChecked(name != 'Phase')
         dlg.lut_channel.setCurrentText('GFP')
-        dlg.lut_min.setValue(0)
-        dlg.lut_max.setValue(10)
-        dlg.lut_color.setCurrentText('Green')
+        _drag_lut(dlg, 0, 10)
         gfp_lut = list(dlg.luts['GFP'])
         dlg.lut_channel.setCurrentText('mCherry')
-        dlg.lut_min.setValue(0)
-        dlg.lut_max.setValue(16)
-        dlg.lut_color.setCurrentText('Magenta')
+        _drag_lut(dlg, 0, 16)
         assert dlg.luts['GFP'] == gfp_lut
         composite = dlg._composite(mask.shape)
         np.testing.assert_allclose(composite[0, 0], [.5, .5, .5])
@@ -90,7 +98,7 @@ def test_multi_channel_luts_do_not_change_pairing(qapp):
         dlg.layer_actions['GFP'].setChecked(False)
         np.testing.assert_allclose(dlg._composite(mask.shape)[0, 0], [.5, 0, .5])
         dlg.lut_channel.setCurrentText('GFP')
-        assert dlg.lut_max.value() == 10
+        assert dlg.lut_widget.current_lut() == (0, 10)
     finally:
         dlg.close()
         tab.close()
@@ -121,7 +129,8 @@ def test_cell_arrows_and_mouse_zoom(qapp):
             xlim, ylim = ax.get_xlim(), ax.get_ylim()
             event = SimpleNamespace(inaxes=ax, xdata=8., ydata=8., step=1)
             dlg.scroll_zoom(event)
-            assert abs(ax.get_xlim()[1]-ax.get_xlim()[0]) < abs(xlim[1]-xlim[0])
+            np.testing.assert_allclose(abs(ax.get_xlim()[1]-ax.get_xlim()[0]),
+                                       abs(xlim[1]-xlim[0])/1.05)
             assert ax.get_ylim()[0] > ax.get_ylim()[1]
             event.step = -1
             dlg.scroll_zoom(event)

@@ -1,5 +1,5 @@
 import numpy as np
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtTest import QTest
 
 
@@ -16,7 +16,16 @@ def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp):
         assert _wait_until(lambda: panel.isEnabled())
         shape = np.asarray(controller.mask()).shape
         size = dlg.canvas._image_size
-        dlg.canvas.clicked_image.emit(int(40*size[0]/shape[1]), int(34*size[1]/shape[0]))
+        # Exercise a real left click with zoom and pan applied.
+        canvas = dlg.canvas
+        canvas._zoom = 1.7
+        image_x, image_y = 40*size[0]/shape[1], 34*size[1]/shape[0]
+        canvas.center_on_image_point(image_x, image_y)
+        scale = canvas.view_scale()
+        click = canvas._total_offset(scale) + QPointF(image_x*scale, image_y*scale)
+        QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=click.toPoint())
+        assert not canvas._dragging
+        assert not canvas._left_potential_click
         assert panel.table.selectedItems()[0].text() == '1'
         assert len(dlg.canvas.object_selection_boxes) == 1
         rid = dlg._preview_request_id

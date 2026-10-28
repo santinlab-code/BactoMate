@@ -62,3 +62,9 @@ TIFF et CSV. L’essai sur le ND2 fourni utilise les 144 cellules segmentées de
 XY001, avec un filtre de surface et des corrections manuelles, vérifiées dans
 le TIFF exporté. Les tests de foci utilisent des données contrôlées ; la
 détection réelle GFP/mCherry sera évaluée à l’étape dédiée.
+
+La table affiche Area (µm²), Length (µm) et Width (µm), calculés avec la
+calibration Pixel size de Filtering. Les axes de l’ellipse équivalente donnent
+longueur et largeur. X/Y sont les coordonnées du centre en pixels.
+Un clic gauche simple sélectionne la cellule sous le pointeur ; un glisser
+sert à déplacer l’image. Le clic tient compte du zoom et du déplacement.

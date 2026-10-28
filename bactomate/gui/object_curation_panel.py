@@ -18,7 +18,7 @@ class ObjectCurationPanel(QWidget):
         self.summary = QLabel('Selection — current frame')
         layout.addWidget(self.summary)
         self.table = QTableWidget(0, 7)
-        self.table.setHorizontalHeaderLabels(['Cell ID', 'Selected', 'Area (px²)', 'Length (px)', 'Width (px)', 'X', 'Y'])
+        self.table.setHorizontalHeaderLabels(['Cell ID', 'Selected', 'Area (µm²)', 'Length (µm)', 'Width (µm)', 'X (px)', 'Y (px)'])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -47,7 +47,7 @@ class ObjectCurationPanel(QWidget):
         self.details.setMaximumHeight(90)
         layout.addWidget(self.details)
 
-    def context(self, path, frame, mask, accepted):
+    def context(self, path, frame, mask, accepted, pixel_size=None):
         from pathlib import Path
         if self.cur is None or self.cur.mask_path != Path(path).resolve():
             self.cur = ObjectCuration(path)
@@ -56,7 +56,12 @@ class ObjectCurationPanel(QWidget):
         labels = set(int(x) for x in np.unique(mask) if x > 0)
         accepted = self.cur.cells(frame, accepted, labels)
         self.summary.setText(f'Frame {frame+1} — {len(accepted)} selected / {len(labels)} segmented cells')
-        context_key = (str(self.cur.mask_path), frame, frozenset(labels), frozenset(accepted))
+        ps = float(pixel_size) if pixel_size is not None else 0.0
+        if not np.isfinite(ps) or ps <= 0:
+            ps = 0.0
+        self.table.setToolTip(f'Calibration: {ps:g} µm / px' if ps else
+                              'Calibration unavailable: physical dimensions cannot be shown.')
+        context_key = (str(self.cur.mask_path), frame, frozenset(labels), frozenset(accepted), ps)
         previous_key = getattr(self, '_context_key', None)
         if previous_key == context_key:
             return accepted
@@ -70,8 +75,9 @@ class ObjectCurationPanel(QWidget):
         from skimage.measure import regionprops
         for i, region in enumerate(regionprops(mask)):
             y, x = region.centroid
-            values = [region.label, 'Yes' if region.label in accepted else 'No', region.area, round(region.major_axis_length, 2),
-                      round(region.minor_axis_length, 2), round(x, 1), round(y, 1)]
+            values = [region.label, 'Yes' if region.label in accepted else 'No', round(region.area * ps**2, 4) if ps else '—',
+                      round(region.major_axis_length * ps, 4) if ps else '—',
+                      round(region.minor_axis_length * ps, 4) if ps else '—', round(x, 1), round(y, 1)]
             for j, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
                 item.setData(Qt.ItemDataRole.UserRole, (int(region.label), float(y), float(x)))

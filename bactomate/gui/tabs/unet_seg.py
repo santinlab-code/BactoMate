@@ -667,6 +667,8 @@ class UNetSegmentTab(QWidget):
         from bactomate.gui.preview.render_utils import apply_lut_to_uint8
         from bactomate.gui.preview.preview_window import RenderResult
         d = PreviewDialogBase(dlg_parent, title='Segmentation Preview', primary_action_label='Re-segment', primary_action_callback=None, render_callback=None, worker_guard=None, minimum_size=(900, 700), embedded=embed_u, show_close_button=not embed_u)
+        from bactomate.gui.preview.detachable_image import DetachablePreviewImage
+        d._detachable_image = DetachablePreviewImage(d)
         title_label = d.title_label
         d.images = images
         d.model = model

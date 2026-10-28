@@ -364,6 +364,8 @@ class ImageCanvas(QWidget):
                     self._left_potential_click = False
                     return
         if self._is_pan_button(event.button()):
+            self._left_potential_click = event.button() == self.click_button
+            self._left_press_pos = event.position()
             self._dragging = True
             self._last_pos = event.position()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
@@ -388,7 +390,7 @@ class ImageCanvas(QWidget):
             self._dragging = True
             self._last_pos = event.position()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        if self._dragging:
+        if self._dragging and not self._left_potential_click:
             delta = event.position() - self._last_pos
             self._pan_offset += delta
             self._last_pos = event.position()
@@ -430,6 +432,8 @@ class ImageCanvas(QWidget):
             if image_pos is not None:
                 self.clicked_image.emit(image_pos[0], image_pos[1])
             self._left_potential_click = False
+            self._dragging = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
         elif self._is_pan_button(event.button()) or (event.button() == self.click_button and self._dragging):
             if self._dragging:
                 self._mark_zoom_pan_used()
