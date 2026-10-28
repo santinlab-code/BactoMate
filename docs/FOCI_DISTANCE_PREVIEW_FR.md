@@ -4,8 +4,10 @@ Dans Analyze → Foci analysis, les valeurs initiales sont **Max distance = 3 px
 et **Threshold = 2 px**. Une session déjà enregistrée conserve ses propres valeurs.
 
 **Preview distances…** ouvre l’image et un zoom sur une cellule. Choisir une
-cellule dans la liste ou cliquer sur son contour dans la vue d’ensemble. Le menu
-Image background permet de passer de la phase à la fluorescence disponible.
+cellule dans la liste ou cliquer sur son contour dans la vue d’ensemble. Les boutons ← Cell et Cell → (ou les touches fléchées) passent à la cellule
+précédente ou suivante. Le menu à cocher Images / channels… permet de superposer
+la phase et plusieurs canaux de fluorescence disponibles. Les couleurs des
+images sont indépendantes des marqueurs A/B.
 Les menus A et B choisissent les deux canaux à comparer ; Frame sélectionne le
 temps dans un film.
 
@@ -26,3 +28,22 @@ Les masques et CSV filtrés sont utilisés si l’option correspondante est coch
 comme pour l’analyse. Sans CSV de détection, les images et les cellules restent
 visibles, avec un message indiquant l’absence de foci détectés ; aucun focus
 artificiel n’est ajouté. Effectuer d’abord la détection pour comparer les paires.
+
+
+Le menu **Mask / XY position** choisit la segmentation à observer parmi celles du
+chemin d’analyse. Une position est affichée à la fois. Changer de masque recharge
+ses images, ses cellules, ses canaux, ses détections et sa calibration ; les
+positions XY ne sont pas superposées.
+
+**LUT channel** choisit l’image à régler, même si elle est masquée. Min/Max fixent
+les intensités affichées entre noir et la couleur choisie. Auto LUT utilise les
+percentiles 1 et 99,5 de la frame courante. Chaque image garde sa propre LUT
+pendant l’observation de cette position. Les canaux cochés sont additionnés puis
+bornés pour l’affichage. Ces réglages ne changent ni les pixels sources, ni les
+mesures, ni l’appariement.
+
+La molette zoome et dézoome autour du pointeur dans chacune des deux vues.
+Pan permet de déplacer l’image. Changer de cellule recentre le zoom ; changer
+une LUT ou un seuil conserve la zone observée. Le bouton Zoom n’est plus requis.
+Les petits **(?)** près de Max distance et Threshold expliquent le rayon de
+recherche et le seuil de colocalisation.

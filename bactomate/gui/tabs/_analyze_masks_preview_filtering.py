@@ -720,7 +720,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     w_min_ecc = _mk_spin(decimals=2, mn=0.0, mx=1.0, step=0.05, value=float(fs0.get('min_eccentricity', 0.5) or 0.5), width=_CELL_SPIN_W)
     w_min_sol = _mk_spin(decimals=2, mn=0.0, mx=1.0, step=0.05, value=float(fs0.get('min_solidity', 0.7) or 0.7), width=_CELL_SPIN_W)
     w_excl_border = QCheckBox('Exclude cells at borders')
-    w_excl_border.setChecked(bool(fs0.get('exclude_border', False)))
+    w_excl_border.setChecked(bool(fs0.get('exclude_border', True)))
     w_excl_border.setToolTip('Remove cells that touch the image border.')
     w_focus_en = QCheckBox('Reject out-of-focus cells')
     w_focus_en.setToolTip(
@@ -919,7 +919,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
 
     curation_panel = ObjectCurationPanel(
         foci_table, lambda: _active_foci_channel_key(), _curation_changed, _focus_curated_cell)
-    curation_section = CollapsibleSection('Cell table / Manual selection / History', curation_panel,
+    # Keep manual decisions accessible below the cell filter card.
+    settings_outer.insertWidget(settings_outer.indexOf(cell_group) + 1, curation_panel.manual_controls)
+    curation_section = CollapsibleSection('Cell table / History', curation_panel,
                                          parent=settings_host, expanded=False, compact=True)
     settings_outer.addWidget(curation_section)
 
@@ -2384,6 +2386,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             pass
 
     def apply_current(source_key=None) -> None:
+        # QPushButton.clicked sends a checked flag, not a View source.
+        if isinstance(source_key, bool):
+            source_key = None
         try:
             _ui_to_settings()
         except Exception:

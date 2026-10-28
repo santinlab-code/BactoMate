@@ -569,3 +569,34 @@ def test_view_foci_not_painted_as_phase_when_dialog_state_desynced() -> None:
             )
         finally:
             _shutdown(tab, parent)
+
+
+def test_apply_button_keeps_current_view(tmp_path):
+    from PyQt6.QtWidgets import QPushButton
+    from bactomate.gui.tabs._analyze_masks_preview_filtering import show_filter_preview
+    from bactomate.gui.preview.navigation_controls import PreviewNavState
+
+    _qapp()
+    _write_phase_tif(tmp_path, pixel_size_um=0.108, nonzero=True)
+    tifffile.imwrite(str(tmp_path / 'sample_foci_GFP.tif'),
+                     np.zeros((1, 256, 256), dtype=np.uint16))
+    mask_path = _write_mask_tif(tmp_path)
+    tab, parent = _build_tab(tmp_path)
+    try:
+        show_filter_preview(tab, str(mask_path))
+        dlg = tab._filter_preview_dialog
+        assert _wait_for_filter_apply(dlg, timeout_s=20)
+        nav = dlg._nav_ctrl
+        paths = list(dlg._bg_paths)
+        button = next(b for b in dlg.findChildren(QPushButton)
+                      if b.text() == 'Apply current filters' and b.isVisible())
+        for index in range(len(paths)):
+            key = ('file', index)
+            nav.set_state(PreviewNavState(source_key=key, frame_idx=0), emit=True)
+            assert _wait_until(lambda: dlg.state().source_key == key)
+            button.click()
+            assert _wait_until(lambda: dlg._last_preview.get('source_key') == key)
+            assert nav.state().source_key == key
+            assert dlg.state().source_key == key
+    finally:
+        _shutdown(tab, parent)

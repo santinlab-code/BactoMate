@@ -17,15 +17,18 @@ class ObjectCurationPanel(QWidget):
         layout = QVBoxLayout(self)
         self.summary = QLabel('Selection — current frame')
         layout.addWidget(self.summary)
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(['Cell ID', 'Selected', 'Area (px²)', 'X', 'Y'])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(['Cell ID', 'Selected', 'Area (px²)', 'Length (px)', 'Width (px)', 'X', 'Y'])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setMaximumHeight(180)
         self.table.cellDoubleClicked.connect(self._focus)
         layout.addWidget(self.table)
-        row = QHBoxLayout()
+        self.manual_controls = QWidget(self)
+        self.manual_controls.setObjectName("ManualObjectSelection")
+        row = QHBoxLayout(self.manual_controls)
+        row.setContentsMargins(0, 0, 0, 0)
         self.kind = QComboBox()
         self.kind.addItems(['Cells', 'Foci — current channel'])
         row.addWidget(self.kind)
@@ -34,7 +37,7 @@ class ObjectCurationPanel(QWidget):
             button = QPushButton(title)
             button.clicked.connect(lambda checked=False, k=keep: self.edit(k))
             row.addWidget(button)
-        layout.addLayout(row)
+        layout.addWidget(self.manual_controls)
         self.history = QComboBox()
         self.history.setToolTip('History for this segmentation and frame; filter values are shown in the tooltip.')
         layout.addWidget(self.history)
@@ -67,7 +70,8 @@ class ObjectCurationPanel(QWidget):
         from skimage.measure import regionprops
         for i, region in enumerate(regionprops(mask)):
             y, x = region.centroid
-            values = [region.label, 'Yes' if region.label in accepted else 'No', region.area, round(x, 1), round(y, 1)]
+            values = [region.label, 'Yes' if region.label in accepted else 'No', region.area, round(region.major_axis_length, 2),
+                      round(region.minor_axis_length, 2), round(x, 1), round(y, 1)]
             for j, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
                 item.setData(Qt.ItemDataRole.UserRole, (int(region.label), float(y), float(x)))

@@ -48,3 +48,118 @@ def test_no_detections_does_not_invent_foci(qapp):
     finally:
         dlg.close()
         tab.close()
+
+
+def _preview_with_layers():
+    tab = QWidget()
+    for name in ('coloc_merge_max_distance', 'coloc_merge_threshold'):
+        setattr(tab, name, QDoubleSpinBox(tab))
+        getattr(tab, name).setValue(3)
+    tab.coloc_merge_same_cell_only = QCheckBox(tab)
+    mask = np.zeros((40, 50), np.int32)
+    mask[4:12, 4:12] = 1
+    mask[20:28, 30:40] = 2
+    backgrounds = {'Phase': np.full((1, 40, 50), 2.),
+                   'GFP': np.full((1, 40, 50), 5.),
+                   'mCherry': np.full((1, 40, 50), 8.)}
+    return tab, mask, backgrounds
+
+
+def test_multi_channel_luts_do_not_change_pairing(qapp):
+    tab, mask, backgrounds = _preview_with_layers()
+    channels = [('GFP', [{'x': 6, 'y': 6, 'frame': 0, 'cell_id': 1}]),
+                ('mCherry', [{'x': 8, 'y': 6, 'frame': 0, 'cell_id': 1}])]
+    dlg = DistancePreview(tab, {0: mask}, backgrounds['Phase'], channels, backgrounds=backgrounds)
+    try:
+        pairs = list(dlg.pairs)
+        for name in backgrounds:
+            dlg.layer_actions[name].setChecked(name != 'Phase')
+        dlg.lut_channel.setCurrentText('GFP')
+        dlg.lut_min.setValue(0)
+        dlg.lut_max.setValue(10)
+        dlg.lut_color.setCurrentText('Green')
+        gfp_lut = list(dlg.luts['GFP'])
+        dlg.lut_channel.setCurrentText('mCherry')
+        dlg.lut_min.setValue(0)
+        dlg.lut_max.setValue(16)
+        dlg.lut_color.setCurrentText('Magenta')
+        assert dlg.luts['GFP'] == gfp_lut
+        composite = dlg._composite(mask.shape)
+        np.testing.assert_allclose(composite[0, 0], [.5, .5, .5])
+        assert dlg.pairs == pairs
+        dlg.layer_actions['GFP'].setChecked(False)
+        np.testing.assert_allclose(dlg._composite(mask.shape)[0, 0], [.5, 0, .5])
+        dlg.lut_channel.setCurrentText('GFP')
+        assert dlg.lut_max.value() == 10
+    finally:
+        dlg.close()
+        tab.close()
+
+
+def test_cell_arrows_and_mouse_zoom(qapp):
+    from types import SimpleNamespace
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtCore import Qt
+    tab, mask, backgrounds = _preview_with_layers()
+    dlg = DistancePreview(tab, {0: mask}, backgrounds['Phase'], [], backgrounds=backgrounds)
+    try:
+        dlg.show()
+        qapp.processEvents()
+        assert dlg.cell.currentData() == 1
+        assert not dlg.previous_cell.isEnabled()
+        dlg.next_cell.click()
+        assert dlg.cell.currentData() == 2
+        assert not dlg.next_cell.isEnabled()
+        dlg.previous_cell.click()
+        assert dlg.cell.currentData() == 1
+        dlg.canvas.setFocus()
+        QTest.keyClick(dlg.canvas, Qt.Key.Key_Right)
+        assert dlg.cell.currentData() == 2
+        QTest.keyClick(dlg.canvas, Qt.Key.Key_Left)
+        assert dlg.cell.currentData() == 1
+        for ax in dlg.figure.axes:
+            xlim, ylim = ax.get_xlim(), ax.get_ylim()
+            event = SimpleNamespace(inaxes=ax, xdata=8., ydata=8., step=1)
+            dlg.scroll_zoom(event)
+            assert abs(ax.get_xlim()[1]-ax.get_xlim()[0]) < abs(xlim[1]-xlim[0])
+            assert ax.get_ylim()[0] > ax.get_ylim()[1]
+            event.step = -1
+            dlg.scroll_zoom(event)
+            np.testing.assert_allclose(ax.get_xlim(), xlim)
+            np.testing.assert_allclose(ax.get_ylim(), ylim)
+        ax = dlg.figure.axes[1]
+        dlg.scroll_zoom(SimpleNamespace(inaxes=ax, xdata=8., ydata=8., step=1))
+        limits = ax.get_xlim()
+        dlg.threshold.setValue(2)
+        np.testing.assert_allclose(dlg.figure.axes[1].get_xlim(), limits)
+    finally:
+        dlg.close()
+        tab.close()
+
+
+def test_xy_switch_reloads_mask_images_channels_and_calibration(qapp):
+    tab, mask, backgrounds = _preview_with_layers()
+    other_mask = np.zeros((25, 30), np.int32)
+    other_mask[3:20, 4:15] = 7
+    other_images = {'Phase': np.ones((2, 25, 30))}
+    calls = []
+    def load(path):
+        calls.append(path)
+        return {0: other_mask, 1: other_mask}, other_images['Phase'], [('RFP', [])], .2, other_images
+    dlg = DistancePreview(tab, {0: mask}, backgrounds['Phase'], [('GFP', [])],
+                          backgrounds=backgrounds, datasets=['XY001', 'XY002'],
+                          current_path='XY001', dataset_loader=load)
+    try:
+        dlg.mask_selector.setCurrentIndex(1)
+        assert calls == ['XY002']
+        assert dlg.cell.currentData() == 7
+        assert dlg.frame.maximum() == 2
+        assert list(dlg.channels) == ['RFP']
+        assert list(dlg.layer_actions) == ['Phase']
+        assert dlg.pixel_size == .2
+        assert '1 px = 0.2' in dlg.status.text()
+        assert not dlg.pairs
+        assert dlg._composite(other_mask.shape).shape == (25, 30, 3)
+    finally:
+        dlg.close()
+        tab.close()

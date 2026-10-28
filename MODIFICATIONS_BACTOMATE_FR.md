@@ -1,10 +1,10 @@
 # BactoMate — résumé des modifications
 
-Version de travail préparée pour les essais de l’équipe, le 27 octobre 2026.
+Version BactoMate_custom préparée pour les essais de l’équipe, le 28 octobre 2026.
 
 Base de comparaison : BactoMate 2.9.5, commit `2dfd181` du dépôt
-`santinlab-code/BactoMate`. Les changements décrits ici sont présents dans le
-code de la branche GitHub `test/bactomate-optimisations`.
+`santinlab-code/BactoMate`. Les changements décrits ici sont regroupés dans la branche
+`BactoMate_custom` de GitHub, pour les essais.
 
 ## 1. File Conversion : fichiers ND2 avec plusieurs positions XY
 
@@ -70,7 +70,9 @@ réappliqués automatiquement à de nouveaux identifiants de cellules.
 ## 4. Filtering : table des cellules
 
 Une table présente les identifiants des cellules, leur statut de sélection,
-leur aire en pixels carrés et leur position.
+leur aire en pixels carrés, leur longueur et leur largeur en pixels, ainsi que leur position.
+Les dimensions sont les grand et petit axes de l’ellipse équivalente au masque
+(même méthode que les mesures morphologiques), pas une longueur de squelette.
 On peut sélectionner plusieurs lignes ou cliquer sur une cellule dans l’image.
 Un double-clic dans la table centre l’image sur la cellule.
 La table des foci existante sert à sélectionner les foci du canal actif.
@@ -179,10 +181,27 @@ pas leur qualité scientifique.
 ## Documentation complémentaire
 
 - `GUIDE_TEST_BACTOMATE_FR.md` : installation et parcours d’essai.
-- `GUIDE_TEST_BACTOMATE_EN.md` : version anglaise du guide d’essai.
-- `MODIFICATIONS_BACTOMATE_EN.md` : version anglaise de ce résumé.
 - `docs/ND2_MULTIPOINTS_FR.md`
 - `docs/SEGMENTATION_CONTOURS_FR.md`
 - `docs/FILTERING_CURATION_FR.md`
 - `docs/FILTERING_PRESETS_FR.md`
 - `docs/FOCI_DISTANCE_PREVIEW_FR.md`
+
+## Ajouts BactoMate_custom — 28 octobre 2026
+
+Le bouton Apply current filters conserve le canal choisi dans View. Le signal
+Qt du bouton est traité comme un clic, pas comme un identifiant de canal.
+La table des cellules ajoute Length (px) et Width (px) ; sa visibilité reste inchangée.
+
+Les boutons Import/Save en double ont été retirés du panneau de gauche ; ceux
+au-dessus de Cell filtering restent accessibles. Exclude cells at border est
+coché pour les nouveaux réglages (les choix enregistrés restent respectés).
+Les commandes manuelles Keep/Exclude/Use filters sont placées sous Cell filtering,
+hors du panneau repliable Cell table / History.
+
+L’aperçu des distances propose désormais un menu Images / channels à cocher
+pour superposer phase et fluorescence, des LUT Min/Max/couleur/Auto par image,
+un sélecteur de masque/position XY et des aides (?) sur les deux distances.
+Les boutons ← Cell / Cell → et les touches fléchées naviguent entre cellules.
+La molette zoome autour du pointeur dans les deux vues. Les LUT et la visibilité
+des images ne changent pas les résultats de colocalisation.

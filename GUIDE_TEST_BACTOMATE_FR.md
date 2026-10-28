@@ -1,5 +1,14 @@
 # Tester la version de travail BactoMate
 
+## Télécharger BactoMate_custom
+
+Version du 28 octobre 2026 : télécharger la branche **BactoMate_custom** :
+https://github.com/santinlab-code/BactoMate/archive/refs/heads/BactoMate_custom.zip
+
+Extraire le ZIP dans un nouveau dossier, puis suivre les étapes Windows ou macOS
+ci-dessous. Ce ZIP contient les sources ; les applications de la release officielle
+ne contiennent pas ces ajouts. Le résumé est dans MODIFICATIONS_BACTOMATE_FR.md.
+
 ## Quelle version installer ?
 
 L’archive `BactoMate-version-test.zip` contient le code actuel et les modifications

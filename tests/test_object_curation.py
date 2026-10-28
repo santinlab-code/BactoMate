@@ -53,6 +53,18 @@ def test_preview_manual_edit_reaches_worker_and_survives_reset(tmp_path, qapp):
         assert _wait_for_filter_apply(dlg)
         panel=dlg.findChild(ObjectCurationPanel)
         assert panel is not None and panel.table.rowCount()==4
+        from PyQt6.QtWidgets import QPushButton
+        assert dlg._pf_checkboxes['exclude_border'].isChecked()
+        assert tab.get_filter_settings()['exclude_border'] is True
+        assert not panel.isAncestorOf(panel.manual_controls)
+        host = panel.manual_controls.parentWidget()
+        layout = host.layout()
+        cell_card = host.findChild(type(host), 'FilterCellGroup')
+        assert cell_card is not None
+        assert layout.indexOf(panel.manual_controls) == layout.indexOf(cell_card) + 1
+        for title in ('Import filter settings…', 'Save filter settings…'):
+            assert not any(b.text() == title for b in tab.findChildren(QPushButton))
+            assert sum(b.text() == title for b in dlg.findChildren(QPushButton)) == 1
         panel.table.selectRow(0)
         rid=dlg._preview_request_id
         panel.edit(False)
@@ -181,4 +193,24 @@ def test_multiple_rows_survive_refresh_but_not_frame_change(tmp_path, qapp):
     assert len(panel.table.selectionModel().selectedRows())==2
     panel.context(path,1,mask,{1,2,3})
     assert not panel.table.selectionModel().selectedRows()
+    panel.close()
+
+
+def test_cell_table_dimensions(tmp_path, qapp):
+    from PyQt6.QtWidgets import QTableWidget
+    from skimage.measure import regionprops
+    from bactomate.gui.object_curation_panel import ObjectCurationPanel
+
+    mask = np.zeros((40, 50), dtype=np.uint16)
+    mask[10:18, 12:36] = 1
+    path = tmp_path / 'mask.tif'
+    tifffile.imwrite(path, mask)
+    panel = ObjectCurationPanel(QTableWidget(), lambda: 'GFP', lambda: None, lambda *args: None)
+    panel.context(path, 0, mask, {1})
+    region = regionprops(mask)[0]
+    assert panel.table.columnCount() == 7
+    assert panel.table.horizontalHeaderItem(3).text() == 'Length (px)'
+    assert float(panel.table.item(0, 3).text()) == pytest.approx(region.major_axis_length, abs=.005)
+    assert float(panel.table.item(0, 4).text()) == pytest.approx(region.minor_axis_length, abs=.005)
+    assert float(panel.table.item(0, 2).text()) == 192
     panel.close()
