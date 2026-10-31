@@ -76,3 +76,20 @@ Le clic droit sur un objet détecté le garde dans la sélection, même s’il a
 exclu. Si l’objet appartient déjà à une sélection multiple, le clic droit garde
 cette sélection entière. Cliquer droit dans le fond n’ajoute rien. Cette commande
 ne dessine pas de nouveaux objets. Pour les foci, elle concerne le canal actif.
+
+## Navigation et LUT (31 octobre 2026)
+
+Dans la fenêtre détachée, Échap ne masque ni ne rattache l’image. La croix de
+fermeture et Attach image la réintègrent toujours. Le panneau LUT est placé à
+droite de l’image ; le séparateur permet d’ajuster la place réservée à l’image.
+Le bouton Recenter / fit image annule zoom et déplacement pour retrouver la vue
+d’ensemble. Les glissières horizontale et verticale indiquent le centre visible
+en coordonnées de l’image et permettent de le déplacer. Elles se synchronisent
+avec le déplacement à la souris, le zoom et les changements de taille.
+
+La LUT est mémorisée par image/canal pendant l’ouverture de l’aperçu. Revenir à
+la phase ou à un canal retrouve son contraste, y compris après Apply ou un
+changement de frame. Cela ne crée pas de fichier de réglages sur disque et ne
+modifie pas les intensités mesurées. Les autres aperçus utilisant la LUT partagée
+(conversion, contours FI, U-Net) et l’aperçu Omnipose gardent également leurs LUT
+lors des changements de canal. Les LUT de montage par tuile étaient déjà séparées.

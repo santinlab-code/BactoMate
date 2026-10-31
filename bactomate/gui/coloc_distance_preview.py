@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QComboBox,
                              QDoubleSpinBox, QCheckBox, QLabel, QSpinBox,
-                             QPushButton, QToolButton, QMenu, QMessageBox)
-from PyQt6.QtGui import QAction, QShortcut, QKeySequence
+                             QPushButton, QMessageBox, QWidget, QGridLayout)
+from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -83,12 +83,10 @@ class DistancePreview(QDialog):
         row.addWidget(self.same)
         layout.addLayout(row)
         bg_row = QHBoxLayout()
-        self.layers_button = QToolButton()
-        self.layers_button.setText('Images / channels…')
-        self.layers_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.layers_menu = QMenu(self.layers_button)
-        self.layers_button.setMenu(self.layers_menu)
-        bg_row.addWidget(self.layers_button)
+        self.layers_host = QWidget()
+        self.layers_layout = QGridLayout(self.layers_host)
+        self.layers_layout.setContentsMargins(0,0,0,0)
+        layout.addWidget(self.layers_host)
         bg_row.addWidget(QLabel('LUT channel'))
         self.lut_channel = QComboBox()
         bg_row.addWidget(self.lut_channel)
@@ -145,16 +143,17 @@ class DistancePreview(QDialog):
         return np.asarray(stack[min(self.frame.value()-1, len(stack)-1)])
 
     def _populate_layers(self):
-        self.layers_menu.clear()
+        while self.layers_layout.count():
+            item=self.layers_layout.takeAt(0)
+            if item.widget():item.widget().deleteLater()
         self.layer_actions, self.luts = {}, {}
         self.lut_channel.blockSignals(True)
         self.lut_channel.clear()
         for i, name in enumerate(self.backgrounds):
-            action = QAction(name, self.layers_menu)
-            action.setCheckable(True)
+            action = QCheckBox(name, self.layers_host)
             action.setChecked(i == 0)
             action.toggled.connect(lambda *_: self.redraw())
-            self.layers_menu.addAction(action)
+            self.layers_layout.addWidget(action,i//4,i%4)
             self.layer_actions[name] = action
             lo, hi = np.percentile(self._plane(name), [1, 99.5])
             self.luts[name] = [float(lo), float(max(hi, lo+1)),

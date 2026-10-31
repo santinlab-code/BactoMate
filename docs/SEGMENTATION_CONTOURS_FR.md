@@ -39,3 +39,7 @@ restent actifs. La LUT suit l’image dans la fenêtre détachée ; les réglage
 segmentation restent dans le panneau principal.
 Attach image ou fermer la fenêtre d’image réintègre le canevas. Masquer ou
 fermer l’aperçu masque aussi sa fenêtre d’image.
+
+La fenêtre détachée garde la LUT sur la droite, avec un bouton de recentrage et
+les glissières de position. Échap laisse la fenêtre ouverte ; la croix ou Attach
+image la réintègre. Omnipose garde maintenant une LUT propre à chaque fond/canal.

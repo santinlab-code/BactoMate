@@ -25,6 +25,7 @@ class ImageCanvas(QWidget):
     drag_updated = pyqtSignal(int, int)
     drag_finished = pyqtSignal(int, int)
     view_scale_changed = pyqtSignal(float)
+    viewport_changed = pyqtSignal()
     roi_changed = pyqtSignal(int, int, int, int)
     roi_edit_finished = pyqtSignal(int, int, int, int)
 
@@ -108,6 +109,13 @@ class ImageCanvas(QWidget):
             self._zoom = 1.0
             self._pan_offset = QPointF(0.0, 0.0)
         self.update()
+
+    def reset_view(self):
+        self._zoom = 1.0
+        self._pan_offset = QPointF(0.0, 0.0)
+        self.update()
+        self.view_scale_changed.emit(self.view_scale())
+        self.viewport_changed.emit()
 
     def pixmap(self) -> Optional[QPixmap]:
         """Return the currently displayed pixmap (Qt QLabel compatibility)."""
@@ -466,6 +474,7 @@ class ImageCanvas(QWidget):
         self.view_scale_changed.emit(self.view_scale())
 
     def paintEvent(self, event: QPaintEvent) -> None:
+        self.viewport_changed.emit()
         super().paintEvent(event)
         if self._pixmap is None or not self._image_size:
             return

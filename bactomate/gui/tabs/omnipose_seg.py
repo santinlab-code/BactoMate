@@ -4586,6 +4586,7 @@ class OmniposeSegTab(QWidget):
                 if not isinstance(sel, tuple) or len(sel) < 2:
                     sel = ('input', 0)
                 (kind, idx) = (sel[0], int(sel[1]))
+                lut_widget.set_context((str(file_path), str(kind), idx))
                 if kind == 'foci':
                     sources = getattr(preview_dialog, '_foci_sources', None) or []
                     if 0 <= idx < len(sources):

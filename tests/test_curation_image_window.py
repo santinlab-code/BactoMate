@@ -11,7 +11,7 @@ def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp):
         assert _wait_for_filter_apply(dlg)
         controller = dlg._curation_image_window
         assert controller.window.isVisible()
-        assert dlg.canvas.parentWidget() is controller.window
+        assert dlg.canvas.parentWidget() is controller.image_host
         panel = controller.panel
         assert _wait_until(lambda: panel.isEnabled())
         shape = np.asarray(controller.mask()).shape
@@ -34,7 +34,7 @@ def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp):
         assert 1 not in dlg._last_preview['accepted']
         assert panel.cur.data['cells']['0']['1'] is False
         assert panel.manual_controls.parentWidget() is controller.window
-        assert dlg.lut_section.parentWidget() is controller.window
+        assert dlg.lut_section.parentWidget() is controller.lut_sidebar
         assert _wait_until(lambda: panel.isEnabled())
         # Right click restores the excluded object at its image location.
         scale = canvas.view_scale()
@@ -52,7 +52,7 @@ def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp):
         for widget, layout, index in slots:
             assert layout.indexOf(widget) == index
         controller.detach()
-        assert dlg.lut_section.parentWidget() is controller.window
+        assert dlg.lut_section.parentWidget() is controller.lut_sidebar
         assert panel.manual_controls.parentWidget() is controller.window
         assert controller.window.isVisible()
         dlg.hide()

@@ -232,6 +232,9 @@ class HistogramLUTWidget(QWidget):
         self._vmax: Optional[float] = None
         self._dragging: Optional[str] = None
         self._is_updating = False
+        self._lut_context = None
+        self._context_luts = {}
+        self.lut_changed.connect(self._remember_lut)
         try:
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
@@ -274,16 +277,38 @@ class HistogramLUTWidget(QWidget):
     def has_histogram(self) -> bool:
         return bool(getattr(self, '_has_hist', False))
 
+    def _remember_lut(self, lo=None, hi=None):
+        lo = self._vmin if lo is None else lo
+        hi = self._vmax if hi is None else hi
+        if self._lut_context is not None and lo is not None and hi is not None and hi > lo:
+            self._context_luts[self._lut_context] = (float(lo), float(hi))
+
+    def set_context(self, key):
+        # Key identifies an image source and channel, never a frame.
+        if key != self._lut_context:
+            self._remember_lut()
+            self._lut_context = key
+        if key in self._context_luts:
+            self._vmin, self._vmax = self._context_luts[key]
+        elif key != getattr(self, '_last_context', None):
+            self._vmin, self._vmax = None, None
+        self._last_context = key
+        return self.current_lut()
+
     def current_lut(self) -> tuple[Optional[float], Optional[float]]:
         return (self._vmin, self._vmax)
 
     def set_lut(self, vmin: Optional[float], vmax: Optional[float]) -> None:
         self._vmin = float(vmin) if vmin is not None else None
         self._vmax = float(vmax) if vmax is not None else None
+        self._remember_lut()
         if self.has_histogram() and self._frame_min is not None and (self._frame_max is not None):
             self._redraw_histogram()
 
     def set_frame(self, frame_2d: Optional[np.ndarray], *, preserve_user_lut: bool=True) -> None:
+        if self._lut_context in self._context_luts:
+            self._vmin, self._vmax = self._context_luts[self._lut_context]
+            preserve_user_lut = True
         if frame_2d is None or not isinstance(frame_2d, np.ndarray) or frame_2d.size == 0:
             self._frame_min = None
             self._frame_max = None
@@ -551,6 +576,12 @@ class PreviewDialogBase(QDialog):
 
     def set_channel_idx(self, idx: int) -> None:
         self._state.channel_idx = max(0, int(idx))
+        self._sync_lut_context()
+
+    def _sync_lut_context(self):
+        key = (str(getattr(self, '_preview_mask_path_key', '')),
+               repr(self._state.source_key), self._state.channel_idx)
+        self._state.vmin, self._state.vmax = self.lut_widget.set_context(key)
 
     def set_source_key(self, key: Any) -> None:
         try:
@@ -560,6 +591,7 @@ class PreviewDialogBase(QDialog):
             self._state.source_key = norm if norm is not None else key
         except Exception:
             self._state.source_key = key
+        self._sync_lut_context()
 
     def set_extra(self, key: str, value: Any) -> None:
         self._state.extra[str(key)] = value
@@ -568,6 +600,7 @@ class PreviewDialogBase(QDialog):
         cb = self._render_callback
         if cb is None:
             return
+        self._sync_lut_context()
         try:
             result = cb(self._state)
         except Exception as e:

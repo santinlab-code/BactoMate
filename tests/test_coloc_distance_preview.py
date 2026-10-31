@@ -83,6 +83,8 @@ def test_multi_channel_luts_do_not_change_pairing(qapp):
                 ('mCherry', [{'x': 8, 'y': 6, 'frame': 0, 'cell_id': 1}])]
     dlg = DistancePreview(tab, {0: mask}, backgrounds['Phase'], channels, backgrounds=backgrounds)
     try:
+        from PyQt6.QtWidgets import QCheckBox
+        assert all(isinstance(widget,QCheckBox) for widget in dlg.layer_actions.values())
         pairs = list(dlg.pairs)
         for name in backgrounds:
             dlg.layer_actions[name].setChecked(name != 'Phase')

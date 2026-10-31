@@ -59,7 +59,7 @@ def test_preview_manual_edit_reaches_worker_and_survives_reset(tmp_path, qapp):
         assert not panel.isAncestorOf(panel.manual_controls)
         controller = dlg._curation_image_window
         assert panel.manual_controls.parentWidget() is controller.window
-        assert dlg.lut_section.parentWidget() is controller.window
+        assert dlg.lut_section.parentWidget() is controller.lut_sidebar
         for title in ('Import filter settings…', 'Save filter settings…'):
             assert not any(b.text() == title for b in tab.findChildren(QPushButton))
             assert sum(b.text() == title for b in dlg.findChildren(QPushButton)) == 1

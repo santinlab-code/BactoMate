@@ -3044,6 +3044,10 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             if bg is None:
                 return
             arr = np.asarray(bg, dtype=np.float64)
+            dlg._sync_lut_context()
+            if dlg.lut_widget.current_lut()[0] is not None:
+                dlg.refresh()
+                return
             needs_reset = bool(force) or (not _lut_window_spans_frame(getattr(dlg.state(), 'vmin', None), getattr(dlg.state(), 'vmax', None), arr))
             if not needs_reset:
                 return

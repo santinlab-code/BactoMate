@@ -260,3 +260,22 @@ Le guide complet et la référence MicrobeJ sont dans docs/ANALYSIS_FR.md.
 Validation du 31 octobre : 570 tests réussis, 5 ignorés. Les scripts Python
 sont exécutés pour chacun des 11 types de figure. Un démographe GFP a été
 extrait et exporté sur les 144 cellules réelles de XY001.
+
+## LUT par canal et fenêtres détachées — 31 octobre 2026
+
+La LUT partagée mémorise maintenant les contrastes par image/canal pendant la
+navigation dans un aperçu. Conversion, Filtering, contours FI et U-Net utilisent
+ce mécanisme ; Omnipose identifie aussi le fond/canal sélectionné. Les changements
+de frame ou les remises à zéro historiques de navigation ne remplacent plus la
+LUT d’un canal déjà réglé. Les montages et l’aperçu des distances avaient déjà
+leurs valeurs séparées. Il ne s’agit pas d’une sauvegarde sur disque après fermeture.
+
+Les fenêtres d’image détachées ne disparaissent plus sur Échap. La LUT est à
+droite, dans un panneau adapté en largeur. Recenter / fit image restaure la vue
+d’ensemble ; les glissières horizontale et verticale suivent le centre visible
+et permettent de le déplacer. Rattacher l’image restitue la disposition initiale.
+Dans Foci distances, les canaux à afficher sont des cases directement visibles.
+
+Validation : 574 tests réussis, 5 ignorés ; six tests ciblés ont ensuite
+revalidé la mémoire des LUT, Échap, le panneau latéral et les glissières après
+l’ajustement de disposition. Le rendu de la fenêtre détachée a été relu.

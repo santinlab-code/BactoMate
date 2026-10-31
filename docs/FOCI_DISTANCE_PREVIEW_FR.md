@@ -5,7 +5,7 @@ et **Threshold = 2 px**. Une session déjà enregistrée conserve ses propres va
 
 **Preview distances…** ouvre l’image et un zoom sur une cellule. Choisir une
 cellule dans la liste ou cliquer sur son contour dans la vue d’ensemble. Les boutons ← Cell et Cell → (ou les touches fléchées) passent à la cellule
-précédente ou suivante. Le menu à cocher Images / channels… permet de superposer
+précédente ou suivante. Les cases à cocher visibles pour chaque image permettent de superposer
 la phase et plusieurs canaux de fluorescence disponibles. Les couleurs des
 images sont indépendantes des marqueurs A/B.
 Les menus A et B choisissent les deux canaux à comparer ; Frame sélectionne le
@@ -52,3 +52,8 @@ recherche et le seuil de colocalisation.
 
 Le zoom à la molette progresse par environ 5 % au maximum par événement,
 pour permettre un réglage plus fin, notamment au pavé tactile.
+
+Les images disponibles (phase et canaux) sont proposées sous forme de cases à
+cocher directement visibles, sans menu déroulant. Plusieurs cases peuvent être
+cochées pour superposer les images. Le menu LUT channel choisit seulement la LUT
+à régler ; changer ce choix conserve les contrastes propres aux autres canaux.
