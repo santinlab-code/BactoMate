@@ -359,3 +359,37 @@ Validation : suite complète de 588 tests réussis, 5 ignorés ; puis six tests
 ciblés réussis, incluant le lot de classeurs fusionnés et le refus de remise à
 zéro pendant un calcul de prévisualisation. L’accueil, les tables Filtering avec
 le sélecteur XY et le panneau LUT détaché ont été contrôlés visuellement.
+
+## Analysis : guide de figures et rendu publication — 31 octobre 2026
+
+La section Analysis est en anglais. Conditions & replicates reste tout en haut,
+en mode simple comme avancé. Les attributions déjà enregistrées restent valides.
+Le bouton Figure guide propose quatre étapes : question, population, apparence,
+puis récapitulatif et tracé. Il couvre distributions, relations entre mesures,
+démographes, cartes des maxima et pourcentages de cellules par nombre de foci.
+Le mode Advanced / MicrobeJ-style controls conserve les réglages libres et les
+imports manuels ; ce nom ne désigne pas une intégration du plugin Fiji lui-même.
+
+Les vues spatiales retrouvent les masques et canaux du projet sans sélection
+manuelle de fichiers. Les masques filtrés sont prioritaires, et les masques non
+filtrés sont signalés au récapitulatif. Le calcul utilise les pixels réels et
+reste en tâche de fond. Une sélection de condition et de frame limite la population.
+Les démographes ont une ligne par cellule, un axe longitudinal 0–1 et un tri par
+longueur. La carte des maxima distingue explicitement le pixel le plus brillant
+par cellule des foci conservés dans les CSV de Filtering. Elle montre les points,
+une densité relative et un contour schématique. Les coordonnées sources restent
+exportées. L’alignement explicite du pôle le plus brillant place ce pôle à gauche/
+en haut ; il ne déduit pas l’âge des pôles.
+
+Les figures et exports sont carrés : 6 × 6 pouces, PNG 1800 × 1800 à 300 dpi,
+PDF et SVG. Les scripts exportés conservent aussi un canevas carré. Le guide
+anglais est décrit dans docs/FIGURE_GUIDE.md.
+
+Validation : 598 tests réussis, 5 ignorés dans la suite complète. Les retouches
+d’affichage et de reprise des choix ont ensuite été vérifiées par 33 tests
+ciblés, puis les sept tests du guide ont été rejoués avec succès. Le parcours
+utilise de vrais artefacts de test, sans dialogue d’import, et vérifie l’exclusion
+des cellules rejetées, le changement de projet pendant un calcul, les zéros des
+comptages et l’exécution du script Python exporté. Deux contrôles finaux valident
+la carte des maxima et la reprise des choix avec remise à zéro des anciens filtres.
+Des aperçus issus de données simulées figurent dans docs/FIGURE_GUIDE.md.

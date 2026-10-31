@@ -7,22 +7,22 @@ Les branches BactoMate_Custom_Analyses et BactoMate_Custom_V1 restent inchangée
 
 1. Faire les mesures dans Segmentation → Analyze comme d’habitude. Ouvrir ensuite
    **Analysis**. Les résultats du projet sont trouvés et lus automatiquement.
-2. Garder **Cellules**, choisir **Violon**, puis **Aire cellulaire (µm²)**.
-3. Ouvrir **Conditions et réplicats…**. Attribuer X ou Y et le nom du réplicat
+2. Garder **Cells**, choisir **Violin plot**, puis **Cell area (µm²)**.
+3. Ouvrir **Conditions & replicates…**. Attribuer X ou Y et le nom du réplicat
    biologique à chaque fichier. Plusieurs lignes peuvent recevoir le même choix
-   avec **Appliquer aux lignes choisies**. Plusieurs positions XY d’une même
+   avec **Apply to selected rows**. Plusieurs positions XY d’une même
    expérience peuvent partager un même réplicat. Enregistrer une fois : ces choix
    sont gardés pour les prochaines ouvertures du projet.
-4. Garder **Comparer les conditions** et **Afficher les moyennes des réplicats**,
-   puis cliquer sur **Créer la figure**. Chaque violon représente les observations
+4. Garder **Compare conditions** et **Show replicate means**,
+   puis cliquer sur **Draw figure**. Chaque violon représente les observations
    cellulaires d’une condition ; chaque point coloré représente la moyenne d’un
    réplicat. Un même réplicat conserve sa couleur entre conditions.
-5. **Exporter figure, tableur et code…** garde les exports PNG/PDF/SVG, CSV, Excel
+5. **Export figure, data & code…** garde les exports PNG/PDF/SVG, CSV, Excel
    et les scripts Python/R/MATLAB. Une feuille **Replicates** et un CSV dédié donnent
    les effectifs, moyennes et écarts-types de chaque réplicat par condition.
 
-Pour un film, choisir une frame avec **Temps / frame**. Si plusieurs frames existent,
-la première est choisie par défaut. Le choix **Toutes** regroupe les observations :
+Pour un film, choisir une frame avec **Frame / time**. Si plusieurs frames existent,
+la première est choisie par défaut. Le choix **All** regroupe les observations :
 une même cellule suivie peut alors apparaître plusieurs fois. Les effectifs ne sont
 pas présentés comme autant de cellules indépendantes ou de réplicats biologiques.
 
@@ -63,9 +63,9 @@ significativité ou modèle statistique hiérarchique n’est ajouté implicitem
 ## Les autres figures
 
 Le mode simple couvre les violons, boîtes, histogrammes, répartitions, nuages de
-points et courbes moyennes. **Réglages avancés** garde les onze figures, le choix
+points et courbes moyennes. **Advanced / MicrobeJ-style controls** garde les treize figures, le choix
 libre des axes et groupes, les filtres, les profils, les démographes, kymographes et
-cartes normalisées. Choisir une vue spatiale ouvre ce mode. Les prérequis décrits
+cartes normalisées. Le bouton **Figure guide…** offre aussi un parcours guidé pour les vues spatiales. Les prérequis décrits
 dans [ANALYSIS_FR.md](ANALYSIS_FR.md) restent valables : aucune trajectoire ou donnée
 spatiale manquante n’est inventée. Les extractions de profils restent disponibles
 avec les images/masques appropriés dans ce mode avancé.
@@ -80,3 +80,7 @@ Analysis automatiquement. Aucun fichier à importer, ni fenêtre « OK » à fer
 Depuis l’accueil, Clear current session vide les données et chemins en mémoire
 pour commencer un autre jeu de données. Les résultats et attributions enregistrés
 sur disque sont conservés.
+
+Le parcours guidé et les nouveaux rendus de publication sont décrits en anglais
+dans [FIGURE_GUIDE.md](FIGURE_GUIDE.md). Le bouton Conditions & replicates reste
+en tête de section dans les deux modes.

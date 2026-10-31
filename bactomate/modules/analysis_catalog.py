@@ -42,13 +42,13 @@ def read_catalog(root,cache=None):
                 low=sheet.lower().replace('-','').replace(' ','')
                 columns=' '.join(str(c).lower() for c in table.columns)
                 if any(w in low for w in ('runinfo','parameters','settings')):continue
-                if 'summary' in low or low in ('résumé','resume','statistics'):family='Résumé · '+sheet
-                elif low in ('percelldata','cells','cellmeasurements'): family='Cellules'
+                if 'summary' in low or low in ('résumé','resume','statistics'):family='Summary · '+sheet
+                elif low in ('percelldata','cells','cellmeasurements'): family='Cells'
                 elif low in ('foci','spots') or 'foci' in low:family='Foci'
-                elif 'track' in low or 'track_id' in columns:family='Suivi'
-                elif 'profile' in low or ('position' in columns and 'intensity' in columns):family='Profils'
-                elif 'area' in columns and ('cell' in columns or 'length' in columns):family='Cellules'
-                else:family='Autres · '+sheet
+                elif 'track' in low or 'track_id' in columns:family='Tracking'
+                elif 'profile' in low or ('position' in columns and 'intensity' in columns):family='Profiles'
+                elif 'area' in columns and ('cell' in columns or 'length' in columns):family='Cells'
+                else:family='Other · '+sheet
                 identity=path.relative_to(root).as_posix()
                 entries.append(dict(id=identity,path=str(path),sheet=sheet,family=family,table=table))
         except Exception as exc:errors.append(f'{path.name}: {exc}')
@@ -73,14 +73,14 @@ def assemble_catalog(entries,assignments):
     families={}
     for entry in entries:
         frame=entry['table'].copy()
-        for target,aliases in [('Condition',('condition','treatment')),('Réplicat',('replicate','replicat','réplicat','biological replicate'))]:
+        for target,aliases in [('Condition',('condition','treatment')),('Replicate',('replicate','replicat','réplicat','biological replicate'))]:
             found=next((c for c in frame if c.lower() in aliases),None)
             if target not in frame:frame[target]=frame[found] if found else ''
         choices=assignments.get(entry['id'],{})
-        for column,key in [('Condition','condition'),('Réplicat','replicate')]:
+        for column,key in [('Condition','condition'),('Replicate','replicate')]:
             if choices.get(key,'').strip():frame[column]=choices[key].strip()
             frame[column]=frame[column].fillna('').astype(str)
-        frame['Fichier source']=entry['id'];frame['Feuille source']=entry['sheet']
+        frame['Source file']=entry['id'];frame['Source sheet']=entry['sheet']
         families.setdefault(entry['family'],[]).append(frame)
-    priority={'Cellules':0,'Foci':1,'Suivi':2,'Profils':3}
+    priority={'Cells':0,'Foci':1,'Tracking':2,'Profiles':3}
     return {name:pd.concat(families[name],ignore_index=True,sort=False) for name in sorted(families,key=lambda n:(priority.get(n,4),n))}

@@ -25,6 +25,17 @@ class ProfileWorker(QThread):
         except Exception as exc: self.failed.emit(str(exc))
 
 
+class SquareCanvasHost(QWidget):
+    """Keep the live canvas square, including after splitter/window resizing."""
+    def __init__(self,canvas):
+        super().__init__();self.canvas=canvas;canvas.setParent(self)
+        self.setMinimumSize(280,280)
+    def resizeEvent(self,event):
+        side=min(self.width(),self.height())
+        self.canvas.setGeometry((self.width()-side)//2,(self.height()-side)//2,side,side)
+        super().resizeEvent(event)
+
+
 class FigureAnalysisTab(QWidget):
     def __init__(self,parent=None):
         super().__init__(parent)
@@ -49,8 +60,11 @@ class FigureAnalysisTab(QWidget):
         form.addRow('Minimum X',self.minimum); form.addRow('Maximum X',self.maximum)
         self.bins=QSpinBox(); self.bins.setRange(2,500); self.bins.setValue(40); form.addRow('Histogram bins',self.bins)
         self.title=QLineEdit(); form.addRow('Title',self.title)
-        self.cmap=QComboBox(); self.cmap.addItems(['viridis','magma','inferno','cividis','coolwarm','gray']); form.addRow('Color map',self.cmap)
+        self.cmap=QComboBox(); self.cmap.addItems(['viridis','magma','inferno','plasma','turbo','cividis','coolwarm','gray']); form.addRow('Color map',self.cmap)
         self.normalization=QComboBox(); self.normalization.addItems(['raw','per-cell max','per-cell min-max']); form.addRow('Map intensity',self.normalization)
+        self.relative_position=QCheckBox('Demograph: convert −1…1 positions to 0…1');form.addRow(self.relative_position)
+        self.maxima_source=QComboBox();self.maxima_source.addItem('Brightest pixel per cell','maximum');self.maxima_source.addItem('Detected foci','focus');form.addRow('Maxima source',self.maxima_source)
+        self.show_maxima_points=QCheckBox('Show individual maxima');self.show_maxima_points.setChecked(True);form.addRow(self.show_maxima_points)
         self.confirm=QCheckBox('I verified that track IDs persist across frames'); form.addRow(self.confirm)
         self.calibration=QDoubleSpinBox(); self.calibration.setDecimals(6); self.calibration.setRange(.000001,1000); self.calibration.setValue(.108)
         form.addRow('Profiles: µm / px',self.calibration)
@@ -61,12 +75,15 @@ class FigureAnalysisTab(QWidget):
         self.export=QPushButton('Export figure + data + code…'); self.export.setEnabled(False); self.export.clicked.connect(self.save_bundle); form.addRow(self.export)
         scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setMinimumWidth(285); scroll.setMaximumWidth(390); scroll.setWidget(controls); split.addWidget(scroll)
         right=QWidget(); layout=QVBoxLayout(right); split.addWidget(right); split.setStretchFactor(1,3); split.setSizes([330,850])
-        self.figure=Figure(); self.canvas=FigureCanvasQTAgg(self.figure); self.canvas.setMinimumSize(280,230)
-        layout.addWidget(NavigationToolbar2QT(self.canvas,self)); layout.addWidget(self.canvas,3)
+        self.figure=Figure(figsize=(6,6)); self.canvas=FigureCanvasQTAgg(self.figure); self.canvas.setMinimumSize(280,230)
+        layout.addWidget(NavigationToolbar2QT(self.canvas,self)); self.square_canvas=SquareCanvasHost(self.canvas)
+        layout.addWidget(self.square_canvas,3)
         self.preview=QTableWidget(); self.preview.setMaximumHeight(170); self.preview.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers); layout.addWidget(self.preview)
         self.status=QLabel('Load analysis results or extract real spatial profiles to start.'); self.status.setWordWrap(True); outer.addWidget(self.status)
         for combo in [self.kind,*self.fields.values(),self.cmap,self.normalization]: combo.currentTextChanged.connect(self.mark_dirty)
         for edit in [self.title,self.minimum,self.maximum,self.filter_value]: edit.textChanged.connect(self.mark_dirty)
+        self.relative_position.toggled.connect(self.mark_dirty);self.show_maxima_points.toggled.connect(self.mark_dirty)
+        self.maxima_source.currentIndexChanged.connect(self.mark_dirty)
         self.bins.valueChanged.connect(self.mark_dirty); self.confirm.toggled.connect(self.mark_dirty)
 
     def mark_dirty(self,*_):
@@ -118,6 +135,7 @@ class FigureAnalysisTab(QWidget):
         kind=self.kind.currentText()
         if kind in ('Demograph','Kymograph','Normalized cell heatmap'):
             defaults=dict(x='position',value='intensity',y='object_key' if kind=='Demograph' else ('frame' if kind=='Kymograph' else 'transverse'),sort='length_um' if kind=='Demograph' else '',group='cell_id' if kind=='Kymograph' else '')
+        if kind=='Maxima map':defaults=dict(x='relative_width',y='relative_position',value='intensity',group='',sort='')
         for key,value in defaults.items():
             if value in table.columns or not value:self.fields[key].setCurrentText(value)
 
@@ -141,14 +159,19 @@ class FigureAnalysisTab(QWidget):
             spec=FigureSpec(kind=self.kind.currentText(),**{key:c.currentText() for key,c in self.fields.items()},
                 filter_value=self.filter_value.text(),minimum=float(self.minimum.text()) if self.minimum.text().strip() else None,
                 maximum=float(self.maximum.text()) if self.maximum.text().strip() else None,bins=self.bins.value(),
-                title=getattr(self,'_guided_title',None) or self.title.text(),cmap=self.cmap.currentText(),track_confirmed=self.confirm.isChecked(),normalization=self.normalization.currentText(),replicate=getattr(self,'_guided_replicate',''))
-            used,plot,labels=prepare(table,spec)
-            if hasattr(self,'display_labels'):labels=self.display_labels(labels)
-            draw(self.figure,plot,spec,labels); self.canvas.draw_idle()
-            self.snapshot=(used.copy(),plot.copy(),copy.deepcopy(spec),dict(labels),dict(self.provenance,table=self.sheet.currentText()))
-            self.export.setEnabled(True); self.status.setText(f'{len(used):,} source rows used. Export includes these rows, plotted values, figures, metadata and Python/R/MATLAB scripts. No rows sampled for plotting.')
+                title=getattr(self,'_guided_title',None) or self.title.text(),cmap=self.cmap.currentText(),track_confirmed=self.confirm.isChecked(),normalization=self.normalization.currentText(),replicate=getattr(self,'_guided_replicate',''),relative_position=self.relative_position.isChecked(),
+                maxima_profile=self.maxima_source.currentData(),show_points=self.show_maxima_points.isChecked())
+            self.plot_table(table,spec,self.provenance)
         except Exception as exc:
             self.mark_dirty(); QMessageBox.warning(self,'Cannot draw figure',str(exc))
+
+    def plot_table(self,table,spec,provenance):
+        used,plot,labels=prepare(table,spec)
+        if hasattr(self,'display_labels'):labels=self.display_labels(labels)
+        draw(self.figure,plot,spec,labels); self.canvas.draw_idle()
+        self.snapshot=(used.copy(),plot.copy(),copy.deepcopy(spec),dict(labels),dict(provenance,table=self.sheet.currentText()))
+        self.export.setEnabled(True)
+        self.status.setText(f'{len(used):,} source rows used. Export includes source data, plotted values, square figures and Python/R/MATLAB code.')
 
     def save_bundle(self):
         if self.snapshot is None or not self.export.isEnabled():return

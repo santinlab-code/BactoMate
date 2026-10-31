@@ -42,11 +42,15 @@ def test_kymograph_rejects_false_tracks():
 def test_figure_export_all_kinds(kind,tmp_path):
     data=pd.DataFrame(dict(x=[0,1,2,0,1,2],y=[0,0,0,1,1,1],value=[1.,2,4,2,3,6],group=['A']*3+['B']*3))
     if kind=='Kymograph': data['group']='A'
+    if kind=='Maxima map':
+        data['x']=[-.2,0,.2,-.2,0,.2];data['y']=[.2,.3,.4,.6,.7,.8]
     spec=FigureSpec(kind=kind,x='x',y='y',value='value',group='group',track_confirmed=True)
     used,plot,labels=prepare(data,spec)
     fig=Figure();draw(fig,plot,spec,labels)
     export_bundle(tmp_path,fig,used,plot,spec,labels)
     assert (tmp_path/'figure.svg').stat().st_size>100
+    from PIL import Image
+    assert Image.open(tmp_path/'figure.png').size==(1800,1800)
     assert len(pd.read_excel(tmp_path/'figure_data.xlsx',sheet_name='Source rows'))==len(used)
     assert (tmp_path/'reproduce.R').exists() and (tmp_path/'reproduce.m').exists()
     result=subprocess.run([os.sys.executable,str(tmp_path/'reproduce.py')],capture_output=True,text=True,env={**os.environ,'MPLBACKEND':'Agg'})

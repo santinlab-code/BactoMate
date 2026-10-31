@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 KINDS = ('Histogram', 'Scatter', 'Mean curve', 'Box plot', 'Violin plot', 'ECDF',
-         'Correlation', 'Demograph', 'Kymograph', 'Normalized cell heatmap', 'Heatmap')
+         'Correlation', 'Demograph', 'Kymograph', 'Normalized cell heatmap', 'Heatmap', 'Maxima map', 'Foci count')
 
 
 @dataclass
@@ -32,6 +32,11 @@ class FigureSpec:
     normalization: str = 'raw'
     replicate: str = ''
     show_replicates: bool = True
+    relative_position: bool = False
+    maxima_profile: str = 'maximum'
+    show_points: bool = True
+    density_bins: int = 96
+    density_sigma: float = 2.0
 
 
 def load_tables(path):
@@ -50,7 +55,7 @@ def load_tables(path):
 
 
 def extract_profiles(masks, images, *, pixel_size, source, bins=48, across=16,
-                     orientation='geometric', method='principal axis'):
+                     orientation='geometric', method='principal axis', foci=None):
     """Pixel skeleton or straight principal-axis profiles (not MicrobeJ subpixel contours).
 
     Pixels are averaged in normalized bins; empty bins remain NaN. Polarity is
@@ -70,6 +75,15 @@ def extract_profiles(masks, images, *, pixel_size, source, bins=48, across=16,
     if orientation not in ('geometric', 'bright pole'):
         raise ValueError('Unknown orientation.')
     cells, samples = [], []
+    foci = pd.DataFrame(foci).copy() if foci is not None else None
+    if foci is not None and not foci.empty:
+        if not {'x','y'}.issubset(foci):raise ValueError('Foci data needs x and y pixel coordinates.')
+        if 'frame' not in foci:foci['frame']=0
+        for column in ('frame','x','y'):foci[column]=pd.to_numeric(foci[column],errors='coerce')
+        foci=foci.dropna(subset=['frame','x','y'])
+        foci=foci[foci.frame.between(0,len(masks)-1)&foci.x.between(0,masks.shape[2]-1)&foci.y.between(0,masks.shape[1]-1)]
+        foci=foci[foci.frame.eq(foci.frame.round())]
+        foci['_mask_label']=masks[foci.frame.astype(int),foci.y.round().astype(int),foci.x.round().astype(int)]
     for frame, mask in enumerate(masks):
         for r in regionprops(mask):
             coords = r.coords.astype(float)
@@ -127,13 +141,16 @@ def extract_profiles(masks, images, *, pixel_size, source, bins=48, across=16,
             intensity = images[frame][tuple(r.coords.T)].astype(float)
             if orientation == 'bright pole':
                 left, right = intensity[u < -.5], intensity[u > .5]
-                if left.size and right.size and np.nanmean(left) > np.nanmean(right):
+                if left.size and right.size and np.nanmean(right) > np.nanmean(left):
                     u, v = -u, -v
             object_key = f'{source}::frame={frame}::cell={r.label}'
             base = dict(source=source, profile_method=method, frame=frame, cell_id=int(r.label), object_key=object_key,
                         area_um2=r.area*pixel_size**2, length_um=r.major_axis_length*pixel_size,
                         width_um=r.minor_axis_length*pixel_size, mean_intensity=float(np.nanmean(intensity)))
             cells.append(base)
+            from bactomate.modules.publication_figures import maxima_points
+            local_foci=foci[(foci.frame==frame)&(foci._mask_label==r.label)] if foci is not None and not foci.empty else None
+            samples.extend(maxima_points(base,coords,u,v,intensity,local_foci))
             # Separate longitudinal and 2D bins: each is averaged directly from raw pixels.
             xi = np.minimum(((u+1)*bins/2).astype(int), bins-1)
             yi = np.minimum(((v+1)*across/2).astype(int), across-1)
@@ -145,7 +162,10 @@ def extract_profiles(masks, images, *, pixel_size, source, bins=48, across=16,
                 samples.append(dict(**base, profile='cell map', position=-1+(i+.5)*2/bins,
                                     transverse=-1+(j+.5)*2/across, intensity=vals.mean(), pixel_count=vals.count()))
     if not cells: raise ValueError('No cells with at least three pixels were found.')
-    return pd.DataFrame(cells), pd.DataFrame(samples)
+    profiles=pd.DataFrame(samples)
+    profiles['relative_position']=(profiles.position+1)/2
+    profiles['relative_width']=profiles.transverse/2
+    return pd.DataFrame(cells), profiles
 
 
 def prepare(table, spec):
@@ -153,6 +173,9 @@ def prepare(table, spec):
     data = table.copy()
     if spec.filter_column:
         data = data[data[spec.filter_column].astype(str) == spec.filter_value]
+    if spec.kind == 'Maxima map':
+        from bactomate.modules.publication_figures import prepare_maxima
+        return prepare_maxima(data,spec)
     if spec.kind == 'Demograph' and 'profile' in data:
         data = data[data.profile == 'longitudinal']
     if spec.kind == 'Kymograph' and 'profile' in data:
@@ -181,6 +204,8 @@ def prepare(table, spec):
     if spec.minimum is not None: data = data[data[spec.x] >= spec.minimum]
     if spec.maximum is not None: data = data[data[spec.x] <= spec.maximum]
     if data.empty: raise ValueError('No finite values remain after filtering.')
+    if spec.kind=='Demograph' and spec.relative_position:
+        data[spec.x]=(data[spec.x]+1)/2
     group = data[spec.group].fillna('(missing)').astype(str) if spec.group else pd.Series('All', index=data.index)
     if spec.kind == 'Kymograph':
         if not spec.track_confirmed or not spec.group:
@@ -212,7 +237,16 @@ def prepare(table, spec):
     plot = pd.DataFrame({'x':data[spec.x], 'group':group})
     if spec.replicate:plot['replicate']=data[spec.replicate].fillna('').astype(str)
     if spec.kind in ('Scatter', 'Mean curve'): plot['y'] = data[spec.y]
-    if spec.kind == 'Histogram':
+    if spec.kind == 'Foci count':
+        if (plot.x<0).any() or not np.allclose(plot.x,plot.x.round()):
+            raise ValueError('Choose a non-negative integer foci count per cell, including cells with zero foci.')
+        counts=range(int(plot.x.max())+1)
+        chunks=[]
+        for name,sub in plot.groupby('group',sort=True):
+            frequencies=sub.x.value_counts().reindex(counts,fill_value=0)
+            chunks.append(pd.DataFrame(dict(x=list(counts),y=100*frequencies.to_numpy()/len(sub),width=.8,group=name)))
+        plot=pd.concat(chunks,ignore_index=True);labels=dict(xlabel='Number of foci per cell',ylabel='Cells (%)')
+    elif spec.kind == 'Histogram':
         edges = np.histogram_bin_edges(plot.x, bins=spec.bins)
         chunks = []
         for name, sub in plot.groupby('group', sort=True):
@@ -234,20 +268,31 @@ def prepare(table, spec):
 
 
 def draw(figure, plot, spec, labels):
-    figure.clear(); ax = figure.subplots()
+    figure.clear(); figure.set_size_inches(6,6,forward=False); ax = figure.subplots()
     matrix = spec.kind in ('Correlation','Heatmap','Demograph','Kymograph','Normalized cell heatmap')
-    if matrix:
+    if spec.kind=='Maxima map':
+        from bactomate.modules.publication_figures import draw_maxima
+        draw_maxima(figure,ax,plot,spec,labels)
+    elif matrix:
         image = ax.imshow(plot.to_numpy(dtype=float), aspect='auto', interpolation='nearest', cmap=spec.cmap)
-        figure.colorbar(image, ax=ax, label=labels.get('colorlabel','Pearson r'))
+        if spec.normalization!='raw':image.set_clim(0,1)
+        cax=ax.inset_axes([1.04,0,.04,1])
+        figure.colorbar(image,cax=cax,label=labels.get('colorlabel','Pearson r'))
         def ticks(values):
             idx = np.unique(np.linspace(0,len(values)-1,min(len(values),8)).astype(int))
             return idx, [str(values[i]) if len(str(values[i]))<=38 else '…'+str(values[i])[-35:] for i in idx]
         ax.set_xticks(*ticks(plot.columns)); ax.set_yticks(*ticks(plot.index))
+        if spec.kind=='Demograph':
+            cols=np.asarray(plot.columns,dtype=float)
+            if spec.relative_position or spec.x=='relative_position':
+                image.set_extent([0,1,len(plot),0]);ax.set_xticks([0,.5,1],['0','0.5','1'])
+            else:ax.set_xticks(np.linspace(0,len(cols)-1,3),[f'{v:g}' for v in np.linspace(cols.min(),cols.max(),3)])
+            ax.set_yticks([])
         if spec.kind=='Correlation': ax.tick_params(axis='x',rotation=60)
     else:
         groups = list(plot.groupby('group', sort=True))
         for i, (name, sub) in enumerate(groups):
-            if spec.kind == 'Histogram': ax.bar(sub.x,sub.y,width=sub.width,alpha=.5,label=name)
+            if spec.kind in ('Histogram','Foci count'): ax.bar(sub.x,sub.y,width=sub.width,alpha=.5,label=name)
             elif spec.kind == 'Scatter': ax.scatter(sub.x,sub.y,s=12,alpha=.7,label=name)
             elif spec.kind == 'Mean curve': ax.plot(sub.x,sub.y,label=name)
             elif spec.kind == 'ECDF': ax.step(sub.x,sub.y,where='post',label=name)
@@ -265,8 +310,15 @@ def draw(figure, plot, spec, labels):
                 offset=0 if len(reps)==1 else -.15+.3*ri/(len(reps)-1)
                 ax.scatter([names.index(str(g))+1+offset for g in sub.index],sub.values,
                            s=38,label=str(rep),zorder=5)
-            ax.legend(title='Réplicat · moyenne')
+            ax.legend(title='Replicate means')
 
+    ax.set_box_aspect(2 if spec.kind=='Maxima map' else 1)
+    if spec.kind=='Demograph':
+        xlabel='Relative cell length' if spec.relative_position or spec.x=='relative_position' else labels['xlabel']
+        labels.update(xlabel=xlabel+f'\n(n = {len(plot)} cells)',ylabel='Cells, sorted by length' if spec.sort=='length_um' else 'Cells')
+    elif spec.kind=='Maxima map':
+        count=plot.shape[0]
+        labels.update(xlabel=labels['xlabel']+f'\n(n = {count} points)')
     ax.set(xlabel=labels['xlabel'],ylabel=labels['ylabel'],title=spec.title or spec.kind)
     figure.tight_layout()
     return ax
@@ -274,6 +326,7 @@ def draw(figure, plot, spec, labels):
 
 def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png','pdf','svg'), provenance=None):
     folder = Path(folder); folder.mkdir(parents=True, exist_ok=True)
+    figure.set_size_inches(6,6,forward=False)
     matrix = spec.kind in ('Correlation','Heatmap','Demograph','Kymograph','Normalized cell heatmap')
     used.to_csv(folder/'source_rows.csv',index=False)
     plotted.to_csv(folder/'plot_data.csv',index=matrix)
@@ -290,7 +343,7 @@ def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png'
     (folder/'figure.json').write_text(json.dumps(config,indent=2,ensure_ascii=False),encoding='utf8')
     for fmt in formats:
         if fmt not in ('png','pdf','svg'): raise ValueError('Unsupported figure format.')
-        figure.savefig(folder/f'figure.{fmt}',dpi=300,bbox_inches='tight')
+        figure.savefig(folder/f'figure.{fmt}',dpi=300)
     # Export data-space drawing primitives so KDE/box statistics are identical
     # across languages without requiring BactoMate in the receiving environment.
     _write_scripts(folder, figure, labels, spec)
@@ -328,12 +381,15 @@ def _write_scripts(folder, figure, labels, spec):
             for segment in collection.get_segments(): add('line',segment[:,0],segment[:,1],collection.get_colors()[0])
     if ax.images:
         im=ax.images[0]; values=np.ma.asarray(im.get_array()); rgba=im.to_rgba(values)
+        left,right,bottom,top=im.get_extent()
+        xe=np.linspace(left,right,values.shape[1]+1)
+        ye=np.linspace(top,bottom,values.shape[0]+1) if im.origin=='upper' else np.linspace(bottom,top,values.shape[0]+1)
         for row,col in np.ndindex(values.shape):
             if np.ma.is_masked(values[row,col]) or not np.isfinite(values[row,col]): continue
-            add('polygon',[col-.5,col+.5,col+.5,col-.5],[row-.5,row-.5,row+.5,row+.5],rgba[row,col])
+            add('polygon',[xe[col],xe[col+1],xe[col+1],xe[col]],[ye[row],ye[row],ye[row+1],ye[row+1]],rgba[row,col])
     geometry=pd.DataFrame(records,columns=['element','kind','x','y','r','g','b','alpha'])
     geometry.to_csv(folder/'figure_geometry.csv',index=False)
-    meta=dict(xlim=list(ax.get_xlim()),ylim=list(ax.get_ylim()),title=spec.title or spec.kind,**labels,
+    meta=dict(box_aspect=ax.get_box_aspect(),xlim=list(ax.get_xlim()),ylim=list(ax.get_ylim()),title=spec.title or spec.kind,**labels,
               xticks=list(ax.get_xticks()),xticklabels=[t.get_text() for t in ax.get_xticklabels()],
               yticks=list(ax.get_yticks()),yticklabels=[t.get_text() for t in ax.get_yticklabels()])
     meta['legend'] = []
@@ -356,7 +412,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 root=Path(__file__).resolve().parent
 d=pd.read_csv(root/'figure_geometry.csv'); m=json.loads((root/'axes.json').read_text())
-fig,ax=plt.subplots()
+fig,ax=plt.subplots(figsize=(6,6))
+ax.set_box_aspect(m.get('box_aspect',1))
 for _,g in d.groupby('element',sort=False):
     color=tuple(g.iloc[0][['r','g','b']]); kind=g.kind.iloc[0]; alpha=g.alpha.iloc[0]
     if kind=='polygon': ax.fill(g.x,g.y,color=color,alpha=alpha)
@@ -371,7 +428,8 @@ if m['color_scale']:
     from matplotlib.colors import ListedColormap, Normalize
     from matplotlib.cm import ScalarMappable
     scale=m['color_scale']; palette=pd.read_csv(root/'palette.csv').to_numpy()
-    fig.colorbar(ScalarMappable(norm=Normalize(scale['lo'],scale['hi']),cmap=ListedColormap(palette)),ax=ax,label=scale['label'])
+    cax=ax.inset_axes([1.04,0,.04,1])
+    fig.colorbar(ScalarMappable(norm=Normalize(scale['lo'],scale['hi']),cmap=ListedColormap(palette)),cax=cax,label=scale['label'])
 fig.tight_layout()
 for ext in ('png','pdf','svg'): fig.savefig(root/('reproduced.'+ext),dpi=300)
 ''')
@@ -395,13 +453,14 @@ render <- function() {
   text(x+w,yy[c(1,n+1)],labels=c(m$color_scale$lo,m$color_scale$hi),pos=4,xpd=NA,cex=.7)
  }
 }
-pdf("reproduced_R.pdf"); render(); dev.off()
-png("reproduced_R.png",width=1800,height=1400,res=300); render(); dev.off()
-svg("reproduced_R.svg"); render(); dev.off()
+pdf("reproduced_R.pdf",width=6,height=6); render(); dev.off()
+png("reproduced_R.png",width=1800,height=1800,res=300); render(); dev.off()
+svg("reproduced_R.svg",width=6,height=6); render(); dev.off()
 ''')
     (folder/'reproduce.m').write_text('''% Run from this bundle folder. Base MATLAB, readtable + jsondecode + exportgraphics.
 d=readtable('figure_geometry.csv'); m=jsondecode(fileread('axes.json'));
-figure; hold on;
+figure('Units','inches','Position',[1 1 6 6]); hold on;
+pbaspect([1 m.box_aspect 1]);
 for id=unique(d.element)'
  g=d(d.element==id,:); c=[g.r(1),g.g(1),g.b(1)]; k=string(g.kind(1));
  if k=="polygon", patch(g.x,g.y,c,'EdgeColor','none','FaceAlpha',g.alpha(1));
@@ -421,7 +480,8 @@ if ~isempty(m.legend)
  for j=1:length(m.legend), h(j)=plot(nan,nan,'Color',m.legend(j).color); end
  legend(h,{m.legend.name});
 end
-exportgraphics(gcf,'reproduced_MATLAB.pdf','ContentType','vector');
-exportgraphics(gcf,'reproduced_MATLAB.png','Resolution',300);
+set(gcf,'PaperUnits','inches','PaperPosition',[0 0 6 6],'PaperSize',[6 6]);
+print(gcf,'reproduced_MATLAB.pdf','-dpdf','-painters');
+print(gcf,'reproduced_MATLAB.png','-dpng','-r300');
 print(gcf,'reproduced_MATLAB.svg','-dsvg');
 ''')

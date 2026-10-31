@@ -27,18 +27,18 @@ def test_auto_catalog_deduplicates_and_persists_groups(tmp_path):
     assert not errors
     choices={e['id']:dict(condition='Y' if 'y_xy' in e['id'] else 'X',replicate='R1') for e in entries}
     save_assignments(tmp_path,choices)
-    table=assemble_catalog(entries,read_assignments(tmp_path))['Cellules']
+    table=assemble_catalog(entries,read_assignments(tmp_path))['Cells']
     assert len(table)==9
-    assert table.groupby('Condition')['Réplicat'].nunique().to_dict()=={'X':1,'Y':1}
-    assert set(table['Fichier source'])==set(choices)
+    assert table.groupby('Condition')['Replicate'].nunique().to_dict()=={'X':1,'Y':1}
+    assert set(table['Source file'])==set(choices)
     # New analyses are discovered on the next scan without manual loading.
     pd.DataFrame({'cell_id':[8],'area_um2':[8.]}).to_csv(directory/'new_analysis.csv',index=False)
     assert len(discover_results(tmp_path))==4
 
 
 def test_replicate_points_and_export_use_replicate_means(tmp_path):
-    table=pd.DataFrame({'area':[1.,2.,3.,4.,5.,6.], 'Condition':['X']*3+['Y']*3,'Réplicat':['R1','R1','R2']*2})
-    spec=FigureSpec(kind='Violin plot',x='area',group='Condition',replicate='Réplicat')
+    table=pd.DataFrame({'area':[1.,2.,3.,4.,5.,6.], 'Condition':['X']*3+['Y']*3,'Replicate':['R1','R1','R2']*2})
+    spec=FigureSpec(kind='Violin plot',x='area',group='Condition',replicate='Replicate')
     used,plot,labels=prepare(table,spec);fig=Figure();ax=draw(fig,plot,spec,labels)
     assert [t.get_text() for t in ax.legend_.texts]==['R1','R2']
     export_bundle(tmp_path,fig,used,plot,spec,labels)
@@ -59,7 +59,7 @@ def test_guided_view_uses_workspace_without_file_dialog(tmp_path,qapp,monkeypatc
     monkeypatch.setattr(QFileDialog,'getOpenFileNames',lambda *args: (_ for _ in ()).throw(AssertionError('No manual loading')))
     try:
         tab.refresh_catalog()
-        assert _wait_until(lambda:'Cellules' in tab.tables,timeout_s=10)
+        assert _wait_until(lambda:'Cells' in tab.tables,timeout_s=10)
         assert not tab.advanced.isChecked()
         assert tab.control_stack.currentIndex()==0
         assert tab.metric.currentData()=='area_um2'
@@ -68,10 +68,10 @@ def test_guided_view_uses_workspace_without_file_dialog(tmp_path,qapp,monkeypatc
         tab.render()
         assert tab.export.isEnabled()
         assert tab.snapshot[2].kind=='Violin plot'
-        assert tab.snapshot[2].replicate=='Réplicat'
+        assert tab.snapshot[2].replicate=='Replicate'
         assert len(tab.snapshot[0])==9
         tab.advanced.setChecked(True)
-        assert tab.kind.count()==11
+        assert tab.kind.count()==13
         assert not tab.export.isHidden()
         tab.render()
         assert tab.export.isEnabled()
@@ -86,18 +86,18 @@ def test_summary_sheet_is_not_pooled_with_cells(tmp_path):
         pd.DataFrame({'cell_count':[1000],'area_um2':[5000]}).to_excel(writer,sheet_name='Summary',index=False)
         pd.DataFrame({'cell_id':[1,2],'area_um2':[1.,2.]}).to_excel(writer,sheet_name='Per-Cell Data',index=False)
     entries,_=read_catalog(tmp_path);tables=assemble_catalog(entries,{})
-    assert next(iter(tables))=='Cellules'
-    assert len(tables['Cellules'])==2
-    assert len(tables['Résumé · Summary'])==1
+    assert next(iter(tables))=='Cells'
+    assert len(tables['Cells'])==2
+    assert len(tables['Summary · Summary'])==1
 
 
 def test_existing_metadata_and_missing_assignments_are_explicit(tmp_path):
     directory=tmp_path/'analyses';directory.mkdir()
     pd.DataFrame({'cell_id':[1,2],'area_um2':[1.,2.], 'condition':['X','Y'],'replicate':['R1','R2']}).to_csv(directory/'cells.csv',index=False)
-    entries,_=read_catalog(tmp_path);table=assemble_catalog(entries,{})['Cellules']
+    entries,_=read_catalog(tmp_path);table=assemble_catalog(entries,{})['Cells']
     assert table.Condition.tolist()==['X','Y']
-    assert table['Réplicat'].tolist()==['R1','R2']
-    table=assemble_catalog(entries,{entries[0]['id']:dict(condition='Z',replicate='R3')})['Cellules']
+    assert table['Replicate'].tolist()==['R1','R2']
+    table=assemble_catalog(entries,{entries[0]['id']:dict(condition='Z',replicate='R3')})['Cells']
     assert table.Condition.tolist()==['Z','Z']
 
 
@@ -106,8 +106,8 @@ def test_guided_frame_and_project_reset(tmp_path,qapp):
     from bactomate.gui.tabs.guided_analysis import GuidedAnalysisTab
     parent=QWidget();tab=GuidedAnalysisTab(parent)
     try:
-        tab.set_tables({'Cellules':pd.DataFrame({'area_um2':[1.,2.,5.,8.],'frame':[0,0,1,1],
-            'Condition':['X']*4,'Réplicat':['R1']*4})},{})
+        tab.set_tables({'Cells':pd.DataFrame({'area_um2':[1.,2.,5.,8.],'frame':[0,0,1,1],
+            'Condition':['X']*4,'Replicate':['R1']*4})},{})
         assert tab.frame_choice.currentData()=='0'
         tab.render();assert tab.export.isEnabled()
         assert len(tab.snapshot[0])==2

@@ -41,9 +41,9 @@ def test_finished_analysis_opens_loaded_analysis_and_clear_resets_session(tmp_pa
         window.analyze_tab._run_one_analysis_task(mask,None,output)
         assert _wait_until(lambda:window._central_stack.currentWidget() is window._shell_analysis,timeout_s=15)
         analysis=window.figure_analysis_tab
-        assert completed and len(analysis.tables['Cellules'])==2
+        assert completed and len(analysis.tables['Cells'])==2
         assert analysis.context_root()==tmp_path
-        assert analysis.dataset.currentText()=='Cellules'
+        assert analysis.dataset.currentText()=='Cells'
         assert _wait_until(lambda:not analysis.catalog_worker.isRunning())
         analysis.assignments={'sample':{'condition':'X','replicate':'R1'}}
         analysis.minimum.setText('99')
@@ -85,8 +85,8 @@ def test_analysis_context_finds_results_beside_segmentation(tmp_path,qapp):
             parent.analyze_tab.file_path.setText(str(source))
             assert tab.context_root()==tmp_path
         tab.refresh_catalog()
-        assert _wait_until(lambda:'Cellules' in tab.tables)
-        assert len(tab.tables['Cellules'])==1
+        assert _wait_until(lambda:'Cells' in tab.tables)
+        assert len(tab.tables['Cells'])==1
     finally:
         if tab.catalog_worker is not None:tab.catalog_worker.wait()
         tab.close();parent.close()
@@ -156,7 +156,7 @@ def test_batch_handoff_reads_final_merged_workbooks_across_samples(tmp_path,qapp
         tab.current_task_index=2;tab._analysis_in_progress=True
         tab._process_next_folder_file()
         assert _wait_until(lambda:window._central_stack.currentWidget() is window._shell_analysis,timeout_s=15)
-        assert len(window.figure_analysis_tab.tables['Cellules'])==2
+        assert len(window.figure_analysis_tab.tables['Cells'])==2
         assert len(window.figure_analysis_tab.entries)==2
         assert all('GFP' not in e['path'] for e in window.figure_analysis_tab.entries)
     finally:
