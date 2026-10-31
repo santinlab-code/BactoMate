@@ -141,8 +141,10 @@ class FigureAnalysisTab(QWidget):
             spec=FigureSpec(kind=self.kind.currentText(),**{key:c.currentText() for key,c in self.fields.items()},
                 filter_value=self.filter_value.text(),minimum=float(self.minimum.text()) if self.minimum.text().strip() else None,
                 maximum=float(self.maximum.text()) if self.maximum.text().strip() else None,bins=self.bins.value(),
-                title=self.title.text(),cmap=self.cmap.currentText(),track_confirmed=self.confirm.isChecked(),normalization=self.normalization.currentText())
-            used,plot,labels=prepare(table,spec); draw(self.figure,plot,spec,labels); self.canvas.draw_idle()
+                title=getattr(self,'_guided_title',None) or self.title.text(),cmap=self.cmap.currentText(),track_confirmed=self.confirm.isChecked(),normalization=self.normalization.currentText(),replicate=getattr(self,'_guided_replicate',''))
+            used,plot,labels=prepare(table,spec)
+            if hasattr(self,'display_labels'):labels=self.display_labels(labels)
+            draw(self.figure,plot,spec,labels); self.canvas.draw_idle()
             self.snapshot=(used.copy(),plot.copy(),copy.deepcopy(spec),dict(labels),dict(self.provenance,table=self.sheet.currentText()))
             self.export.setEnabled(True); self.status.setText(f'{len(used):,} source rows used. Export includes these rows, plotted values, figures, metadata and Python/R/MATLAB scripts. No rows sampled for plotting.')
         except Exception as exc:

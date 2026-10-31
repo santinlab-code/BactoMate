@@ -308,3 +308,25 @@ segmentation ni filtres, et ne change pas les mesures ou les masques sources.
 Validation : 579 tests réussis, 5 ignorés. Les tests couvrent la couleur
 mémorisée, l’annulation du dialogue, l’absence de recalcul, les cellules
 rejetées, la sélection vide et la réintégration manuelle.
+
+## Nouvelle interface Analysis — branche New-Analyses
+
+La branche BactoMate_Custom_New-Analyses est une copie de BactoMate_Custom_Analyses
+au commit 53ec722. Les branches précédentes restent inchangées.
+Les résultats du projet sont chargés automatiquement à l’entrée dans Analysis,
+avec cache des fichiers inchangés et signalement des fichiers non lus. Les tables
+cellulaires ne sont pas mélangées avec les résumés, les foci ou les trajectoires.
+L’interface simple propose données, figure, mesure et attribution conditions/
+réplicats. Les attributions, modifiables par lot, sont conservées dans
+analysis_groups.json. Les XY d’un même réplicat peuvent partager le même nom.
+Un violon représente les observations cellulaires ; les points colorés montrent
+les moyennes des réplicats par condition. L’export contient leur table dédiée.
+Un choix de frame évite de regrouper implicitement les observations d’un film.
+Les onze figures et les autres réglages restent disponibles en mode avancé.
+Le parcours complet est décrit dans docs/NEW_ANALYSIS_FR.md.
+
+Validation : 585 tests réussis, 5 ignorés. Les retouches des libellés et du
+mode avancé ont ensuite été vérifiées par 24 tests ciblés, puis les six tests
+du parcours guidé ont été rejoués avec succès après le contrôle du bouton
+d’export avancé. Le parcours automatique X/Y et R1/R2 a été relu dans la fenêtre
+principale. Le script Python exporté avec les réplicats est exécuté dans les tests.

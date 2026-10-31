@@ -2,8 +2,8 @@
 
 ## Télécharger la version de test
 
-Version du 28 octobre 2026 : télécharger la branche **BactoMate_Custom_Analyses** :
-https://github.com/santinlab-code/BactoMate/archive/refs/heads/BactoMate_Custom_Analyses.zip
+Version du 28 octobre 2026 : télécharger la branche **BactoMate_Custom_New-Analyses** :
+https://github.com/santinlab-code/BactoMate/archive/refs/heads/BactoMate_Custom_New-Analyses.zip
 
 Extraire le ZIP dans un nouveau dossier, puis suivre les étapes Windows ou macOS
 ci-dessous. Ce ZIP contient les sources ; les applications de la release officielle
@@ -143,3 +143,9 @@ Depuis le Dashboard, ouvrir Analysis pour charger les résultats CSV/Excel,
 choisir les métriques, tracer et exporter les figures. Le guide détaillé des
 profils, démographes, kymographes et scripts est `docs/ANALYSIS_FR.md`.
 La branche BactoMate_Custom_V1 reste la copie de secours.
+
+## Analysis simplifiée
+
+Les résultats du projet sont désormais repris automatiquement. Pour un violon
+d’aire selon les conditions et réplicats, suivre `docs/NEW_ANALYSIS_FR.md`.
+L’interface avancée reste disponible. Les branches Analyses et V1 sont conservées.

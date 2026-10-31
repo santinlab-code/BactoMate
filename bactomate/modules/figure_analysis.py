@@ -30,6 +30,8 @@ class FigureSpec:
     maximum: float | None = None
     track_confirmed: bool = False
     normalization: str = 'raw'
+    replicate: str = ''
+    show_replicates: bool = True
 
 
 def load_tables(path):
@@ -208,6 +210,7 @@ def prepare(table, spec):
         labels['colorlabel'] = spec.value + f' ({spec.normalization}; mean in bin)'
         return data, matrix, labels
     plot = pd.DataFrame({'x':data[spec.x], 'group':group})
+    if spec.replicate:plot['replicate']=data[spec.replicate].fillna('').astype(str)
     if spec.kind in ('Scatter', 'Mean curve'): plot['y'] = data[spec.y]
     if spec.kind == 'Histogram':
         edges = np.histogram_bin_edges(plot.x, bins=spec.bins)
@@ -254,6 +257,16 @@ def draw(figure, plot, spec, labels):
                 else: ax.violinplot([sub.x],positions=[i+1],showmedians=True)
         if spec.kind in ('Box plot','Violin plot'): ax.set_xticks(range(1,len(groups)+1),[g[0] for g in groups])
         elif len(groups)>1: ax.legend()
+        if spec.kind in ('Box plot','Violin plot') and spec.replicate and spec.show_replicates:
+            names=[name for name,_ in groups]
+            reps=sorted(plot.replicate.unique())
+            for ri,rep in enumerate(reps):
+                sub=plot[plot.replicate==rep].groupby('group').x.mean()
+                offset=0 if len(reps)==1 else -.15+.3*ri/(len(reps)-1)
+                ax.scatter([names.index(str(g))+1+offset for g in sub.index],sub.values,
+                           s=38,label=str(rep),zorder=5)
+            ax.legend(title='Réplicat · moyenne')
+
     ax.set(xlabel=labels['xlabel'],ylabel=labels['ylabel'],title=spec.title or spec.kind)
     figure.tight_layout()
     return ax
@@ -267,6 +280,10 @@ def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png'
     with pd.ExcelWriter(folder/'figure_data.xlsx') as writer:
         used.to_excel(writer,sheet_name='Source rows',index=False)
         plotted.to_excel(writer,sheet_name='Plot data',index=matrix)
+        if spec.replicate and spec.kind in ('Box plot','Violin plot'):
+            summary=plotted.groupby(['group','replicate']).x.agg(['count','mean','std']).reset_index()
+            summary.to_excel(writer,sheet_name='Replicates',index=False)
+            summary.to_csv(folder/'replicate_summary.csv',index=False)
     config = dict(spec=asdict(spec),labels=labels,matrix=matrix,provenance=provenance or {},
                   missing='NaN: missing, never zero-filled',normalization=spec.normalization,
                   reproducibility='Scripts read the plotted values. Renderer/font differences are possible.')
