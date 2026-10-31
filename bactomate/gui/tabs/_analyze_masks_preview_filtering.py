@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 import numpy as np
 from PyQt6.QtCore import QEvent, QObject, Qt, QThread, QTimer
-from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QTableWidget, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QTableWidget, QTabWidget, QTextEdit, QVBoxLayout, QWidget
 from bactomate.gui.analyze_masks_preview_worker import AnalyzeMasksPreviewWorker
 from bactomate.gui.filter_apply_progress import FilterApplyProgressDialog, _qt_alive
 from bactomate.gui.image_utils import scale_for_preview, to_qpixmap
 from bactomate.gui.log_config import write_gui_log_line
 from bactomate.gui.utils import safe_imread
-from bactomate.gui.layout_helpers import PREVIEW_SETTINGS_SCROLL_MIN_HEIGHT, build_settings_card, build_preview_settings_scroll, checkbox_with_control, flex_control, setting_cell, setting_field, style_module_primary_button
+from bactomate.gui.layout_helpers import build_settings_card, checkbox_with_control, flex_control, setting_cell, setting_field, style_module_primary_button
 from bactomate.gui.widgets import create_info_icon, show_message_dialog
 from bactomate.gui.styles import filter_preview_card_stylesheet, preview_table_stylesheet
 from bactomate.gui.foci_filter_pipeline import FOCI_BLOB_SIZE_PRESETS, FociPassFailCache, accepted_cell_labels_cache_key, accepted_cell_labels_for_foci, sync_foci_peaks_with_accepted_cells, compute_foci_pass_fail_for_frame, draw_foci_blob_contours_on_rgb, filter_foci_csv_rows, fit_foci_table_columns, foci_blob_max_radius, foci_blob_threshold_frac, foci_pass_fail_cache_key, format_foci_cell_id_display, populate_foci_preview_table, apply_foci_table_header_sort
@@ -25,7 +25,7 @@ from bactomate.gui.foci_overlay_draw import (
 from bactomate.gui.filter_preview_utils import cell_filter_settings_signature, foci_channel_key_for_path, foci_channel_settings_signature, resolve_foci_settings_for_source, seed_foci_channel_settings, evaluate_cell_filter_details, build_cell_hover_data
 from bactomate.gui.preview.preview_window import CollapsibleSection, PreviewDialogBase, WorkerGuard, RenderResult
 from bactomate.modules.tiff_metadata import resolve_calibration_for_mask
-_FOCI_PASS_RGB = (255, 165, 0)
+_FOCI_PASS_RGB = (0, 255, 0)
 _FOCI_BLOB_OUTLINE_RGB = FOCI_BLOB_OUTLINE_RGB
 _FOCI_PEAK_PIXEL_RGB = FOCI_PEAK_PIXEL_RGB
 _FOCI_RAW_PEAK_RGB = (255, 200, 80)
@@ -946,56 +946,53 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     foci_table.installEventFilter(_foci_col_fit)
     foci_table_host.installEventFilter(_foci_col_fit)
     foci_table_section.installEventFilter(_foci_col_fit)
-    settings_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-    settings_host.setMinimumWidth(0)
-    settings_scroll = build_preview_settings_scroll(settings_host)
-    settings_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-    _FILTER_SETTINGS_VIEWPORT_MAX_PX = 340
-
-    def _settings_viewport_cap_px() -> int:
-        """Cap visible settings height so the image keeps room when many sections are open."""
-        ref: Optional[QWidget] = settings_scroll
-        host_h = 0
-        for _ in range(16):
-            if ref is None:
-                break
-            try:
-                host_h = max(host_h, int(ref.height()))
-            except Exception:
-                pass
-            ref = ref.parentWidget()
-        if host_h < 280:
-            return _FILTER_SETTINGS_VIEWPORT_MAX_PX
-        return max(160, min(_FILTER_SETTINGS_VIEWPORT_MAX_PX, int(host_h * 0.42)))
+    # Filter cards stay outside any scroll area. Only table rows scroll.
+    filter_cards=QWidget(settings_host)
+    filter_cards_layout=QHBoxLayout(filter_cards)
+    filter_cards_layout.setContentsMargins(0,0,0,0)
+    for card in (cell_group,foci_group):
+        settings_outer.removeWidget(card)
+        filter_cards_layout.addWidget(card,1)
+    settings_outer.insertWidget(1,filter_cards)
+    foci_history=QComboBox()
+    foci_history.setObjectName('FociHistory')
+    foci_history.setMaxVisibleItems(10)
+    foci_history.setModel(curation_panel.history.model())
+    foci_history.currentIndexChanged.connect(curation_panel.history.setCurrentIndex)
+    curation_panel.history.currentIndexChanged.connect(foci_history.setCurrentIndex)
+    curation_panel.history_updated.connect(lambda: foci_history.setCurrentIndex(curation_panel.history.currentIndex()))
+    foci_history_details=QTextEdit()
+    foci_history_details.setReadOnly(True)
+    foci_history_details.setMaximumHeight(90)
+    curation_panel.details.textChanged.connect(lambda: foci_history_details.setPlainText(curation_panel.details.toPlainText()))
+    foci_history_details.setPlainText(curation_panel.details.toPlainText())
+    foci_table_lay.addWidget(foci_history)
+    foci_table_lay.addWidget(foci_history_details)
+    table_tabs = QTabWidget(settings_host)
+    table_tabs.setObjectName('FilteringTables')
+    for section,title in ((curation_section,'Cell table / History'),(foci_table_section,'Foci table / History')):
+        settings_outer.removeWidget(section)
+        section.set_expanded(True)
+        section._header.hide()
+        table_tabs.addTab(section,title)
+    settings_outer.addWidget(table_tabs)
+    settings_outer.setAlignment(Qt.AlignmentFlag.AlignTop)
+    settings_host.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Maximum)
+    settings_scroll = settings_host
+    from bactomate.gui.filtering_display import ten_row_table
+    ten_row_table(curation_panel.table)
+    ten_row_table(foci_table)
 
     def _sync_filter_settings_panel_height() -> None:
-        try:
-            cap = _settings_viewport_cap_px()
-            frame_extra = max(0, int(settings_scroll.frameWidth()) * 2)
-            content_hint = max(settings_host.sizeHint().height(), settings_host.minimumSizeHint().height())
-            viewport_h = max(PREVIEW_SETTINGS_SCROLL_MIN_HEIGHT, min(cap, content_hint))
-            settings_scroll.setFixedHeight(viewport_h + frame_extra)
-            fit_foci_table_columns(foci_table)
-        except Exception:
-            pass
+        fit_foci_table_columns(foci_table)
+        settings_host.updateGeometry()
 
     def _scroll_settings_to_top() -> None:
-        try:
-            sb = settings_scroll.verticalScrollBar()
-            if sb is not None:
-                sb.setValue(int(sb.minimum()))
-        except Exception:
-            pass
+        pass
 
-    def _scroll_filter_section_into_view(section: CollapsibleSection) -> None:
-        try:
-            _sync_filter_settings_panel_height()
-            settings_scroll.ensureWidgetVisible(section, 36, 24)
-            content = section.content()
-            if content is not None and section.is_expanded():
-                settings_scroll.ensureWidgetVisible(content, 24, 24)
-        except Exception:
-            pass
+    def _scroll_filter_section_into_view(section) -> None:
+        section.set_expanded(True)
+        table_tabs.setCurrentWidget(section)
 
     def _on_foci_table_section_toggled(expanded: bool, section: CollapsibleSection) -> None:
         _sync_filter_settings_panel_height()
@@ -1007,21 +1004,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     except Exception:
         pass
 
-    class _FilterSettingsViewportResizeFilter(QObject):
-
-        def eventFilter(self, obj, event) -> bool:
-            if event.type() == QEvent.Type.Resize:
-                _sync_filter_settings_panel_height()
-            return False
-    try:
-        vp = settings_scroll.viewport()
-        if vp is not None:
-            _settings_vp_filter = _FilterSettingsViewportResizeFilter(settings_scroll)
-            vp.installEventFilter(_settings_vp_filter)
-    except Exception:
-        pass
     _sync_filter_settings_panel_height()
-    QTimer.singleShot(0, _scroll_settings_to_top)
     image_combo = QComboBox()
     frame_spin = QSpinBox()
     frame_spin.setRange(1, max(1, num_frames))
@@ -1058,11 +1041,13 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         except Exception:
             return ('none', -1)
 
-    nav_ctrl.set_spec(PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=sources, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, show_foci_overlay_toggle=True, cell_overlay_default=True, debounce_ms=400), emit_init=False)
+    nav_ctrl.set_spec(PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=sources, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, cell_overlay_label="Show cell contours", show_foci_overlay_toggle=True, cell_overlay_default=True, debounce_ms=400), emit_init=False)
     try:
         nav_ctrl.set_state(PreviewNavState(source_key=_normalize_source_key(image_combo.currentData()), frame_idx=int(frame_spin.value()) - 1), emit=False)
     except Exception:
         pass
+
+    nav_ctrl._show_cells_cb.setText('Show cell contours')
 
     def _selected_source() -> tuple[str, int]:
         # Prefer the visible View control — the hidden image_combo can lag behind and
@@ -1451,8 +1436,11 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         view_p = _selected_image_path()
         is_foci_view = _view_path_is_foci(view_p)
         try:
-            cell_group.setVisible(not is_foci_view)
-            foci_group.setVisible(bool(is_foci_view and has_foci_image_files))
+            curation_panel.kind.setCurrentIndex(1 if is_foci_view else 0)
+            table_tabs.setCurrentWidget(foci_table_section if is_foci_view else curation_section)
+            if is_foci_view:w_show_foci_table.setChecked(True)
+            cell_group.setVisible(True)
+            foci_group.setVisible(bool(has_foci_image_files))
             if has_foci_image_files:
                 ch_key = _active_foci_channel_key()
                 foci_group.setTitle('Foci filtering')
@@ -1528,10 +1516,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         if src is None:
             return None
         try:
-            filtered = resolve_filtered_foci_csv(_pipeline_dir, mask_path=mask_path, foci_source_path=src)
-            if filtered is not None and filtered.is_file():
-                return filtered
-            return resolve_segmentation_foci_csv(_pipeline_dir, mask_path=mask_path, foci_source_path=src)
+            raw=resolve_segmentation_foci_csv(_pipeline_dir,mask_path=mask_path,foci_source_path=src)
+            if raw is not None and raw.is_file():return raw
+            return resolve_filtered_foci_csv(_pipeline_dir,mask_path=mask_path,foci_source_path=src)
         except Exception:
             return None
 
@@ -1566,7 +1553,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     _foci_ch_overlay_labels: tuple[str, ...] = ()
     if foci_overlay_available:
         _foci_ch_overlay_labels = tuple((f'Foci: {short_foci_stack_label(fp)}' for fp in foci_overlay_sources))
-    nav_ctrl.set_spec(PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=sources, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, show_foci_overlay_toggle=bool(foci_overlay_available and (not _foci_ch_overlay_labels)), cell_overlay_default=True, foci_overlay_available=bool(foci_overlay_available), foci_overlay_default=bool(foci_overlay_available), foci_channel_overlay_labels=_foci_ch_overlay_labels, foci_channel_overlay_defaults=tuple((True for _ in _foci_ch_overlay_labels)), debounce_ms=400), emit_init=False)
+    nav_ctrl.set_spec(PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=sources, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, cell_overlay_label="Show cell contours", show_foci_overlay_toggle=bool(foci_overlay_available and (not _foci_ch_overlay_labels)), cell_overlay_default=True, foci_overlay_available=bool(foci_overlay_available), foci_overlay_default=bool(foci_overlay_available), foci_channel_overlay_labels=_foci_ch_overlay_labels, foci_channel_overlay_defaults=tuple((True for _ in _foci_ch_overlay_labels)), debounce_ms=400), emit_init=False)
     try:
         nav_ctrl.set_state(PreviewNavState(source_key=_normalize_source_key(image_combo.currentData()), frame_idx=int(frame_spin.value()) - 1), emit=False)
     except Exception:
@@ -1659,149 +1646,12 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         return _load_preview_plane(Path(src), int(frame_idx), cache)
 
     def _render_overlay(mask_2d: np.ndarray, accepted: set[int], rejected: set[int], bg_u8: np.ndarray, pass_peaks: list[dict], fail_peaks: list[dict], show_cells: bool=True, show_foci: bool=True, foci_plane: Optional[np.ndarray]=None, foci_settings: Optional[dict]=None, draw_pass_foci_as_blobs: bool=False, foci_filters_applied: bool=False, skip_foci: bool=False) -> np.ndarray:
-        from skimage.segmentation import find_boundaries
-        (scaled_img, scaled_mask) = scale_for_preview(bg_u8, mask_2d)
-        rgb = np.stack([scaled_img, scaled_img, scaled_img], axis=-1).astype(np.uint8)
-        if show_cells and accepted:
-            am = np.isin(scaled_mask, np.array(list(accepted), dtype=np.int32))
-            if np.any(am):
-                alpha = 0.55
-                rgb[am, 0] = (rgb[am, 0].astype(np.float32) * (1 - alpha)).astype(np.uint8)
-                rgb[am, 1] = (rgb[am, 1].astype(np.float32) * (1 - alpha) + 255 * alpha).astype(np.uint8)
-                rgb[am, 2] = (rgb[am, 2].astype(np.float32) * (1 - alpha)).astype(np.uint8)
-                mask_acc = np.where(am, scaled_mask, 0).astype(np.int32)
-                # 1 px hairline on the cell side (inner) — thinner / cleaner than outer.
-                b = find_boundaries(mask_acc, mode='inner')
-                if not np.any(b):
-                    b = find_boundaries(mask_acc, mode='outer')
-                rgb[b] = 0
-        if show_cells and rejected:
-            rm = np.isin(scaled_mask, np.array(list(rejected), dtype=np.int32))
-            if np.any(rm):
-                alpha = 0.55
-                rgb[rm, 0] = (rgb[rm, 0].astype(np.float32) * (1 - alpha) + 255 * alpha).astype(np.uint8)
-                rgb[rm, 1] = (rgb[rm, 1].astype(np.float32) * (1 - alpha)).astype(np.uint8)
-                rgb[rm, 2] = (rgb[rm, 2].astype(np.float32) * (1 - alpha)).astype(np.uint8)
-
-        def _draw_peak_rings(peaks: list[dict], color: tuple[int, int, int], *, radius: int=4) -> None:
-            """Hollow ring markers for raw (pre-apply) foci only — not used after Apply."""
-            (h0, w0) = mask_2d.shape[:2]
-            (hs, ws) = rgb.shape[:2]
-            sx = ws / w0 if w0 else 1.0
-            sy = hs / h0 if h0 else 1.0
-            r = max(2, int(radius))
-            inner = max(1, r - 2)
-            outer = r * r
-            inner_sq = inner * inner
-            for p in peaks or []:
-                yy = int(round(float(p.get('y', 0)) * sy))
-                xx = int(round(float(p.get('x', 0)) * sx))
-                if 0 <= yy < hs and 0 <= xx < ws:
-                    for dy in range(-r, r + 1):
-                        for dx in range(-r, r + 1):
-                            d2 = dx * dx + dy * dy
-                            if d2 > outer or d2 < inner_sq:
-                                continue
-                            (y2, x2) = (yy + dy, xx + dx)
-                            if 0 <= y2 < hs and 0 <= x2 < ws:
-                                rgb[y2, x2, 0] = int(color[0])
-                                rgb[y2, x2, 1] = int(color[1])
-                                rgb[y2, x2, 2] = int(color[2])
-
-        def _draw_peak_marker_rings(peaks: list[dict], color: tuple[int, int, int], *, radius: int=3) -> None:
-            """Thin circular outline when blob growth fails (not a filled square)."""
-            (h0, w0) = mask_2d.shape[:2]
-            (hs, ws) = rgb.shape[:2]
-            sx = ws / w0 if w0 else 1.0
-            sy = hs / h0 if h0 else 1.0
-            r = max(2, int(radius))
-            inner_sq = max(0, (r - 1) * (r - 1))
-            outer_sq = (r + 1) * (r + 1)
-            for p in peaks or []:
-                yy = int(round(float(p.get('y', 0)) * sy))
-                xx = int(round(float(p.get('x', 0)) * sx))
-                if 0 <= yy < hs and 0 <= xx < ws:
-                    for dy in range(-r - 1, r + 2):
-                        for dx in range(-r - 1, r + 2):
-                            d2 = dx * dx + dy * dy
-                            if d2 > outer_sq or d2 < inner_sq:
-                                continue
-                            (y2, x2) = (yy + dy, xx + dx)
-                            if 0 <= y2 < hs and 0 <= x2 < ws:
-                                rgb[y2, x2, 0] = int(color[0])
-                                rgb[y2, x2, 1] = int(color[1])
-                                rgb[y2, x2, 2] = int(color[2])
-
-        def _draw_foci_contours(
-            peaks: list[dict],
-            plane: np.ndarray,
-            settings: dict,
-            contour_rgb: tuple[int, int, int],
-            *,
-            ownership_peaks: Optional[list[dict]] = None,
-        ) -> list[dict]:
-            return draw_foci_blob_contours_on_rgb(
-                rgb,
-                mask_2d,
-                peaks,
-                np.asarray(plane),
-                settings,
-                contour_rgb,
-                ownership_peaks=ownership_peaks,
-            )
-        if show_foci and (not skip_foci):
-            try:
-                fs_draw = dict(foci_settings or {})
-                plane_draw = foci_plane
-                foci_after_apply = bool(draw_pass_foci_as_blobs)
-                if foci_after_apply and plane_draw is not None:
-                    ownership = list(pass_peaks or []) + list(fail_peaks or [])
-                    if pass_peaks:
-                        draw_exclusive_foci_preview_on_rgb(
-                            rgb,
-                            mask_2d,
-                            pass_peaks,
-                            np.asarray(plane_draw),
-                            settings=fs_draw,
-                            outline_rgb=_FOCI_BLOB_OUTLINE_RGB,
-                            peak_rgb=_FOCI_PEAK_PIXEL_RGB,
-                            ownership_peaks=ownership,
-                        )
-                    if fail_peaks:
-                        draw_foci_blob_contours_on_rgb(
-                            rgb,
-                            mask_2d,
-                            fail_peaks,
-                            np.asarray(plane_draw),
-                            fs_draw,
-                            _FOCI_FAIL_OUTLINE_RGB,
-                            ownership_peaks=ownership,
-                        )
-                        draw_peak_pixels_on_rgb(
-                            rgb,
-                            fail_peaks,
-                            _FOCI_PEAK_PIXEL_RGB,
-                            mask_shape=tuple(mask_2d.shape[:2]),
-                        )
-                elif pass_peaks and plane_draw is not None:
-                    draw_exclusive_foci_preview_on_rgb(
-                        rgb,
-                        mask_2d,
-                        pass_peaks,
-                        np.asarray(plane_draw),
-                        settings=fs_draw,
-                        outline_rgb=_FOCI_BLOB_OUTLINE_RGB,
-                        peak_rgb=_FOCI_PEAK_PIXEL_RGB,
-                    )
-                elif pass_peaks:
-                    draw_peak_pixels_on_rgb(
-                        rgb,
-                        pass_peaks,
-                        _FOCI_PEAK_PIXEL_RGB,
-                        mask_shape=tuple(mask_2d.shape[:2]),
-                    )
-            except Exception:
-                pass
+        from bactomate.gui.filtering_display import white_cell_contours, draw_detected_foci
+        scaled_img,scaled_mask=scale_for_preview(bg_u8,mask_2d)
+        rgb=np.stack([scaled_img]*3,axis=-1).astype(np.uint8)
+        if show_cells:rgb=white_cell_contours(rgb,scaled_mask)
+        if show_foci and not skip_foci:
+            draw_detected_foci(rgb,[*pass_peaks,*fail_peaks],pass_peaks,mask_2d.shape)
         return rgb
 
     def get_current_parameters(fs: Optional[dict]=None) -> dict:
@@ -2228,6 +2078,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             return
         show = bool(w_show_foci_table.isChecked())
         foci_table_section.setVisible(show and bool(foci_sources))
+        table_tabs.setTabEnabled(1,bool(foci_sources))
         if not show:
             w_show_foci_table.setVisible(bool(foci_sources))
             return
@@ -2286,12 +2137,6 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 if key not in fail_keys:
                     fail_peaks.append(dict(r))
         sel = getattr(dlg, '_highlight_foci_yx', None)
-        try:
-            cap = 2500
-            if len(frame_rows) > cap:
-                frame_rows = list(frame_rows)[:cap]
-        except Exception:
-            pass
         pass_peaks, fail_peaks = _current_curation().peaks(fid, _active_foci_channel_key(), pass_peaks, fail_peaks)
         populate_foci_preview_table(foci_table, frame_rows=frame_rows, pass_peaks=pass_peaks, fail_peaks=fail_peaks, selected_yx=sel if isinstance(sel, tuple) else None, mask_2d=mask_2d, foci_plane=foci_plane, foci_settings=ch_fs)
         try:
@@ -2311,42 +2156,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         return (float(x) * scale, float(y) * scale)
 
     def _refresh_foci_highlight_only() -> None:
-        """Redraw only the selected-focus highlight (table double-click); avoid full preview render."""
-        if dlg is None:
-            return
-        base = getattr(dlg, '_preview_overlay_base', None)
-        if base is None:
-            dlg.refresh()
-            return
-        highlight_yx = getattr(dlg, '_highlight_foci_yx', None)
-        if not isinstance(highlight_yx, tuple):
-            return
-        state = dlg.state()
-        fid = int(getattr(state, 'frame_idx', 0) or 0)
-        src_key = _source_key_from_state(state, _selected_source)
-        foci_src = _foci_source_for_source_key(src_key)
-        mpk = getattr(dlg, '_preview_mask_path_key', None)
-        last = getattr(dlg, '_last_preview', {}) or {}
-        if is_filter_apply_cache_hit(last, fid, mask_path_key=mpk) and last.get('mask_2d') is not None:
-            mask_2d = np.asarray(last.get('mask_2d'), dtype=np.int32)
-        else:
-            try:
-                mask_2d = np.asarray(_preview_mask_stack()[fid], dtype=np.int32)
-            except Exception:
-                dlg.refresh()
-                return
-        foci_plane = _get_foci_plane(fid, foci_src)
-        if foci_plane is None and is_filter_apply_cache_hit(last, fid, mask_path_key=mpk):
-            foci_plane = last.get('foci_plane')
-        overlay = np.asarray(base).copy()
-        try:
-            ch_fs = _foci_settings_for_source(foci_src) if foci_src is not None else dict(tab.get_filter_settings() if hasattr(tab, 'get_filter_settings') else {})
-            _apply_foci_highlight_contour(overlay, mask_2d, np.asarray(foci_plane) if foci_plane is not None else None, highlight_yx, ch_fs)
-        except Exception:
-            pass
-        from bactomate.gui.image_utils import to_qpixmap
-        pm = to_qpixmap(overlay)
-        dlg.canvas.set_pixmap(pm, (int(overlay.shape[1]), int(overlay.shape[0])), reset_view=False)
+        controller=getattr(dlg,'_curation_image_window',None)
+        if controller is not None:controller.highlight()
 
     def _focus_foci_from_table(row: int, _col: int) -> None:
         if row < 0 or dlg is None:
@@ -2634,117 +2445,29 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                         ch_fail = list(last_ch_map[ch_key].get('fail_peaks') or [])
                         if accepted_for_foci_gating:
                             (ch_pass, ch_fail) = sync_foci_peaks_with_accepted_cells(ch_pass, ch_fail, mask_2d=mask_2d, accepted_cell_labels=accepted_for_foci_gating, settings=dict(ch_fs))
-                    elif isinstance(last_ch_map, dict):
-                        (ch_pass, ch_fail) = ([], [])
                     else:
                         (ch_pass, ch_fail) = _foci_pass_fail_cached(fid, ('file', -1), dict(ch_fs), mask_2d=mask_2d, foci_plane=ch_plane, frame_rows=ch_rows, accepted_cell_labels=accepted_cell_labels_for_foci(accepted, cell_filter_applied=cell_filter_applied))
                     ch_pass, ch_fail = _current_curation().peaks(fid, ch_key, ch_pass, ch_fail)
-                    ch_plane_arr = np.asarray(ch_plane)
-                    (pass_draw, pass_drawn, pass_total) = _cap_peaks_for_preview(ch_pass)
-                    (fail_draw, fail_drawn, fail_total) = _cap_peaks_for_preview(ch_fail)
-                    ownership = list(pass_draw) + list(fail_draw)
-                    _outline_budget = 1200
-                    if ownership and len(ownership) <= _outline_budget:
-                        from bactomate.gui.foci_overlay_draw import (
-                            _exclusive_blob_outline_mask,
-                            _peak_hollow_ring_mask,
-                        )
-                        from bactomate.modules.foci_utils import exclusive_focus_blob_metrics
-
-                        measured = exclusive_focus_blob_metrics(
-                            ch_plane_arr,
-                            ownership,
-                            threshold_frac=foci_blob_threshold_frac(dict(ch_fs)),
-                            max_radius=foci_blob_max_radius(dict(ch_fs)),
-                            labeled_mask=np.asarray(mask_2d, dtype=np.int32),
-                        )
-                        pass_keys = {
-                            (int(float(p.get('y', 0) or 0)), int(float(p.get('x', 0) or 0)))
-                            for p in pass_draw
-                        }
-                        fail_keys = {
-                            (int(float(p.get('y', 0) or 0)), int(float(p.get('x', 0) or 0)))
-                            for p in fail_draw
-                        }
-                        (h0, w0) = (int(mask_2d.shape[0]), int(mask_2d.shape[1]))
-                        (h1, w1) = (int(ch_layer_rgb.shape[0]), int(ch_layer_rgb.shape[1]))
-                        sx = (w1 / w0) if w0 else 1.0
-                        sy = (h1 / h0) if h0 else 1.0
-                        edge_pass = np.zeros((h1, w1), dtype=bool)
-                        edge_fail = np.zeros((h1, w1), dtype=bool)
-                        for peak, blob, _size, _mean in measured:
-                            try:
-                                key = (int(peak.get('y', 0)), int(peak.get('x', 0)))
-                            except Exception:
-                                continue
-                            if blob is None or not np.any(blob):
-                                continue
-                            area = int(np.sum(blob))
-                            ring = (
-                                _exclusive_blob_outline_mask(blob)
-                                if area >= 6
-                                else _peak_hollow_ring_mask(blob.shape[:2], key[0], key[1], radius=2)
-                            )
-                            if not np.any(ring):
-                                continue
-                            ys, xs = np.nonzero(ring)
-                            y2 = np.clip(np.round(ys.astype(np.float64) * sy).astype(np.int32), 0, h1 - 1)
-                            x2 = np.clip(np.round(xs.astype(np.float64) * sx).astype(np.int32), 0, w1 - 1)
-                            if key in pass_keys:
-                                edge_pass[y2, x2] = True
-                            elif key in fail_keys:
-                                edge_fail[y2, x2] = True
-                        outline = _FOCI_BLOB_OUTLINE_RGB if si == 0 else tuple(min(255, int(c * 0.45 + 140)) for c in ch_color)
-                        if np.any(edge_pass):
-                            ch_layer_rgb[edge_pass] = outline
-                        if np.any(edge_fail):
-                            ch_layer_rgb[edge_fail] = _FOCI_FAIL_OUTLINE_RGB
-                    peak_draw = list(pass_draw) + list(fail_draw)
-                    if peak_draw:
-                        draw_peak_pixels_on_rgb(
-                            ch_layer_rgb,
-                            peak_draw,
-                            _FOCI_PEAK_PIXEL_RGB,
-                            mask_shape=tuple(mask_2d.shape[:2]),
-                            cap=_foci_preview_draw_cap(),
-                        )
-                    ch_mask = np.any(np.asarray(ch_layer_rgb) > 12, axis=-1)
-                    channels_store[ch_key] = {
-                        'layer': ch_layer_rgb,
-                        'mask': ch_mask,
-                        'drawn': int(pass_drawn + fail_drawn),
-                        'total': int(pass_total + fail_total),
-                    }
+                    from bactomate.gui.filtering_display import draw_detected_foci
+                    draw_detected_foci(ch_layer_rgb,ch_rows,ch_pass,mask_2d.shape)
+                    ch_mask=np.any(ch_layer_rgb>0,axis=-1)
+                    channels_store[ch_key]=dict(layer=ch_layer_rgb,mask=ch_mask,
+                                                drawn=len(ch_rows),total=len(ch_rows))
                     continue
-                # Before Apply: same red peak + light outline language when plane is available.
-                raw_peaks = _peaks_from_csv_rows(ch_rows)
-                (draw_peaks, drawn_n, total_n) = _cap_peaks_for_preview(raw_peaks)
-                ch_plane = _get_foci_plane(fid, fp)
-                # Heavy exclusive growth on huge peak sets freezes the UI — peaks only above this.
-                _outline_budget = 1200
-                if ch_plane is not None and draw_peaks and len(draw_peaks) <= _outline_budget:
-                    draw_exclusive_foci_preview_on_rgb(
-                        ch_layer_rgb,
-                        mask_2d,
-                        draw_peaks,
-                        np.asarray(ch_plane),
-                        settings=dict(ch_fs),
-                        outline_rgb=_FOCI_BLOB_OUTLINE_RGB if si == 0 else tuple(
-                            min(255, int(c * 0.45 + 140)) for c in ch_color
-                        ),
-                        peak_rgb=_FOCI_PEAK_PIXEL_RGB,
-                        cap=_foci_preview_draw_cap(),
-                    )
-                elif draw_peaks:
-                    draw_peak_pixels_on_rgb(
-                        ch_layer_rgb,
-                        draw_peaks,
-                        _FOCI_PEAK_PIXEL_RGB,
-                        mask_shape=tuple(mask_2d.shape[:2]),
-                        cap=_foci_preview_draw_cap(),
-                    )
-                ch_mask = np.any(np.asarray(ch_layer_rgb) > 12, axis=-1)
-                channels_store[ch_key] = {'layer': ch_layer_rgb, 'mask': ch_mask, 'drawn': int(drawn_n), 'total': int(total_n)}
+                # Before Apply, classify the existing detections with current filters.
+                ch_plane=_get_foci_plane(fid,fp)
+                if ch_plane is not None:
+                    ch_pass,ch_fail=_foci_pass_fail_cached(fid,('file',si),dict(ch_fs),
+                        mask_2d=mask_2d,foci_plane=ch_plane,frame_rows=ch_rows,
+                        accepted_cell_labels=accepted_for_foci_gating)
+                else:
+                    ch_pass,ch_fail=list(ch_rows),[]
+                ch_pass,ch_fail=_current_curation().peaks(fid,ch_key,ch_pass,ch_fail)
+                from bactomate.gui.filtering_display import draw_detected_foci
+                draw_detected_foci(ch_layer_rgb,ch_rows,ch_pass,mask_2d.shape)
+                ch_mask=np.any(ch_layer_rgb>0,axis=-1)
+                channels_store[ch_key]=dict(layer=ch_layer_rgb,mask=ch_mask,
+                                            drawn=len(ch_rows),total=len(ch_rows))
             for (si, fp) in enumerate(overlay_sources):
                 if not _foci_channel_should_draw(si, fp):
                     continue
@@ -2797,11 +2520,6 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             except Exception:
                 from bactomate.logging_config import get_logger
                 get_logger().exception('Contour FI preview overlay failed')
-            if isinstance(highlight_yx, tuple):
-                try:
-                    _apply_foci_highlight_contour(overlay, mask_2d, np.asarray(foci_plane) if foci_plane is not None else None, highlight_yx, dict(foci_fs or {}))
-                except Exception:
-                    pass
             pm = to_qpixmap(overlay)
             hover_data = None
             _hover_overlay_sources = foci_overlay_sources if foci_overlay_sources else list(foci_sources)
@@ -2836,7 +2554,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             hover_builders: list = []
 
             def _append_cell_hover(_last=last, _mask_shape=tuple(mask_2d.shape[:2]), _disp_shape=tuple(overlay.shape[:2])):
-                if not (show_cells and cell_filter_applied):
+                if not (show_cells and cell_filter_applied) or _view_path_is_foci(_selected_image_path()):
                     return []
                 cell_details = _last.get('cell_details') if isinstance(_last, dict) else None
                 if not cell_details:
@@ -2983,6 +2701,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                     at._update_fi_contour_preview_button_state()
         except Exception:
             pass
+        dlg._filter_tables = table_tabs
+        dlg._filter_settings_host = settings_host
         dlg._close_pending = False
         dlg._preview_request_id = 0
         dlg._pixel_size_locked_from_metadata = False
@@ -3175,6 +2895,11 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         image_combo.currentIndexChanged.connect(_on_image_combo_changed)
 
         def _on_nav_changed(st: PreviewNavState, reason: str) -> None:
+            if st.source_key is not None and not _source_keys_equal(st.source_key,dlg.state().source_key):
+                reason='source'
+            if reason in ('source','frame'):
+                dlg._highlight_foci_yx=None
+                foci_table.clearSelection()
             if reason == 'source':
                 try:
                     _ui_to_settings()
@@ -3455,6 +3180,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             if not size:
                 return
             native_x, native_y = x * shape[1] / size[0], y * shape[0] / size[1]
+            if _view_path_is_foci(_selected_image_path()):
+                curation_panel.kind.setCurrentIndex(1)
             if curation_panel.kind.currentIndex() == 0:
                 if not (0 <= native_x < shape[1] and 0 <= native_y < shape[0]):
                     return
@@ -3476,13 +3203,19 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                         distance = (float(coords[0])-native_y)**2 + (float(coords[1])-native_x)**2
                         if best is None or distance < best[0]:
                             best = (distance, row)
-                if best is not None and best[0] <= 100:
+                # Hit radius is tied to the displayed marker, not the owning cell.
+                radius=max(2.0,5.0/max(dlg.canvas.view_scale(),1e-6))*shape[1]/size[0]
+                if best is not None and best[0] <= radius**2:
+                    table_tabs.setCurrentWidget(foci_table_section)
+                    dlg._highlight_foci_yx=tuple(foci_table.item(best[1],2).data(Qt.ItemDataRole.UserRole))
                     foci_table.selectRow(best[1])
-                    _focus_foci_from_table(best[1], 0)
+                    foci_table.scrollToItem(foci_table.item(best[1],2))
                 else:
+                    dlg._highlight_foci_yx=None
                     foci_table.clearSelection()
         dlg.canvas.clicked_image.connect(_pick_curated_object)
         from bactomate.gui.curation_image_window import CurationImageWindow
+        dlg._pf_image_object_kind=lambda: 1 if _view_path_is_foci(_selected_image_path()) else None
         dlg._curation_image_window = CurationImageWindow(dlg, curation_panel,
             lambda: _preview_mask_stack()[int(dlg.state().frame_idx)])
         try:

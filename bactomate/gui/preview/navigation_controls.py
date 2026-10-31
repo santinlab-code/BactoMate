@@ -72,6 +72,7 @@ class PreviewNavSpec:
     show_frame_slider: bool = False
     show_cell_overlay_toggle: bool = False
     show_cell_outline_color: bool = False
+    cell_overlay_label: str = ""
     show_foci_overlay_toggle: bool = False
     cell_overlay_default: bool = True
     foci_overlay_available: bool = False
@@ -561,7 +562,7 @@ class PreviewNavigationControls(QWidget):
             self._overlay_widgets.append(self._nav_separator())
 
         if self._spec.show_cell_overlay_toggle:
-            self._show_cells_cb.setText("Show cell outlines" if self._spec.show_cell_outline_color else "Show cell overlay")
+            self._show_cells_cb.setText(self._spec.cell_overlay_label or ("Show cell outlines" if self._spec.show_cell_outline_color else "Show cell overlay"))
             self._overlay_widgets.append(self._show_cells_cb)
             if self._spec.show_cell_outline_color:
                 self._update_outline_color_button()

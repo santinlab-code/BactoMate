@@ -1,13 +1,14 @@
 """Cell table and persisted manual selection controls for Filtering previews."""
 import json
 import numpy as np
-from PyQt6.QtCore import Qt, QItemSelectionModel
+from PyQt6.QtCore import Qt, QItemSelectionModel, pyqtSignal
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                             QTableWidgetItem, QComboBox, QLabel, QPushButton, QMessageBox, QTextEdit)
 from bactomate.modules.object_curation import ObjectCuration
 
 
 class ObjectCurationPanel(QWidget):
+    history_updated=pyqtSignal()
     def __init__(self, foci_table, channel, changed, focus_cell, parent=None):
         super().__init__(parent)
         self.foci_table, self.channel = foci_table, channel
@@ -22,7 +23,8 @@ class ObjectCurationPanel(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setMaximumHeight(180)
+        from bactomate.gui.filtering_display import ten_row_table
+        ten_row_table(self.table)
         self.table.cellDoubleClicked.connect(self._focus)
         layout.addWidget(self.table)
         self.manual_controls = QWidget(self)
@@ -39,6 +41,7 @@ class ObjectCurationPanel(QWidget):
             row.addWidget(button)
         layout.addWidget(self.manual_controls)
         self.history = QComboBox()
+        self.history.setMaxVisibleItems(10)
         self.history.setToolTip('History for this segmentation and frame; filter values are shown in the tooltip.')
         layout.addWidget(self.history)
         self.history.currentIndexChanged.connect(self._history_detail)
@@ -101,6 +104,7 @@ class ObjectCurationPanel(QWidget):
         self.history.setCurrentIndex(self.history.count()-1)
         self.history.blockSignals(False)
         self._history_detail()
+        self.history_updated.emit()
 
     def _history_detail(self, *_):
         h = self.history.currentData()

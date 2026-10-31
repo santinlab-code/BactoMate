@@ -10,14 +10,14 @@ Avec le focus clavier dans l’image ou une table, **Supprimer** ou **Retour arr
 exclut les objets sélectionnés. Ce choix reste réversible avec **Keep selected objects**
 ou **Use filters for selected objects**. Le clavier n’exclut rien pendant un calcul.
 
-Dans l’aperçu de **Filtering**, ouvrir **Cell table / Manual selection / History**.
+Dans l’aperçu de **Filtering**, ouvrir **Cell table / History**.
 La sélection manuelle porte sur des objets déjà détectés : elle ne dessine pas
 de nouvelles cellules ou de nouveaux foci et ne modifie pas les masques sources.
 
 ## Cellules
 
 La table indique l’identifiant de chaque cellule, si elle est retenue, sa surface
-en pixels carrés et son centre. Choisir une ou plusieurs lignes (Ctrl/Cmd pour une
+en µm², sa longueur et sa largeur en µm, et son centre en pixels. Choisir une ou plusieurs lignes (Ctrl/Cmd pour une
 sélection multiple). Un double-clic centre l’image sur la cellule. Un clic sur
 une cellule dans l’image sélectionne sa ligne.
 
@@ -30,10 +30,10 @@ en dernier. Les boutons sont désactivés pendant le calcul.
 
 ## Foci
 
-Afficher la **Foci table** existante, puis choisir **Foci — nom du canal** dans
-le nouveau panneau. Sélectionner les lignes et utiliser les mêmes boutons.
-Un clic près d’un focus dans l’image sélectionne le focus le plus proche dans
-ce canal (distance maximale de dix pixels natifs). Les choix GFP et mCherry
+Choisir le canal dans **View** : **Foci — nom du canal** et la table des foci
+sont sélectionnés automatiquement. Sélectionner les lignes et utiliser les mêmes
+boutons. Un clic près d’un focus sélectionne le focus le plus proche dans ce canal,
+avec un rayon limité autour du marqueur qui tient compte du zoom. Les choix GFP et mCherry
 sont indépendants. La table et l’export CSV prennent en compte la sélection manuelle.
 
 ## Historique
@@ -93,3 +93,34 @@ changement de frame. Cela ne crée pas de fichier de réglages sur disque et ne
 modifie pas les intensités mesurées. Les autres aperçus utilisant la LUT partagée
 (conversion, contours FI, U-Net) et l’aperçu Omnipose gardent également leurs LUT
 lors des changements de canal. Les LUT de montage par tuile étaient déjà séparées.
+
+## Poste de travail Filtering — 31 octobre 2026
+
+Cell filtering et Foci filtering sont deux cartes fixes, au-dessus des tables,
+visibles côte à côte lorsque des canaux de fluorescence existent. Les réglages
+ne sont plus enfermés dans une zone de défilement limitée à 340 px.
+Les onglets Cell table / History et Foci table / History réservent dix lignes
+visibles. Seules les lignes de la table défilent pour accéder aux objets suivants.
+Chaque onglet expose l’historique des étapes ; les menus d’historique montrent
+jusqu’à dix choix. L’historique décrit les étapes, il ne restaure pas un état.
+Le détachement aligne le panneau principal en haut et supprime les grands espaces
+qui étaient réservés à l’image.
+
+Show cell contours affiche un trait blanc d’un pixel de prévisualisation, sans
+remplissage rouge/vert des cellules. Les pixels intérieurs restent visibles et
+les masques, filtres et mesures restent inchangés.
+
+Quand View affiche un canal de foci, un clic dans l’image choisit un focus de ce
+canal et sa ligne, selon la proximité du marqueur. Il ne choisit pas la cellule
+qui contient ce focus. Le clic simple ne recentre plus l’image ; un double-clic
+sur une ligne peut toujours la centrer. Delete/Backspace exclut le focus ; il
+reste dans la table et dans l’image en rouge. Keep ou le clic droit le réintègre.
+
+Les marqueurs sont toujours issus du CSV de détection : vert pour les foci
+conservés, rouge pour les foci rejetés par les filtres ou exclus manuellement.
+Le cadre jaune indique seulement la sélection active. Le fond de fluorescence
+et son contraste restent disponibles. Aucun nouveau focus n’est détecté ni
+dessiné par la curation. Les détections originales sont chargées en priorité,
+afin de conserver les objets rejetés après un ancien export filtré. Si seul un
+CSV déjà filtré reste disponible, les détections qui en ont été retirées ne
+peuvent pas être reconstruites.

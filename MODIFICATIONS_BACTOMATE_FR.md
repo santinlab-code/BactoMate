@@ -279,3 +279,19 @@ Dans Foci distances, les canaux à afficher sont des cases directement visibles.
 Validation : 574 tests réussis, 5 ignorés ; six tests ciblés ont ensuite
 revalidé la mémoire des LUT, Échap, le panneau latéral et les glissières après
 l’ajustement de disposition. Le rendu de la fenêtre détachée a été relu.
+
+## Filtering : panneau fixe et curation des foci — 31 octobre 2026
+
+Les cartes Cell filtering et Foci filtering restent fixes et côte à côte. Les
+tables et historiques disposent de deux onglets avec dix lignes de table visibles.
+Le détachement de l’image ne laisse plus de grands espaces avant les réglages.
+Les cellules sont dessinées en contours blancs fins sans remplissage.
+Dans un canal de foci, cliquer choisit le focus du canal actif, avec sa ligne de
+table. Delete l’exclut sans modifier sa cellule. Tous les marqueurs proviennent
+des détections CSV : vert pour conservé, rouge pour rejeté/exclu. Les CSV originaux
+sont prioritaires pour conserver les foci rejetés à l’écran et dans la table.
+
+Validation : 577 tests réussis, 5 ignorés. Après les derniers ajustements du
+clic droit et de l’historique partagé, 13 tests ciblés réussissent également.
+Le parcours réel de l’interface vérifie les couleurs, le clic gauche, Delete,
+le clic droit, la conservation de la cellule et la disposition détachée.

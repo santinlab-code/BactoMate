@@ -15,7 +15,7 @@ class CurationImageWindow(DetachablePreviewImage):
         self.kind = panel.kind
         panel.kind.currentIndexChanged.connect(self.highlight)
         self.floating_layout.insertWidget(1, QLabel(
-            'Left click: select · right click: keep object · Delete/Backspace: exclude'))
+            'Left click: select · right click: keep · Delete: exclude · foci: green kept / red excluded · cells: white contours'))
         panel.table.itemSelectionChanged.connect(self.highlight)
         panel.foci_table.itemSelectionChanged.connect(self.highlight)
         panel.table.cellClicked.connect(lambda *_: panel.kind.setCurrentIndex(0))
@@ -23,6 +23,17 @@ class CurationImageWindow(DetachablePreviewImage):
         for widget in (self.canvas, panel.table, panel.foci_table):
             widget.installEventFilter(self)
         self.detach()
+
+    def detach(self):
+        super().detach()
+        self.preview._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.preview.setMinimumHeight(0)
+        self.preview.updateGeometry()
+
+    def attach(self):
+        super().attach()
+        self.preview._layout.setAlignment(Qt.AlignmentFlag(0))
+        self.preview.updateGeometry()
 
     def exclude(self):
         table = self.panel.table if self.panel.kind.currentIndex() == 0 else self.panel.foci_table
@@ -32,6 +43,10 @@ class CurationImageWindow(DetachablePreviewImage):
     def keep_at(self, position):
         if not self.panel.isEnabled():
             return
+        choose_kind=getattr(self.preview,'_pf_image_object_kind',None)
+        if choose_kind is not None:
+            kind=choose_kind()
+            if kind is not None:self.panel.kind.setCurrentIndex(kind)
         image_pos = self.canvas._widget_to_image(position)
         size = self.canvas._image_size
         if image_pos is None or not size:
@@ -54,7 +69,8 @@ class CurationImageWindow(DetachablePreviewImage):
                     distance = (float(coords[0])-y)**2 + (float(coords[1])-x)**2
                     if distance < best[0]:
                         best = (distance, i)
-            if best[0] <= 100:
+            radius=max(2.0,5.0/max(self.canvas.view_scale(),1e-6))*mask.shape[1]/size[0]
+            if best[0] <= radius**2:
                 row = best[1]
         if row is None:
             return
