@@ -21,6 +21,7 @@ MODULE_SEGMENTATION = "segmentation"
 MODULE_TRACKING = "tracking"
 MODULE_POST_PROCESSING = "post_processing"
 MODULE_TRAINING = "training"
+MODULE_ANALYSIS = "analysis"
 
 
 def utc_now_iso() -> str:

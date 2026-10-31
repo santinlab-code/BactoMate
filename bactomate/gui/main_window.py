@@ -55,7 +55,7 @@ _startup_import_log('after paths/styles imports')
 _startup_import_log('before dashboard/project imports')
 from bactomate.gui.dashboard import DashboardWidget
 from bactomate.gui.module_shell import ModuleShellWidget
-from bactomate.gui.project_model import MODULE_DASHBOARD, MODULE_FILE_CONVERSION, MODULE_POST_PROCESSING, MODULE_SEGMENTATION, MODULE_TRACKING, MODULE_TRAINING, default_project_dict, load_project, migrate_project, path_relative_to_workspace, resolve_maybe_relative, save_project, store_module_path
+from bactomate.gui.project_model import MODULE_ANALYSIS, MODULE_DASHBOARD, MODULE_FILE_CONVERSION, MODULE_POST_PROCESSING, MODULE_SEGMENTATION, MODULE_TRACKING, MODULE_TRAINING, default_project_dict, load_project, migrate_project, path_relative_to_workspace, resolve_maybe_relative, save_project, store_module_path
 _startup_import_log('after dashboard/project imports')
 from bactomate.gui.workspace_scanner import WorkspaceScanResult, list_convertible_microscopy_files, scan_workspace
 from bactomate.gui.widgets import show_confirm_dialog, show_message_dialog
@@ -66,9 +66,10 @@ _STACK_SEGMENTATION = 2
 _STACK_TRACKING = 3
 _STACK_POST_PROCESSING = 4
 _STACK_TRAINING = 5
-_MODULE_ID_TO_STACK: dict[str, int] = {MODULE_DASHBOARD: _STACK_DASHBOARD, MODULE_FILE_CONVERSION: _STACK_FILE_CONVERSION, MODULE_SEGMENTATION: _STACK_SEGMENTATION, MODULE_TRACKING: _STACK_TRACKING, MODULE_POST_PROCESSING: _STACK_POST_PROCESSING, MODULE_TRAINING: _STACK_TRAINING}
+_STACK_ANALYSIS = 6
+_MODULE_ID_TO_STACK: dict[str, int] = {MODULE_DASHBOARD: _STACK_DASHBOARD, MODULE_FILE_CONVERSION: _STACK_FILE_CONVERSION, MODULE_SEGMENTATION: _STACK_SEGMENTATION, MODULE_TRACKING: _STACK_TRACKING, MODULE_POST_PROCESSING: _STACK_POST_PROCESSING, MODULE_TRAINING: _STACK_TRAINING, MODULE_ANALYSIS: _STACK_ANALYSIS}
 _STACK_TO_MODULE_ID: dict[int, str] = {v: k for (k, v) in _MODULE_ID_TO_STACK.items()}
-_PIPELINE_NAV_BAR: tuple[tuple[str, str], ...] = ((MODULE_FILE_CONVERSION, 'File conversion'), (MODULE_SEGMENTATION, 'Segmentation'), (MODULE_TRACKING, 'Tracking'), (MODULE_POST_PROCESSING, 'Post-processing'), (MODULE_TRAINING, 'Training'))
+_PIPELINE_NAV_BAR: tuple[tuple[str, str], ...] = ((MODULE_FILE_CONVERSION, 'File conversion'), (MODULE_SEGMENTATION, 'Segmentation'), (MODULE_TRACKING, 'Tracking'), (MODULE_ANALYSIS, 'Analysis'), (MODULE_POST_PROCESSING, 'Post-processing'), (MODULE_TRAINING, 'Training'))
 _MODULE_PREVIEW_CONTEXTS: dict[str, str] = {
     MODULE_FILE_CONVERSION: 'file_conversion',
     MODULE_SEGMENTATION: 'segmentation',
@@ -336,13 +337,16 @@ class MainWindow(QMainWindow):
         self.tracking_tab = TrackingTab(self)
         self.post_processing_tab = PostProcessingTab(self)
         self.training_tab = TrainingTab(self, omnipose_tab=self.segmentation_tab.omnipose_tab, unet_tab=self.unet_segment_tab)
+        from bactomate.gui.tabs.figure_analysis import FigureAnalysisTab
+        self.figure_analysis_tab = FigureAnalysisTab(self)
         self.dashboard_widget = DashboardWidget(self, on_open_workspace=self._open_workspace_dialog, on_drop_workspace=self._open_workspace_from_drop, on_clear_workspace=self._clear_workspace, on_go_module=self._go_module_from_dashboard)
         self._shell_file = ModuleShellWidget(self, module_id=MODULE_FILE_CONVERSION, content=self.nd2_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard)
         self._shell_segmentation = ModuleShellWidget(self, module_id=MODULE_SEGMENTATION, content=self.segmentation_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard)
         self._shell_tracking = ModuleShellWidget(self, module_id=MODULE_TRACKING, content=self.tracking_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard)
         self._shell_post = ModuleShellWidget(self, module_id=MODULE_POST_PROCESSING, content=self.post_processing_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard)
         self._shell_training = ModuleShellWidget(self, module_id=MODULE_TRAINING, content=self.training_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard, show_preview_picker=False, show_preview_panel=False)
-        self._module_shells = {MODULE_FILE_CONVERSION: self._shell_file, MODULE_SEGMENTATION: self._shell_segmentation, MODULE_TRACKING: self._shell_tracking, MODULE_POST_PROCESSING: self._shell_post, MODULE_TRAINING: self._shell_training}
+        self._shell_analysis = ModuleShellWidget(self, module_id=MODULE_ANALYSIS, content=self.figure_analysis_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard, show_preview_picker=False, show_preview_panel=False)
+        self._module_shells = {MODULE_FILE_CONVERSION: self._shell_file, MODULE_SEGMENTATION: self._shell_segmentation, MODULE_TRACKING: self._shell_tracking, MODULE_POST_PROCESSING: self._shell_post, MODULE_TRAINING: self._shell_training, MODULE_ANALYSIS: self._shell_analysis}
         self.nd2_tab.attach_module_preview_mount(self._shell_file.preview_surface().mount_widget())
         self.segmentation_tab.attach_module_preview_mount(self._shell_segmentation.preview_surface().mount_widget())
         self.tracking_tab.attach_module_preview_mount(self._shell_tracking.preview_surface().mount_widget())
@@ -358,6 +362,7 @@ class MainWindow(QMainWindow):
         self._central_stack.addWidget(self._shell_tracking)
         self._central_stack.addWidget(self._shell_post)
         self._central_stack.addWidget(self._shell_training)
+        self._central_stack.addWidget(self._shell_analysis)
         self._sync_pipeline_nav_highlights(MODULE_DASHBOARD)
         self._work_area_split = QSplitter(Qt.Orientation.Vertical)
         self._work_area_split.setObjectName('MainWorkAreaSplit')
@@ -576,7 +581,7 @@ class MainWindow(QMainWindow):
             if not ok:
                 show_message_dialog(self, 'Please wait', warning_text, kind='warning')
             return ok
-        worker_wait_specs = [(getattr(self, 'tracking_tab', None), 'worker', 'Waiting for tracking to finish…', 300000, 'Tracking is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self, 'analyze_tab', None), 'worker', 'Waiting for Analyze Masks to finish…', 300000, 'Analyze Masks is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(getattr(self, 'segmentation_tab', None), 'omnipose_tab', None), 'worker', 'Waiting for Omnipose processing to finish…', 300000, 'Omnipose processing is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self.segmentation_tab, '_cellpose_owner', None), 'worker', 'Waiting for Cellpose processing to finish…', 300000, 'Cellpose processing is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self, 'unet_segment_tab', None), 'worker', 'Waiting for U-Net processing to finish…', 300000, 'U-Net processing is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(getattr(self, 'segmentation_tab', None), 'omnipose_tab', None), '_omnipose_train_worker', 'Waiting for Omnipose training to finish…', 300000, 'Omnipose training is still running. Wait for it to finish, then close the application.'), (getattr(self, 'nd2_tab', None), 'worker', 'Waiting for file conversion to finish…', 300000, 'File conversion is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self, 'post_processing_tab', None), 'worker', 'Waiting for post-processing to finish…', 300000, 'Post-processing is still running. Wait for it to finish, then close the application.'), (getattr(self, 'unet_segment_tab', None), '_unet_train_worker', 'Waiting for U-Net training to finish…', 300000, 'U-Net training is still running. Wait for it to finish, then close the application.')]
+        worker_wait_specs = [(getattr(self, 'figure_analysis_tab', None), 'worker', 'Waiting for Analysis profiles…', 300000, 'Profile extraction is still running. Please wait.'), (getattr(self, 'tracking_tab', None), 'worker', 'Waiting for tracking to finish…', 300000, 'Tracking is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self, 'analyze_tab', None), 'worker', 'Waiting for Analyze Masks to finish…', 300000, 'Analyze Masks is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(getattr(self, 'segmentation_tab', None), 'omnipose_tab', None), 'worker', 'Waiting for Omnipose processing to finish…', 300000, 'Omnipose processing is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self.segmentation_tab, '_cellpose_owner', None), 'worker', 'Waiting for Cellpose processing to finish…', 300000, 'Cellpose processing is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self, 'unet_segment_tab', None), 'worker', 'Waiting for U-Net processing to finish…', 300000, 'U-Net processing is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(getattr(self, 'segmentation_tab', None), 'omnipose_tab', None), '_omnipose_train_worker', 'Waiting for Omnipose training to finish…', 300000, 'Omnipose training is still running. Wait for it to finish, then close the application.'), (getattr(self, 'nd2_tab', None), 'worker', 'Waiting for file conversion to finish…', 300000, 'File conversion is still running. Wait for it to finish or cancel it, then close the application.'), (getattr(self, 'post_processing_tab', None), 'worker', 'Waiting for post-processing to finish…', 300000, 'Post-processing is still running. Wait for it to finish, then close the application.'), (getattr(self, 'unet_segment_tab', None), '_unet_train_worker', 'Waiting for U-Net training to finish…', 300000, 'U-Net training is still running. Wait for it to finish, then close the application.')]
         for (tab, worker_attr, waiting_title, timeout_ms, warning_text) in worker_wait_specs:
             if tab is None:
                 continue

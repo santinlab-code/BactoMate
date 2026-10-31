@@ -27,6 +27,7 @@ from bactomate.gui.project_model import (
     MODULE_SEGMENTATION,
     MODULE_TRACKING,
     MODULE_TRAINING,
+    MODULE_ANALYSIS,
 )
 
 
@@ -215,6 +216,7 @@ class DashboardWidget(QWidget):
         cards = [
             ("File conversion", MODULE_FILE_CONVERSION, "ND2, LIF, CZI, or TIFF → TIFF stacks and metadata."),
             ("Segmentation", MODULE_SEGMENTATION, "Cellpose / Omnipose / U-Net, then mask filtering and quantify."),
+            ("Analysis", MODULE_ANALYSIS, "Tables, profiles, demographs, kymographs, figures and reproducible exports."),
             ("Tracking", MODULE_TRACKING, "Trackastra trajectories with optional phase overlay."),
             ("Post-processing", MODULE_POST_PROCESSING, "Scale bars, montages, and growth-curve videos."),
         ]

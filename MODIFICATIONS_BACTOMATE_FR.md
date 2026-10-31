@@ -240,3 +240,23 @@ Dans Preview distances, les icônes Maison et déplacement sont retirées :
 maintenir le clic gauche et glisser déplace l’image dans chacune des deux vues,
 sans changer la cellule. Un clic simple sélectionne toujours une cellule.
 Les boutons de cellule précédente/suivante restent disponibles.
+
+## Section Analysis — 31 octobre 2026
+
+Ajoutée uniquement à BactoMate_Custom_Analyses ; V1 n’est pas modifiée.
+Une section autonome permet de charger les tables CSV/TSV/Excel, choisir les
+métriques et groupes, filtrer et produire 11 types de figures. Les profils réels
+peuvent être extraits de masques et images de fluorescence par squelette médian
+ou projection droite. Démographes, kymographes avec identités vérifiées et cartes
+sur cellule normalisée sont disponibles. La normalisation des intensités est
+explicite et les valeurs brutes restent présentes.
+Chaque export contient PNG/PDF/SVG, un tableur XLSX, les CSV utilisés, les paramètres,
+les empreintes des fichiers et des scripts de reproduction Python/R/MATLAB.
+Les scripts redessinent les primitives calculées afin de garder les mêmes KDE,
+quartiles et couleurs, avec des différences de rendu possibles entre logiciels.
+Python est testé par exécution ; R et MATLAB restent à vérifier dans ces logiciels.
+Le guide complet et la référence MicrobeJ sont dans docs/ANALYSIS_FR.md.
+
+Validation du 31 octobre : 570 tests réussis, 5 ignorés. Les scripts Python
+sont exécutés pour chacun des 11 types de figure. Un démographe GFP a été
+extrait et exporté sur les 144 cellules réelles de XY001.
