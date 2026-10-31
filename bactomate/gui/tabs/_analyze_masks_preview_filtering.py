@@ -977,6 +977,24 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         table_tabs.addTab(section,title)
     settings_outer.addWidget(table_tabs)
     settings_outer.setAlignment(Qt.AlignmentFlag.AlignTop)
+    from bactomate.gui.artifact_paths import discover_mask_tiffs_for_workspace
+    # Include sibling XYs even when the preview was opened from one mask file.
+    search_root=p if p.is_dir() else p.parent
+    if search_root.name=='filtered_masks':search_root=search_root.parent
+    mask_candidates=discover_mask_tiffs_for_workspace(search_root)
+    current_mask=mask_path.resolve()
+    if current_mask not in mask_candidates:mask_candidates.append(current_mask)
+    mask_candidates=sorted(set(mask_candidates))
+    mask_row=QHBoxLayout()
+    mask_row.addWidget(QLabel('Mask / XY position'))
+    mask_selector=QComboBox();mask_selector.setObjectName('FilteringMaskSelector')
+    for candidate in mask_candidates:
+        mask_selector.addItem(str(candidate.relative_to(search_root.resolve())) if candidate.is_relative_to(search_root.resolve()) else candidate.name,str(candidate))
+    mask_selector.setCurrentIndex(mask_selector.findData(str(current_mask)))
+    mask_selector.setEnabled(mask_selector.count()>1)
+    mask_selector.setToolTip('Choose the mask / XY to inspect and filter. The main Filtering input follows this choice.')
+    mask_row.addWidget(mask_selector,1)
+    settings_outer.insertLayout(0,mask_row)
     settings_host.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Maximum)
     settings_scroll = settings_host
     from bactomate.gui.filtering_display import ten_row_table
@@ -2703,6 +2721,34 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                     at._update_fi_contour_preview_button_state()
         except Exception:
             pass
+        dlg._mask_selector = mask_selector
+
+        def _switch_mask(index):
+            selected=Path(mask_selector.itemData(index))
+            if selected==current_mask:return
+            def restore_choice():
+                mask_selector.blockSignals(True)
+                mask_selector.setCurrentIndex(mask_selector.findData(str(current_mask)))
+                mask_selector.blockSignals(False)
+            if _is_running() or bool(getattr(tab,'_filtering_in_progress',False)):
+                restore_choice()
+                show_message_dialog(tab,'Filtering in progress','Wait for the current filtering task to finish before changing XY.',kind='info')
+                return
+            try:
+                selected_masks=np.asarray(safe_imread(str(selected)))
+                if selected_masks.ndim not in (2,3):raise ValueError('Expected a 2D mask or a TYX stack.')
+            except Exception as exc:
+                restore_choice()
+                show_message_dialog(tab,'Load Error',f'Could not load mask:\n{exc}',kind='warning')
+                return
+            _ui_to_settings()
+            dlg.close()
+            tab._filter_preview_dialog=None
+            tab.file_path.setText(str(selected))
+            show_filter_preview(tab,raw,mask_path=selected,masks_preloaded=selected_masks)
+            dlg.deleteLater()
+
+        mask_selector.currentIndexChanged.connect(_switch_mask)
         dlg._filter_tables = table_tabs
         dlg._filter_settings_host = settings_host
         dlg._close_pending = False

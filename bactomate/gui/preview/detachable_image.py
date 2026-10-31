@@ -54,6 +54,10 @@ class DetachablePreviewImage(QObject):
         if not self.is_detached:
             self._docked=[(w,layout,layout.indexOf(w)) for w,layout,_ in self._docked]
             self.index=self.layout.indexOf(self.canvas)
+            self._lut_expanded=self.preview.lut_section.is_expanded()
+            self._lut_header_hidden=self.preview.lut_section._header.isHidden()
+        self.preview.lut_section.set_expanded(True)
+        self.preview.lut_section._header.hide()
         for widget,_,_ in self._docked[1:-1]:
             self.floating_layout.insertWidget(self.floating_layout.indexOf(self.body),widget)
         self.image_host.layout().addWidget(self.canvas,0,0)
@@ -63,6 +67,9 @@ class DetachablePreviewImage(QObject):
         self._sync_scrollbars(); self.highlight()
 
     def attach(self):
+        if not self.is_detached:return
+        self.preview.lut_section._header.setVisible(not self._lut_header_hidden)
+        self.preview.lut_section.set_expanded(self._lut_expanded)
         self.preview.lut_section.setSizePolicy(self._lut_policy)
         for widget,layout,index in sorted(self._docked,key=lambda slot:slot[2]):
             layout.insertWidget(index,widget,1 if widget is self.canvas else 0)

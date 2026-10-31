@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 import numpy as np
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QButtonGroup, QCheckBox, QDoubleSpinBox, QFrame, QGroupBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QRadioButton, QSpinBox, QTextEdit, QVBoxLayout, QWidget
 from bactomate.gui.analysis_paths import analysis_dir_from_base, base_dir_for_mask, stem_from_mask_path
 from bactomate.gui.constants import PROJECT_ROOT
@@ -22,6 +22,8 @@ from bactomate.gui.tabs._analyze_masks_base import AnalyzeMasksBase
 
 class AnalyzeTab(AnalyzeMasksBase):
     """Section 3: Analyze (cell/FI analysis + optional colocalization reporting; writes *_analysis*.xlsx)."""
+
+    results_written = pyqtSignal(object)
 
     def _stage_key(self) -> str:
         return 'analyze'
@@ -1196,7 +1198,11 @@ class AnalyzeTab(AnalyzeMasksBase):
             except Exception:
                 pass
             self._close_analysis_progress(1)
-            self._show_finished_dialog_with_output_folder(title='Analysis complete' if ok else 'Analysis failed', message=msg or ('Done' if ok else 'Failed'), output_folder=out_path.parent if out_path is not None else None, icon='info' if ok else 'warning')
+            if ok:
+                self.results_written.emit([out_path])
+            self.workflow_step_finished.emit(bool(ok))
+            if not ok:
+                self._show_finished_dialog_with_output_folder(title='Analysis failed', message=msg or 'Failed', output_folder=out_path.parent if out_path is not None else None, icon='warning')
         t = WorkerThread('-m', cmd_args, parent=self)
         self._analysis_worker = t
         t.finished.connect(_done)
@@ -1276,7 +1282,12 @@ class AnalyzeTab(AnalyzeMasksBase):
             if failures:
                 self._show_finished_dialog_with_output_folder(title='Analysis finished with errors', message=getattr(self, '_analysis_finished_error_text', 'One or more analysis tasks failed or produced no output.'), output_folder=output_folder, icon='warning')
             else:
-                self._show_finished_dialog_with_output_folder(title='Analysis complete', message=f'Analysis finished. {len(tasks)} task(s) completed.', output_folder=output_folder)
+                # Merged FI intermediates may have been removed; scan the final output folders.
+                outputs=sorted({p for _,_,out in tasks for p in Path(out).parent.glob('*analysis*.xlsx')})
+                self.results_written.emit(outputs)
+                if hasattr(self.parent_window,'log_output'):
+                    self.parent_window.log_output(f'Analysis complete: {len(tasks)} task(s). Loading results in Analysis.\n')
+            self.workflow_step_finished.emit(not bool(failures))
             return
         (mask_path, fi_path, out_path) = tasks[idx]
         self._update_analysis_progress(idx, f'Analyzing {Path(mask_path).name} ({idx + 1}/{len(tasks)})...')

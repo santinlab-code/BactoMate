@@ -1,5 +1,6 @@
 """Guided analysis of existing pipeline results, with explicit experimental groups."""
 from pathlib import Path
+from os.path import commonpath
 import pandas as pd
 from PyQt6.QtCore import QThread,QTimer,pyqtSignal,Qt
 from PyQt6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QStackedWidget,QComboBox,
@@ -27,11 +28,13 @@ class CatalogWorker(QThread):
 
 
 class GuidedAnalysisTab(FigureAnalysisTab):
+    results_ready=pyqtSignal()
     def __init__(self,parent=None):
         super().__init__(parent)
         self.project_window=parent
         self.entries=[];self.assignments={};self.catalog_root=None;self.catalog_worker=None
         self._guided_replicate='';self._errors=[];self._catalog_cache={}
+        self._results_root=None
         outer=self.layout()
         # Existing controls remain intact, in an optional advanced view.
         old_actions=outer.takeAt(0)
@@ -130,17 +133,46 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         if checked:self.kind.setCurrentText(self.figure_choice.currentData())
         self.mark_dirty()
 
+    def clear_session(self):
+        self.catalog_root=None;self._results_root=None
+        self.entries=[];self.assignments={};self._errors=[];self._catalog_cache={}
+        self._guided_replicate='';self._guided_title=None
+        self.set_tables({},{})
+        for combo in (self.metric,self.second_metric,self.frame_choice,*self.fields.values()):combo.clear()
+        for edit in (self.filter_value,self.minimum,self.maximum,self.title):edit.clear()
+        self.preview.setColumnCount(0)
+        self.confirm.setChecked(False)
+        self.catalog_status.setText('Aucune session active. Lance une analyse pour retrouver ses résultats ici.')
+        self.status.clear()
+
+    def load_completed_results(self,paths):
+        directories=[Path(p).resolve().parent for p in paths if Path(p).is_file()]
+        if not directories:return
+        root=Path(commonpath(directories))
+        if root.name=='_analysis':root=root.parent
+        workspace=getattr(self.project_window,'_workspace_root',None)
+        if workspace and all(d.is_relative_to(Path(workspace).resolve()) for d in directories):
+            root=Path(workspace).resolve()
+        self._results_root=root
+        self.refresh_catalog()
+
     def context_root(self):
         parent=self.parentWidget()
         # ModuleShell reparents this widget, so keep the explicit MainWindow reference.
         parent=getattr(self,'project_window',parent)
+        if self._results_root is not None:return self._results_root
         workspace=getattr(parent,'_workspace_root',None)
         if workspace:return Path(workspace).resolve()
         for name in ('analyze_tab','filtering_tab','tracking_tab'):
             edit=getattr(getattr(parent,name,None),'file_path',None)
             if edit is not None and edit.text().strip():
                 path=Path(edit.text().strip()).expanduser()
-                if path.exists():return (path.parent if path.is_file() else path).resolve()
+                if path.exists():
+                    from bactomate.gui.analysis_paths import base_dir_for_mask
+                    if path.is_file():return base_dir_for_mask(path).resolve()
+                    if path.name=='filtered_masks' or path.name.startswith('_segmentation'):
+                        return base_dir_for_mask(path/'session_masks.tif').resolve()
+                    return path.resolve()
         return None
 
     def showEvent(self,event):
@@ -173,6 +205,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         except Exception as exc:
             self.catalog_status.setText('Attributions illisibles : '+str(exc));return
         self.rebuild_catalog()
+        self.results_ready.emit()
 
     def rebuild_catalog(self):
         tables=assemble_catalog(self.entries,self.assignments)

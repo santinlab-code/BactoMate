@@ -339,6 +339,9 @@ class MainWindow(QMainWindow):
         self.training_tab = TrainingTab(self, omnipose_tab=self.segmentation_tab.omnipose_tab, unet_tab=self.unet_segment_tab)
         from bactomate.gui.tabs.guided_analysis import GuidedAnalysisTab
         self.figure_analysis_tab = GuidedAnalysisTab(self)
+        self._open_analysis_when_loaded = False
+        self.analyze_tab.results_written.connect(self._on_analysis_results_written)
+        self.figure_analysis_tab.results_ready.connect(self._on_analysis_catalog_ready)
         self.dashboard_widget = DashboardWidget(self, on_open_workspace=self._open_workspace_dialog, on_drop_workspace=self._open_workspace_from_drop, on_clear_workspace=self._clear_workspace, on_go_module=self._go_module_from_dashboard)
         self._shell_file = ModuleShellWidget(self, module_id=MODULE_FILE_CONVERSION, content=self.nd2_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard)
         self._shell_segmentation = ModuleShellWidget(self, module_id=MODULE_SEGMENTATION, content=self.segmentation_tab, on_back=self._show_dashboard, pipeline_navigation=_PIPELINE_NAV_BAR, on_open_module=self._go_module_from_dashboard)
@@ -919,6 +922,14 @@ class MainWindow(QMainWindow):
                 self._clear_line_edit(getattr(tab, 'file_path', None))
         self._clear_line_edit(getattr(self.filtering_tab, 'file_path', None))
         self._clear_line_edit(getattr(self.analyze_tab, 'file_path', None))
+        self.analyze_tab._single_fi_path = None
+        self.analyze_tab._update_fi_feedback()
+        self.analyze_tab._refresh_foci_csv_hint()
+        self.filtering_tab._filter_preview_mask_path = None
+        for tab in (self.analyze_tab,self.filtering_tab):
+            tab.folder_output_paths=[]
+            tab.folder_fi_tasks=[]
+            tab.folder_results=[]
         self._clear_line_edit(getattr(self.tracking_tab, 'file_path', None))
         pp = self.post_processing_tab
         for attr in ('video_path', 'excel_path', 'montage_path'):
@@ -938,8 +949,49 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    def _session_is_busy(self) -> bool:
+        owners=[self.nd2_tab,self.analyze_tab,self.filtering_tab,self.tracking_tab,
+                self.figure_analysis_tab,self.post_processing_tab,self.unet_segment_tab,
+                self.segmentation_tab.omnipose_tab,getattr(self.segmentation_tab,'_cellpose_owner',None),
+                getattr(self.filtering_tab,'_filter_preview_dialog',None)]
+        previews=[getattr(owner,key,None) for owner in owners if owner is not None
+                  for key in ('_embedded_segmentation_preview','_embedded_unet_preview')]
+        for owner in [*owners,*previews]:
+            if owner is None:continue
+            guard=getattr(owner,'_worker_guard',None)
+            if guard is not None and guard.is_running():return True
+            if any(bool(getattr(owner,key,False)) for key in ('_analysis_in_progress','_filtering_in_progress')):
+                return True
+            for key in ('worker','catalog_worker','_analysis_worker','_preview_thread',
+                        '_omnipose_train_worker','_unet_train_worker'):
+                worker=getattr(owner,key,None)
+                if worker is not None and hasattr(worker,'isRunning') and worker.isRunning():return True
+        return False
+
+    def _on_analysis_results_written(self, paths) -> None:
+        if not paths:return
+        self._open_analysis_when_loaded = True
+        self.set_status_message('Analysis complete — loading results…')
+        self.figure_analysis_tab.load_completed_results(paths)
+
+    def _on_analysis_catalog_ready(self) -> None:
+        if not self._open_analysis_when_loaded:return
+        self._open_analysis_when_loaded = False
+        self._go_module_from_dashboard(MODULE_ANALYSIS)
+
     def _clear_workspace(self) -> None:
         """Reset to a fresh session: no workspace, empty paths, closed embedded previews."""
+        if self._session_is_busy():
+            show_message_dialog(self, 'Session in progress',
+                'Wait for the current task to finish or cancel it before clearing the session.', kind='info')
+            return
+        self._open_analysis_when_loaded = False
+        self.figure_analysis_tab.clear_session()
+        distance_preview=getattr(self.analyze_tab,'_distance_preview',None)
+        if distance_preview is not None:
+            distance_preview.close()
+            distance_preview.deleteLater()
+            self.analyze_tab._distance_preview=None
         self._dismiss_all_embedded_previews()
         self._clear_all_module_paths()
         self._workspace_root = None
@@ -960,6 +1012,7 @@ class MainWindow(QMainWindow):
         self.log_output('Workspace cleared — all module paths and previews reset. Open a workspace or set paths manually to start again.\n')
 
     def _set_workspace_root(self, root: Path) -> None:
+        self.figure_analysis_tab._results_root = None
         self._workspace_root = root.resolve()
         loaded = load_project(self._workspace_root)
         if loaded is None:
@@ -1298,9 +1351,9 @@ class MainWindow(QMainWindow):
         open_ws.triggered.connect(self._open_workspace_dialog)
         open_ws.setToolTip('Choose a folder; create or load bactomate_project.json')
         file_menu.addAction(open_ws)
-        clear_ws = QAction('Clear workspace', self)
+        clear_ws = QAction('Clear current session', self)
         clear_ws.triggered.connect(self._clear_workspace)
-        clear_ws.setToolTip('Reset paths and previews without deleting files on disk (same as dashboard Clear workspace)')
+        clear_ws.setToolTip('Reset paths and previews without deleting files on disk (same as dashboard Clear current session)')
         file_menu.addAction(clear_ws)
         save_proj = QAction('Save project', self)
         save_proj.triggered.connect(self._save_project_workspace)

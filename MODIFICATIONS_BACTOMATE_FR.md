@@ -330,3 +330,32 @@ mode avancé ont ensuite été vérifiées par 24 tests ciblés, puis les six te
 du parcours guidé ont été rejoués avec succès après le contrôle du bouton
 d’export avancé. Le parcours automatique X/Y et R1/R2 a été relu dans la fenêtre
 principale. Le script Python exporté avec les réplicats est exécuté dans les tests.
+
+## Session, LUT et sélection XY — 31 octobre 2026
+
+L’accueil propose Clear current session. Ce bouton ferme les prévisualisations,
+vide les chemins et les données Analysis (figures, cache et attributions en
+mémoire), puis revient à l’accueil. Les fichiers et les attributions enregistrées
+sur disque restent présents. Une tâche doit être terminée ou annulée avant la
+remise à zéro.
+
+Dans les images détachées, les LUT sont ouvertes directement dans le panneau
+latéral, sans en-tête repliable. Le rattachement retrouve l’état du panneau intégré.
+La prévisualisation Foci distances affiche aussi ses LUT sans repli.
+
+Filtering propose Mask / XY position au-dessus des réglages et tables. Le choix
+recharge le masque, les foci, les tables et la curation de ce XY ; il met aussi
+à jour le chemin cible de Filter File/Folder. Les paramètres de filtrage sont
+conservés. Le changement est bloqué pendant un calcul de filtrage.
+
+À la fin d’Analyze, les résultats finaux sont chargés automatiquement, après les
+mesures complémentaires et la fusion des canaux. Une fois les données chargées,
+BactoMate ouvre Analysis. Cela fonctionne pour un fichier ou un lot de fichiers,
+y compris avec des sorties dans plusieurs sous-dossiers. La recherche à partir
+d’un masque remonte au dossier de l’échantillon pour trouver le dossier voisin
+_analysis, même depuis _segmentation*/filtered_masks.
+
+Validation : suite complète de 588 tests réussis, 5 ignorés ; puis six tests
+ciblés réussis, incluant le lot de classeurs fusionnés et le refus de remise à
+zéro pendant un calcul de prévisualisation. L’accueil, les tables Filtering avec
+le sélecteur XY et le panneau LUT détaché ont été contrôlés visuellement.

@@ -74,3 +74,9 @@ Les données de la figure sont conservées dans l’export. Les scripts redessin
 la géométrie calculée pour préserver les mêmes distributions et moyennes ; les
 moteurs peuvent différer pour les polices et dimensions. Python est testé par
 exécution. L’exécution native des scripts R/MATLAB et le rendu Mac restent à vérifier.
+
+Après un calcul Analyze réussi, BactoMate charge les résultats puis ouvre
+Analysis automatiquement. Aucun fichier à importer, ni fenêtre « OK » à fermer.
+Depuis l’accueil, Clear current session vide les données et chemins en mémoire
+pour commencer un autre jeu de données. Les résultats et attributions enregistrés
+sur disque sont conservés.

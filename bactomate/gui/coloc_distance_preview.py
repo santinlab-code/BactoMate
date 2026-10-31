@@ -100,6 +100,7 @@ class DistancePreview(QDialog):
         self._populate_layers()
         layout.addLayout(bg_row)
         self.lut_section = CollapsibleSection('LUTs', self.lut_widget, expanded=True, compact=True)
+        self.lut_section._header.hide()
         layout.addWidget(self.lut_section)
         self.status = QLabel()
         self.status.setWordWrap(True)

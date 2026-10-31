@@ -8,6 +8,7 @@ def test_segmentation_image_detach_attach_and_lifecycle(qapp):
     from bactomate.gui.preview.preview_window import PreviewDialogBase
     from bactomate.gui.preview.detachable_image import DetachablePreviewImage
     preview = PreviewDialogBase(title='Segmentation Preview')
+    preview.lut_section.set_expanded(False)
     controller = DetachablePreviewImage(preview)
     try:
         preview.show()
@@ -20,9 +21,14 @@ def test_segmentation_image_detach_attach_and_lifecycle(qapp):
         controller.button.click()
         assert original.parentWidget() is controller.image_host
         assert controller.window.isVisible()
+        assert preview.lut_section.is_expanded()
+        assert preview.lut_section._header.isHidden()
+        assert preview.lut_widget.isVisible()
         assert preview.lut_section.parentWidget() is controller.lut_sidebar
         assert preview.lut_widget.current_lut() == (20, 80)
         controller.window.close()
+        assert not preview.lut_section.is_expanded()
+        assert not preview.lut_section._header.isHidden()
         assert original.parentWidget() is controller.home
         assert preview.lut_section.parentWidget() is preview
         controller.button.click()

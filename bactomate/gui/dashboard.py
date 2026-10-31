@@ -187,11 +187,11 @@ class DashboardWidget(QWidget):
         open_btn.setToolTip("Choose a folder; create or load bactomate_project.json")
         open_btn.clicked.connect(on_open_workspace)
         btn_row.addWidget(open_btn)
-        clear_btn = QPushButton("Clear workspace")
+        clear_btn = QPushButton("Clear current session")
         style_compact_action_button(clear_btn)
         clear_btn.setToolTip(
             "Reset BactoMate to a fresh state: clear the workspace, all module paths, "
-            "and embedded previews. Does not delete files on disk."
+            "previews, and loaded Analysis data. Does not delete files on disk."
         )
         clear_btn.clicked.connect(on_clear_workspace)
         btn_row.addWidget(clear_btn)
