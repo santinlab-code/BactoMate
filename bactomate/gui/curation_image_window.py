@@ -1,7 +1,7 @@
 """Detachable Filtering canvas and keyboard/table selection feedback."""
 import numpy as np
 from PyQt6.QtCore import Qt, QEvent
-from PyQt6.QtWidgets import QLabel
+from PyQt6.QtWidgets import QLabel, QPushButton
 
 
 from bactomate.gui.preview.detachable_image import DetachablePreviewImage
@@ -13,9 +13,12 @@ class CurationImageWindow(DetachablePreviewImage):
         super().__init__(preview, title='Filtering — image (click to select; Delete to exclude)',
                          extra_widgets=(panel.manual_controls,))
         self.kind = panel.kind
+        self.outline_color=QPushButton('Contour color…')
+        self.outline_color.clicked.connect(lambda: self.preview._pf_choose_outline_color())
+        self.controls_layout.addWidget(self.outline_color)
         panel.kind.currentIndexChanged.connect(self.highlight)
         self.floating_layout.insertWidget(1, QLabel(
-            'Left click: select · right click: keep · Delete: exclude · foci: green kept / red excluded · cells: white contours'))
+            'Left click: select · right click: keep · Delete: exclude · foci: green kept / red excluded · cells: kept contours'))
         panel.table.itemSelectionChanged.connect(self.highlight)
         panel.foci_table.itemSelectionChanged.connect(self.highlight)
         panel.table.cellClicked.connect(lambda *_: panel.kind.setCurrentIndex(0))

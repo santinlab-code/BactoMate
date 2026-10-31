@@ -95,3 +95,50 @@ def test_channel_click_selects_focus_delete_keeps_cell(tmp_path,qapp):
         history=dlg.findChild(QComboBox,'FociHistory')
         assert history.currentData()['action']==panel.history.currentData()['action']=='Keep 1 foci'
     finally:_shutdown(tab,parent)
+
+
+def test_rejected_and_empty_selection_have_no_contours():
+    image=np.full((30,40,3),60,np.uint8)
+    labels=np.zeros((30,40),np.uint16)
+    labels[3:14,3:15]=1;labels[17:27,20:36]=2
+    original=labels.copy()
+    result=white_cell_contours(image,labels,accepted={1},color=(20,120,230))
+    assert tuple(result[3,8])==(20,120,230)
+    assert tuple(result[17,25])==(60,60,60)
+    assert tuple(result[8,8])==(60,60,60)
+    np.testing.assert_equal(white_cell_contours(image,labels,accepted=set()),image)
+    np.testing.assert_equal(labels,original)
+
+
+def test_filtering_color_picker_refreshes_only_kept_cells(tmp_path,qapp,monkeypatch):
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtGui import QColor
+    from bactomate.gui import preferences
+    from bactomate.gui.preview.navigation_controls import QColorDialog
+    from tests.test_filtering_preview_apply_flow import (_open_preview,_wait_for_filter_apply,
+        _wait_for_apply_generation,_wait_until,_shutdown)
+    monkeypatch.setattr(preferences,'_settings',lambda:QSettings(str(tmp_path/'colors.ini'),QSettings.Format.IniFormat))
+    tab,parent,dlg=_open_preview(tmp_path)
+    try:
+        assert _wait_for_filter_apply(dlg)
+        panel=dlg._curation_image_window.panel
+        panel.table.selectRow(0)
+        rid=dlg._preview_request_id;panel.edit(True)
+        assert _wait_for_apply_generation(dlg,rid_before=rid)
+        assert _wait_until(lambda:panel.isEnabled())
+        accepted=set(dlg._last_preview['accepted'])
+        before=dlg._preview_request_id
+        seg_color=preferences.get_segmentation_outline_color()
+        monkeypatch.setattr(QColorDialog,'getColor',lambda *args:QColor('#1478e6'))
+        dlg._curation_image_window.outline_color.click()
+        assert preferences.get_filtering_outline_color()==(20,120,230)
+        assert preferences.get_segmentation_outline_color()==seg_color
+        assert dlg._preview_request_id==before # No segmentation or filtering recomputed.
+        assert set(dlg._last_preview['accepted'])==accepted
+        image=dlg._preview_overlay_base
+        assert tuple(image[30,40])==(20,120,230) # Cell 1: explicitly kept.
+        assert tuple(image[60,40])!=(20,120,230) # Cell 2: rejected by filters.
+        monkeypatch.setattr(QColorDialog,'getColor',lambda *args:QColor())
+        dlg._curation_image_window.outline_color.click()
+        assert preferences.get_filtering_outline_color()==(20,120,230)
+    finally:_shutdown(tab,parent)

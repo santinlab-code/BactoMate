@@ -1,11 +1,13 @@
-"""Filtering display: unchanged background, white cell edges, detected foci only."""
+"""Filtering display: unchanged background, selected cell edges, detected foci only."""
 import numpy as np
 from bactomate.modules.segmentation_display import label_outlines
 
 
-def white_cell_contours(rgb, labels):
+def white_cell_contours(rgb, labels, *, accepted=None, color=(255,255,255)):
     result=np.asarray(rgb).copy()
-    result[label_outlines(labels)]=(255,255,255)
+    # Empty means no kept cells; None is reserved for callers showing all labels.
+    visible=labels if accepted is None else np.where(np.isin(labels,list(accepted)),labels,0)
+    result[label_outlines(visible)]=color
     return result
 
 

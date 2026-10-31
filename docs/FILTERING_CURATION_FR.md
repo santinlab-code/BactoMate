@@ -124,3 +124,17 @@ dessiné par la curation. Les détections originales sont chargées en priorité
 afin de conserver les objets rejetés après un ancien export filtré. Si seul un
 CSV déjà filtré reste disponible, les détections qui en ont été retirées ne
 peuvent pas être reconstruites.
+
+## Couleur et cellules affichées
+
+Outline color… près de Show cell contours, ou Contour color… dans l’image
+détachée, choisit une couleur de contour mémorisée pour Filtering (blanc par
+défaut). La couleur de Segmentation reste indépendante. Changer la couleur ou
+annuler le dialogue ne relance pas la détection ni l’application des filtres.
+
+L’image affiche les contours des cellules **retenues**, après filtres et choix
+manuels. Les contours des autres cellules du masque initial ne sont plus dessinés.
+Si aucune cellule n’est retenue, aucun contour cellulaire n’est ajouté. Les
+cellules rejetées restent dans la table et le masque source pour permettre leur
+réintégration ; Keep fait réapparaître leur contour. Le fond d’image est conservé.
+Les marqueurs de foci gardent leur statut vert/rouge et leur sélection par canal.

@@ -73,6 +73,7 @@ class PreviewNavSpec:
     show_cell_overlay_toggle: bool = False
     show_cell_outline_color: bool = False
     cell_overlay_label: str = ""
+    cell_outline_context: str = "segmentation"
     show_foci_overlay_toggle: bool = False
     cell_overlay_default: bool = True
     foci_overlay_available: bool = False
@@ -288,16 +289,22 @@ class PreviewNavigationControls(QWidget):
         except Exception:
             return None
 
+    def _outline_color_preferences(self):
+        from bactomate.gui import preferences
+        if self._spec.cell_outline_context=='filtering':
+            return preferences.get_filtering_outline_color,preferences.set_filtering_outline_color
+        return preferences.get_segmentation_outline_color,preferences.set_segmentation_outline_color
+
     def _update_outline_color_button(self) -> None:
-        from bactomate.gui.preferences import get_segmentation_outline_color
-        color = QColor(*get_segmentation_outline_color())
+        get_color,_=self._outline_color_preferences()
+        color=QColor(*get_color())
         self._outline_color_btn.setStyleSheet(f"QPushButton {{ border-bottom: 4px solid {color.name()}; }}")
 
     def _choose_outline_color(self) -> None:
-        from bactomate.gui.preferences import get_segmentation_outline_color, set_segmentation_outline_color
-        color = QColorDialog.getColor(QColor(*get_segmentation_outline_color()), self, "Cell outline color")
+        get_color,set_color=self._outline_color_preferences()
+        color=QColorDialog.getColor(QColor(*get_color()),self,"Cell outline color")
         if color.isValid():
-            set_segmentation_outline_color(color.name())
+            set_color(color.name())
             self._update_outline_color_button()
             self.outline_color_changed.emit()
 

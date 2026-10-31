@@ -295,3 +295,16 @@ Validation : 577 tests réussis, 5 ignorés. Après les derniers ajustements du
 clic droit et de l’historique partagé, 13 tests ciblés réussissent également.
 Le parcours réel de l’interface vérifie les couleurs, le clic gauche, Delete,
 le clic droit, la conservation de la cellule et la disposition détachée.
+
+## Filtering : couleur et contours des cellules retenues — 31 octobre 2026
+
+Le sélecteur de couleur est disponible près de Show cell contours et dans la
+fenêtre détachée. Filtering mémorise sa couleur, avec du blanc par défaut.
+Seules les cellules retenues après filtrage et curation ont un contour ; une
+sélection vide ne dessine aucun contour. Les objets rejetés restent disponibles
+dans la table pour être réintégrés. Le changement de couleur ne recalcule ni
+segmentation ni filtres, et ne change pas les mesures ou les masques sources.
+
+Validation : 579 tests réussis, 5 ignorés. Les tests couvrent la couleur
+mémorisée, l’annulation du dialogue, l’absence de recalcul, les cellules
+rejetées, la sélection vide et la réintégration manuelle.

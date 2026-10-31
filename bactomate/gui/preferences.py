@@ -42,6 +42,21 @@ def set_segmentation_outline_color(color: str) -> None:
     settings.sync()  # Batch segmentation subprocesses use the same preference.
 
 
+def get_filtering_outline_color() -> tuple[int, int, int]:
+    from PyQt6.QtGui import QColor
+    color=QColor(str(_settings().value("filtering/outline_color","#ffffff")))
+    return (color.red(),color.green(),color.blue()) if color.isValid() else (255,255,255)
+
+
+def set_filtering_outline_color(color: str) -> None:
+    from PyQt6.QtGui import QColor
+    value=QColor(color)
+    if not value.isValid():raise ValueError("Invalid outline color")
+    settings=_settings()
+    settings.setValue("filtering/outline_color",value.name())
+    settings.sync()
+
+
 def get_default_browse_dir() -> str:
     """Return the user's Desktop for file/folder dialogs when no last dir is set. Fallback to home if Desktop missing."""
     desktop = Path.home() / "Desktop"
