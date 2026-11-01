@@ -1,8 +1,9 @@
 """A deterministic, data-aware figure guide. No remote service or free-text parser."""
-from dataclasses import dataclass
+from dataclasses import dataclass,field
+from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QWizard,QWizardPage,QVBoxLayout,QFormLayout,QLabel,QComboBox,
-                            QCheckBox,QDoubleSpinBox,QLineEdit,QPushButton)
+                            QCheckBox,QDoubleSpinBox,QLineEdit,QPushButton,QSpinBox,QScrollArea,QWidget)
 from bactomate.gui.spatial_sources import project_spatial_sources
 
 GOALS={
@@ -11,8 +12,9 @@ GOALS={
     'See fluorescence along cells (demograph)':'demograph',
     'Locate maxima on a normalized cell':'maxima',
     'Count foci per cell':'counts',
+    'Follow one cell through a time-lapse (kymograph)':'kymograph',
 }
-SPATIAL_GOALS={'demograph','maxima'}
+SPATIAL_GOALS={'demograph','maxima','kymograph'}
 
 
 @dataclass
@@ -35,12 +37,19 @@ class FigurePlan:
     compare:bool=True
     replicate:bool=True
     title:str=''
+    track_id:int=1
+    track_confirmed:bool=False
+    tracked_mask:str=''
+    time_interval:float=0.
+    figure_options:dict=field(default_factory=dict)
 
 
 class GuidePage(QWizardPage):
     def __init__(self,guide,title,subtitle):
         super().__init__();self.guide=guide;self.setTitle(title);self.setSubTitle(subtitle)
-        self.form=QFormLayout(self);self.form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True)
+        body=QWidget();self.form=QFormLayout(body);scroll.setWidget(body);outer.addWidget(scroll)
+        self.form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
     def initializePage(self):self.guide.update_step(self.wizard().currentId())
     def validatePage(self):return self.guide.validate_step(self.wizard().currentId())
 
@@ -68,6 +77,12 @@ class FigureGuide(QWizard):
         self.sample=QComboBox();self.sample.addItem('All matching samples / XYs','')
         for key in sorted({s['source_id'] for s in self.sources}):self.sample.addItem(key,key)
         data.form.addRow('Sample / XY',self.sample)
+        self.tracked=QComboBox();data.form.addRow('Tracking masks',self.tracked)
+        self.track_id=QSpinBox();self.track_id.setRange(1,2147483647);data.form.addRow('Cell / track ID',self.track_id)
+        self.track_confirmed=QCheckBox('I verified that this ID follows the same cell over time')
+        data.form.addRow(self.track_confirmed)
+        self.time_interval=QDoubleSpinBox();self.time_interval.setRange(0,100000);self.time_interval.setDecimals(4)
+        self.time_interval.setSpecialValueText('Use metadata, otherwise frames');data.form.addRow('Frame interval (minutes)',self.time_interval)
         self.channel=QComboBox();self.channel.addItems(sorted({s['channel'] for s in self.sources}));data.form.addRow('Channel',self.channel)
         self.condition=QComboBox();self.condition.addItem('All conditions','')
         conditions={str(v.get('condition','')).strip() for v in tab.assignments.values()}
@@ -108,6 +123,7 @@ class FigureGuide(QWizard):
         review.form.addRow(self.review);self.addPage(review)
         self.goal.currentIndexChanged.connect(self.update_description)
         self.dataset.currentTextChanged.connect(self.update_metrics)
+        self.sample.currentIndexChanged.connect(self.update_tracking_choices)
         self.update_metrics();self.update_description()
         previous=getattr(tab,'_last_figure_plan',None)
         self._previous_plan=previous
@@ -126,6 +142,10 @@ class FigureGuide(QWizard):
             self.pixel_size.setValue(previous.pixel_size);self.points.setChecked(previous.show_points)
             self.compare.setChecked(previous.compare);self.replicate.setChecked(previous.replicate)
             self.title.setText(previous.title)
+            self.track_id.setValue(previous.track_id);self.track_confirmed.setChecked(previous.track_confirmed)
+            self.time_interval.setValue(previous.time_interval)
+            self.update_tracking_choices()
+            self.tracked.setCurrentIndex(max(0,self.tracked.findData(previous.tracked_mask)))
 
 
     def edit_groups(self):
@@ -144,8 +164,18 @@ class FigureGuide(QWizard):
             'relationship':'Check whether two measurements vary together. Recommended: a scatter plot.',
             'demograph':'One row per cell, sorted by length. X runs from one pole (0) to the other (1); colour shows fluorescence.',
             'maxima':'Place brightest pixels or kept foci on a normalized reference cell. Show individual points and relative density.',
+            'kymograph':'Follow fluorescence along one cell across frames. Requires one XY and verified persistent cell/track identities. Saved tracking masks are detected automatically.',
             'counts':'Show the percentage of cells with 0, 1, 2… foci. Uses the per-cell table so cells without foci are included.'
         }[self.goal.currentData()])
+
+    def update_tracking_choices(self):
+        old=self.tracked.currentData();self.tracked.clear()
+        self.tracked.addItem('Source labels — only if identities were verified','')
+        selected=self.sample.currentData()
+        paths=sorted({path for source in self.sources if not selected or source['source_id']==selected for path in source.get('tracked_masks',[])})
+        for path in paths:self.tracked.addItem(Path(path).name,path)
+        found=self.tracked.findData(old)
+        self.tracked.setCurrentIndex(found if found>0 else (1 if paths else 0))
 
     def update_metrics(self):
         table=self.tab.tables.get(self.dataset.currentText())
@@ -167,6 +197,13 @@ class FigureGuide(QWizard):
     def update_step(self,step):
         goal=self.goal.currentData();spatial=goal in SPATIAL_GOALS
         if step==1:
+            kymo=goal=='kymograph'
+            if kymo and not self.sample.currentData() and self.sample.count()>1:self.sample.setCurrentIndex(1)
+            for widget in (self.tracked,self.track_id,self.time_interval):self._visible(self.data_page,widget,kymo)
+            self.track_confirmed.setVisible(kymo)
+            if kymo:self.update_tracking_choices()
+            self.frame.setEnabled(not kymo)
+            if kymo:self.frame.setCurrentIndex(self.frame.findData(None))
             for widget in (self.dataset,self.metric):self._visible(self.data_page,widget,not spatial)
             self._visible(self.data_page,self.other,goal=='relationship')
             for widget in (self.sample,self.channel,self.pixel_size):self._visible(self.data_page,widget,spatial)
@@ -174,7 +211,7 @@ class FigureGuide(QWizard):
             self.data_note.setText(f'{len(self.sources)} matching image/channel pairs found. Filtered masks are preferred. Calibration uses image metadata first.' if spatial else 'Use a per-cell table for cell distributions and foci counts. Conditions and replicates are set above the main figure view.')
         if step==2:
             options={'distribution':['Violin plot','Box plot','Histogram','ECDF'],'relationship':['Scatter','Mean curve'],
-                     'demograph':['Demograph'],'maxima':['Maxima map'],'counts':['Foci count']}[goal]
+                     'demograph':['Demograph'],'maxima':['Maxima map'],'counts':['Foci count'],'kymograph':['Kymograph']}[goal]
             if goal!=getattr(self,'_appearance_goal',None):
                 self.style.clear();self.style.addItems(options)
                 self.normalization.setCurrentIndex(1 if goal=='demograph' else 0)
@@ -183,18 +220,19 @@ class FigureGuide(QWizard):
                     self.normalization.setCurrentIndex(self.normalization.findData(self._previous_plan.normalization))
                 self._appearance_goal=goal
             for widget in (self.orientation,self.method):self._visible(self.look_page,widget,spatial)
-            self._visible(self.look_page,self.normalization,goal=='demograph')
+            self._visible(self.look_page,self.normalization,goal in ('demograph','kymograph'))
             self._visible(self.look_page,self.maxima,goal=='maxima');self.points.setVisible(goal=='maxima')
             self.compare.setVisible(not spatial);self.replicate.setVisible(goal=='distribution')
             note={
                 'demograph':'Each row is one cell. Per-cell scaling highlights localization patterns. Brighter-pole alignment changes the population pattern and does not identify old/new poles.',
+                'kymograph':'Each row is a time point for the selected cell. Check tracking first. Geometric orientation does not establish pole identity when a cell rotates.',
                 'maxima':'Colour shows relative point density (peak = 1). The outline is a schematic reference cell. Brightest pixels and detected foci are separate measurements; neither identifies pole age.'
             }.get(goal,'Cells form each distribution. Replicate means are descriptive points; no significance test is inferred.')
             self.look_note.setText(note)
         if step==3:
             plan=self.plan();pairs=self.selected_pairs()
             self.review.setText(f'Figure: {plan.kind}\nPopulation: {plan.condition or "all conditions"}\nFrame: {plan.frame if plan.frame is not None else "all (repeated observations)"}\n'+
-                (f'Channel: {plan.channel}\nXYs: {len(pairs)}\nUnfiltered masks: {sum(not p["filtered"] for p in pairs)}\nOrientation: {plan.orientation}\nCell coordinates: {plan.method}\nMaxima: {plan.maxima_profile}\nIntensity: {plan.normalization}\nProfiles will be calculated from the existing masks and images.\n' if spatial else f'Data: {plan.dataset}\nMeasurement: {plan.metric}\nCompare conditions: {plan.compare}\nReplicate means: {plan.replicate}\n')+
+                (f'Channel: {plan.channel}\nXYs: {len(pairs)}\nUnfiltered masks: {sum(not p["filtered"] for p in pairs)}\nOrientation: {plan.orientation}\nCell coordinates: {plan.method}\nCell / track ID: {plan.track_id if plan.goal=="kymograph" else "not used"}\nMaxima: {plan.maxima_profile}\nIntensity: {plan.normalization}\nProfiles will be calculated from the existing masks and images.\n' if spatial else f'Data: {plan.dataset}\nMeasurement: {plan.metric}\nCompare conditions: {plan.compare}\nReplicate means: {plan.replicate}\n')+
                 '\nOutput: square figure + source rows + plot data + Python / R / MATLAB code.')
 
     def selected_pairs(self):
@@ -210,10 +248,13 @@ class FigureGuide(QWizard):
             frame=frame,channel=self.channel.currentText(),source_id=self.sample.currentData(),
             normalization=self.normalization.currentData(),orientation=self.orientation.currentData(),
             maxima_profile=self.maxima.currentData(),show_points=self.points.isChecked(),pixel_size=self.pixel_size.value(),
-            method=self.method.currentData(),compare=self.compare.isChecked(),replicate=self.replicate.isChecked(),title=self.title.text().strip())
+            method=self.method.currentData(),track_id=self.track_id.value(),track_confirmed=self.track_confirmed.isChecked(),tracked_mask=self.tracked.currentData() or '',time_interval=self.time_interval.value(),figure_options=self._previous_plan.figure_options if self._previous_plan and self._previous_plan.goal==self.goal.currentData() else {},compare=self.compare.isChecked(),replicate=self.replicate.isChecked(),title=self.title.text().strip())
 
     def validate_step(self,step):
         from PyQt6.QtWidgets import QMessageBox
+        if step==1 and self.goal.currentData()=='kymograph':
+            if len(self.selected_pairs())!=1 or not self.track_confirmed.isChecked():
+                QMessageBox.information(self,'Check cell identity','Choose one sample/XY and verify that the selected ID follows the same cell over time. Run Tracking first if IDs change.');return False
         if step==1 and self.frame.currentText() not in ('First frame','All frames (repeated observations)'):
             try:float(self.frame.currentText())
             except ValueError:

@@ -243,7 +243,8 @@ def write_filter_stage_visualization(
             foci_table=list(foci_table) if foci_table else None,
             background_images=bg_images,
         )
-        write_png_preview_from_tiff(vis_output)
+        # create_filter_visualization already writes this preview.
+        if not vis_output.with_suffix(".png").is_file():write_png_preview_from_tiff(vis_output)
         if log is not None:
             log(f"[Filtering] Wrote filter visualization: {vis_output.name}\n")
         return vis_output

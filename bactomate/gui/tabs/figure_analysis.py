@@ -40,6 +40,7 @@ class FigureAnalysisTab(QWidget):
     def __init__(self,parent=None):
         super().__init__(parent)
         self.tables={}; self.provenance={}; self.snapshot=None; self.worker=None
+        self._figure_windows=[]
         outer=QVBoxLayout(self)
         actions=QHBoxLayout()
         for text,callback in [('Load tables (CSV / TSV / XLSX)…',self.open_tables),
@@ -76,8 +77,12 @@ class FigureAnalysisTab(QWidget):
         scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setMinimumWidth(285); scroll.setMaximumWidth(390); scroll.setWidget(controls); split.addWidget(scroll)
         right=QWidget(); layout=QVBoxLayout(right); split.addWidget(right); split.setStretchFactor(1,3); split.setSizes([330,850])
         self.figure=Figure(figsize=(6,6)); self.canvas=FigureCanvasQTAgg(self.figure); self.canvas.setMinimumSize(280,230)
-        layout.addWidget(NavigationToolbar2QT(self.canvas,self)); self.square_canvas=SquareCanvasHost(self.canvas)
-        layout.addWidget(self.square_canvas,3)
+        self.square_canvas=SquareCanvasHost(self.canvas);self.square_canvas.setParent(right)
+        self._embedded_figure=self.figure;self._embedded_canvas=self.canvas
+        self.square_canvas.hide()
+        self._figure_placeholder=QLabel('Figures open in their own windows. Each figure keeps its own data and options.')
+        self._figure_placeholder.setWordWrap(True);layout.addWidget(self._figure_placeholder,1)
+        reopen=QPushButton('Show latest figure');reopen.clicked.connect(self.show_latest_figure);layout.addWidget(reopen)
         self.preview=QTableWidget(); self.preview.setMaximumHeight(170); self.preview.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers); layout.addWidget(self.preview)
         self.status=QLabel('Load analysis results or extract real spatial profiles to start.'); self.status.setWordWrap(True); outer.addWidget(self.status)
         for combo in [self.kind,*self.fields.values(),self.cmap,self.normalization]: combo.currentTextChanged.connect(self.mark_dirty)
@@ -168,10 +173,23 @@ class FigureAnalysisTab(QWidget):
     def plot_table(self,table,spec,provenance):
         used,plot,labels=prepare(table,spec)
         if hasattr(self,'display_labels'):labels=self.display_labels(labels)
-        draw(self.figure,plot,spec,labels); self.canvas.draw_idle()
-        self.snapshot=(used.copy(),plot.copy(),copy.deepcopy(spec),dict(labels),dict(provenance,table=self.sheet.currentText()))
+        from bactomate.gui.publication_figure_window import PublicationFigureWindow
+        window=PublicationFigureWindow(self,table,spec,dict(provenance,table=self.sheet.currentText()),labels)
+        self._figure_windows.append(window)
+        self.figure,self.canvas=window.figure,window.canvas
+        self.snapshot=window.snapshot()
+        window.show();window.raise_()
         self.export.setEnabled(True)
         self.status.setText(f'{len(used):,} source rows used. Export includes source data, plotted values, square figures and Python/R/MATLAB code.')
+
+    def show_latest_figure(self):
+        if self._figure_windows:
+            window=self._figure_windows[-1];window.show();window.raise_();window.activateWindow()
+
+    def close_figure_windows(self):
+        for window in self._figure_windows:window.close();window.deleteLater()
+        self._figure_windows=[]
+        self.figure,self.canvas=self._embedded_figure,self._embedded_canvas
 
     def save_bundle(self):
         if self.snapshot is None or not self.export.isEnabled():return

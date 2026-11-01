@@ -970,7 +970,10 @@ class AnalyzeMasksBase(QWidget):
         """Per-channel foci filter settings from the Filtering stage (preview / batch)."""
         from bactomate.gui.filter_preview_utils import default_foci_channel_settings
 
-        ft = self._filtering_tab()
+        ft = self if hasattr(self,'settings_for_mask') else self._filtering_tab()
+        if ft is not None and hasattr(ft,'settings_for_mask'):
+            from bactomate.gui.filter_preview_utils import resolve_foci_settings_for_source
+            return resolve_foci_settings_for_source(ft.settings_for_mask(mask_path),Path(foci_source))
         if ft is not None and hasattr(ft, "get_settings_for_foci_source"):
             try:
                 return dict(ft.get_settings_for_foci_source(Path(foci_source)))
@@ -1074,6 +1077,14 @@ class AnalyzeMasksBase(QWidget):
                         continue
                     seen_paths.add(key)
                     found.append(p)
+        # A manually created focus can have a saved filtered CSV without a *_foci TIFF.
+        from bactomate.gui.artifact_paths import resolve_filtered_foci_csv,infer_pipeline_dir_from_mask
+        from bactomate.gui.filter_preview_utils import short_foci_stack_label
+        channels={short_foci_stack_label(path) for path in found}
+        for image in self._resolve_fi_paths_for_mask(mask_path):
+            if short_foci_stack_label(image) in channels:continue
+            if resolve_filtered_foci_csv(infer_pipeline_dir_from_mask(mask_path),mask_path=mask_path,foci_source_path=image):
+                found.append(image);channels.add(short_foci_stack_label(image))
         return self._filter_artifact_paths_for_mask(mask_path, found)
 
     def _preview_fi_path_candidates(self, mask_path: Path) -> list[Path]:

@@ -129,8 +129,10 @@ def test_guide_counts_include_zero_and_group_button_stays_at_top(project_window,
     guide.next();assert guide.style.currentText()=='Foci count'
     assert guide.title.text()=='GFP foci counts'
     guide.close()
-    tab.square_canvas.resize(760,500);qapp.processEvents()
-    assert tab.canvas.width()==tab.canvas.height()
+    figure_window=tab._figure_windows[-1]
+    figure_window.resize(1100,800);qapp.processEvents()
+    assert tab.canvas.width()>800 and tab.canvas.height()>500
+    assert tab.canvas is figure_window.canvas
 
 
 def test_brightest_pixel_and_detected_foci_remain_distinct():

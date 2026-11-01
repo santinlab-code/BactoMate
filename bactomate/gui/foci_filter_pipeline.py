@@ -913,6 +913,7 @@ def write_filtered_foci_csv(
         "rel_intensity",
         "cell_id",
     ]
+    if any(r.get("manual") for r in rows):fieldnames.append("manual")
     if include_frame:
         fieldnames = ["frame"] + fieldnames
     with open(out_path, "w", newline="") as f:
@@ -934,6 +935,7 @@ def write_filtered_foci_csv(
                 ),
                 "cell_id": int(r.get("cell_id", 0) or 0),
             }
+            if "manual" in fieldnames:out_row["manual"]=bool(r.get("manual",False))
             if include_frame:
                 out_row["frame"] = int(r.get("frame", 0) or 0)
             w.writerow(out_row)
@@ -1244,6 +1246,10 @@ def populate_foci_preview_table(
 
     if not isinstance(table, QTableWidget):
         return
+    chosen=set()
+    for index in table.selectionModel().selectedRows():
+        item=table.item(index.row(),2)
+        if item and item.data(Qt.ItemDataRole.UserRole):chosen.add(tuple(item.data(Qt.ItemDataRole.UserRole)))
     headers = [
         "Pass",
         "Location",
@@ -1388,11 +1394,19 @@ def populate_foci_preview_table(
                     select_row = row_i
                     break
         if select_row >= 0:
-            table.selectRow(select_row)
+            if not chosen:table.selectRow(select_row)
             id_item = table.item(select_row, 2)
             if id_item is not None:
                 table.scrollToItem(id_item)
     fit_foci_table_columns(table)
+
+    if chosen:
+        from PyQt6.QtCore import QItemSelectionModel
+        table.clearSelection()
+        for row in range(table.rowCount()):
+            item=table.item(row,2)
+            if item and tuple(item.data(Qt.ItemDataRole.UserRole) or ()) in chosen:
+                table.selectionModel().select(table.model().index(row,0),QItemSelectionModel.SelectionFlag.Select|QItemSelectionModel.SelectionFlag.Rows)
 
 
 def _foci_table_column_content_width(table, col_i: int, fm) -> int:

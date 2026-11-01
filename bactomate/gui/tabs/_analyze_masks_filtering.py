@@ -504,7 +504,7 @@ class FilteringTab(AnalyzeMasksBase):
         return pick_mask_path_for_preview(self, path_text)
 
     def _default_filter_settings(self) -> dict[str, Any]:
-        return {'pixel_size': 0.108, 'min_aspect_ratio': 1.5, 'max_aspect_ratio': 10.0, 'min_eccentricity': 0.5, 'min_solidity': 0.7, 'min_area_um2': None, 'max_area_um2': None, 'min_width_um': None, 'max_width_um': None, 'min_length_um': None, 'max_length_um': None, 'exclude_border': True, 'focus_filter_enabled': False, 'focus_min_fraction_of_median': 0.5, 'focus_modality': 'phase', 'foci_prob_enabled': False, 'foci_prob_thresh': 0.5, 'foci_min_int_enabled': False, 'foci_min_int': 0.0, 'foci_per_cell_ratio_enabled': False, 'foci_per_cell_ratio': 2.0, 'foci_exclude_outside_cells': False, 'foci_exclude_outside_clear': False, 'foci_exclude_outside_touching': False, 'foci_blob_threshold_frac': 0.9, 'foci_blob_max_radius': 5, 'foci_min_area_px_enabled': False, 'foci_min_area_px': 1}
+        return {'pixel_size': 0.108, 'min_aspect_ratio': 1.5, 'max_aspect_ratio': 10.0, 'min_eccentricity': 0.5, 'min_solidity': 0.7, 'min_area_um2': None, 'max_area_um2': None, 'min_width_um': None, 'max_width_um': None, 'min_length_um': None, 'max_length_um': None, 'exclude_border': True, 'focus_filter_enabled': False, 'focus_min_fraction_of_median': 0.5, 'focus_modality': 'phase', 'foci_prob_enabled': False, 'foci_prob_thresh': 0.5, 'foci_min_int_enabled': False, 'foci_min_int': 0.0, 'foci_per_cell_ratio_enabled': False, 'foci_per_cell_ratio': 2.0, 'foci_exclude_outside_cells': False, 'foci_exclude_outside_clear': True, 'foci_exclude_outside_touching': False, 'foci_blob_threshold_frac': 0.9, 'foci_blob_max_radius': 5, 'foci_min_area_px_enabled': False, 'foci_min_area_px': 1}
 
     def _ensure_filter_settings(self) -> dict[str, Any]:
         fs = getattr(self, '_filter_settings', None)
@@ -518,7 +518,8 @@ class FilteringTab(AnalyzeMasksBase):
 
     def get_filter_settings(self) -> dict[str, Any]:
         """Return a stable snapshot used by both preview and batch filtering."""
-        fs = dict(self._ensure_filter_settings())
+        from copy import deepcopy
+        fs = deepcopy(self._ensure_filter_settings())
         for k in ('min_area_um2', 'max_area_um2', 'min_width_um', 'max_width_um', 'min_length_um', 'max_length_um'):
             v = fs.get(k, None)
             try:
@@ -536,6 +537,8 @@ class FilteringTab(AnalyzeMasksBase):
         return fs
 
     def set_filter_settings(self, data: dict[str, Any]) -> None:
+        from copy import deepcopy
+        data=deepcopy(data)
         fs = self._ensure_filter_settings()
         if not isinstance(data, dict):
             return
@@ -585,6 +588,33 @@ class FilteringTab(AnalyzeMasksBase):
     def reset_filter_settings_defaults(self) -> None:
         self._filter_settings = self._default_filter_settings()
 
+    def _get_mask_files_for_feedback(self):
+        from bactomate.gui.mask_filter_settings import mask_candidates
+        text=self.file_path.text().strip() if hasattr(self,'file_path') else ''
+        if not text:return []
+        path=Path(text);root=getattr(self,'_filter_batch_root',None)
+        if root is None or not Path(root).exists() or not path.resolve().is_relative_to(Path(root).resolve()):root=path
+        return mask_candidates(root)
+
+    def mask_settings_store(self):
+        from bactomate.gui.mask_filter_settings import MaskFilterSettings
+        if not hasattr(self,'_mask_settings_store'):self._mask_settings_store=MaskFilterSettings()
+        return self._mask_settings_store
+
+    def settings_for_mask(self,path):
+        from bactomate.gui.mask_filter_settings import source_mask
+        store=self.mask_settings_store()
+        if not source_mask(path).is_file():return self.get_filter_settings()
+        if store.active==source_mask(path):return self.get_filter_settings()
+        return store.recipe(path,self.get_filter_settings())
+
+    def activate_mask_settings(self,path):
+        self._filter_settings=self.mask_settings_store().activate(path,self.get_filter_settings())
+
+    def save_active_mask_settings(self):
+        store=self.mask_settings_store()
+        if store.active is not None:store.remember(store.active,self.get_filter_settings())
+
     def filter_masks(self) -> None:
         if bool(getattr(self, '_filtering_in_progress', False)):
             return
@@ -596,29 +626,32 @@ class FilteringTab(AnalyzeMasksBase):
         if not p.exists():
             show_message_dialog(self, 'Not Found', 'The selected file or folder does not exist.', kind='warning')
             return
-        if p.is_file():
-            mask_files = [p]
-        else:
-            mask_files = self._get_mask_files_for_feedback()
-            if not mask_files:
-                show_message_dialog(self, 'No Masks Found', 'No mask files were found in the selected path.', kind='warning')
-                return
-            result = show_file_selection_dialog(self, mask_files, title='Select Mask Files for Filtering', message=f'Select mask files to filter ({len(mask_files)} listed). All files are selected by default; untick any you want to skip.', initial_filename_filter=getattr(self, '_filter_filename_filter', '') or '', return_filename_filter=True)
-            (selected_files, filter_used) = result if isinstance(result, tuple) else (result, '')
-            if filter_used is not None:
-                self._filter_filename_filter = filter_used or ''
-            if selected_files is None:
-                return
-            if len(selected_files) == 0:
-                show_message_dialog(self, 'No Files Selected', 'Please select at least one mask file to filter.', kind='warning')
-                return
-            mask_files = list(selected_files)
+        from bactomate.gui.mask_filter_settings import mask_candidates
+        from bactomate.gui.artifact_paths import filtered_mask_path_for_mask
+        root=getattr(self,'_filter_batch_root',None)
+        if root is None or not Path(root).exists() or not p.resolve().is_relative_to(Path(root).resolve()):root=p
+        mask_files=mask_candidates(root)
+        if not mask_files:
+            show_message_dialog(self,'No Masks Found','No mask files were found in the selected path.',kind='warning')
+            return
+        result=show_file_selection_dialog(self,mask_files,title='Select Mask Files for Filtering',
+            message='Select XYs to filter. Each mask uses its own saved settings. Results show whether a filtered mask already exists.',
+            initial_filename_filter=getattr(self,'_filter_filename_filter','') or '',return_filename_filter=True,
+            result_status=lambda mask: 'Filtered result exists' if filtered_mask_path_for_mask(mask).is_file() else 'Not filtered yet')
+        selected_files,filter_used=result if isinstance(result,tuple) else (result,'')
+        if filter_used is not None:self._filter_filename_filter=filter_used or ''
+        if selected_files is None:return
+        if not selected_files:
+            show_message_dialog(self,'No Files Selected','Select at least one mask.',kind='warning');return
+        mask_files=list(selected_files)
         if self.sync_filter_settings_from_preview_ui():
             if hasattr(self.parent_window, 'log_output'):
                 self.parent_window.log_output('[Filtering] Applied current Preview filter settings before batch write.\n')
-        for mask in mask_files:
-            self.ensure_foci_channel_settings_for_sources(self._resolve_foci_paths_for_mask(mask))
-        fs = self.get_filter_settings()
+        self.save_active_mask_settings()
+        inherited=self.get_filter_settings()
+        store=self.mask_settings_store()
+        recipes={str(mask):store.recipe(mask,inherited) for mask in mask_files}
+        active_settings=self.get_filter_settings()
         self._filtering_in_progress = True
         self._cancel_filtering_requested = False
         try:
@@ -699,6 +732,11 @@ class FilteringTab(AnalyzeMasksBase):
         n_files = max(1, int(len(mask_files)))
         try:
             for (i, mask_path) in enumerate(mask_files):
+                from copy import deepcopy
+                from bactomate.gui.filter_preview_utils import seed_foci_channel_settings
+                fs=deepcopy(recipes[str(mask_path)])
+                seed_foci_channel_settings(fs,self._resolve_foci_paths_for_mask(mask_path)+self._resolve_fi_paths_for_mask(mask_path))
+                store.remember(mask_path,fs)
                 if bool(getattr(self, '_cancel_filtering_requested', False)):
                     break
                 _set_progress(int(round(100.0 * float(i) / float(n_files))), 'Filtering masks', _batch_detail(mask_path, i))
@@ -715,6 +753,7 @@ class FilteringTab(AnalyzeMasksBase):
                     continue
                 from bactomate.modules.object_curation import ObjectCuration
                 curation = ObjectCuration(mask_path)
+                masks=curation.augment_masks(masks)
                 out = np.zeros_like(masks, dtype=np.int32)
                 n_frames = max(1, int(masks.shape[0]))
                 phase_stack = None
@@ -805,7 +844,8 @@ class FilteringTab(AnalyzeMasksBase):
                         self.parent_window.log_output(f'[Filtering] Failed to write filtered mask {out_path.name}: {e}\n')
                 pipeline_dir = infer_pipeline_dir_from_mask(Path(mask_path))
                 try:
-                    foci_sources = self._resolve_foci_paths_for_mask(Path(mask_path))
+                    from bactomate.gui.filter_preview_utils import unique_foci_sources
+                    foci_sources=unique_foci_sources(self._resolve_foci_paths_for_mask(Path(mask_path))+self._resolve_fi_paths_for_mask(Path(mask_path)))
                 except Exception:
                     foci_sources = []
                 if not foci_sources:
@@ -829,14 +869,15 @@ class FilteringTab(AnalyzeMasksBase):
                             QApplication.processEvents()
                         _foci_progress('Starting', 0.0)
                         chosen_csv = resolve_segmentation_foci_csv(pipeline_dir, mask_path=mask_path, foci_source_path=src)
-                        if chosen_csv is None:
+                        if chosen_csv is None and not curation.data.get('manual_foci',{}):
                             if hasattr(self.parent_window, 'log_output'):
                                 self.parent_window.log_output(f'[Filtering] No raw foci CSV for {mask_path.name} + {Path(src).name}; run segmentation with Detect foci enabled first.\n')
                             continue
-                        raw_rows = read_raw_foci_csv(chosen_csv)
+                        from bactomate.gui.filter_preview_utils import foci_channel_key_for_path
+                        raw_rows = curation.augment_foci(read_raw_foci_csv(chosen_csv) if chosen_csv else [],foci_channel_key_for_path(Path(src)))
                         if not raw_rows:
                             continue
-                        if chosen_csv.parent.name != FOCI_DETECTION_DIRNAME:
+                        if chosen_csv is not None and chosen_csv.parent.name != FOCI_DETECTION_DIRNAME:
                             if hasattr(self.parent_window, 'log_output'):
                                 self.parent_window.log_output(f'[Filtering] Using legacy foci CSV: {chosen_csv}\n')
                         _foci_progress('Loading stack', 0.12)
@@ -845,7 +886,8 @@ class FilteringTab(AnalyzeMasksBase):
                         if foci_tyx is None or foci_tyx.size == 0:
                             continue
                         include_frame = bool(foci_tyx.shape[0] > 1 or any((int(r.get('frame', 0)) != 0 for r in raw_rows)))
-                        ch_fs = self.get_settings_for_foci_source(Path(src))
+                        from bactomate.gui.filter_preview_utils import resolve_foci_settings_for_source
+                        ch_fs=resolve_foci_settings_for_source(fs,Path(src))
                         _foci_progress('Scoring filters', 0.35, extra=f'{len(raw_rows):,} peaks')
                         filtered_rows = process_foci_rows_for_mask(raw_rows, foci_tyx, np.asarray(out), ch_fs)
                         from bactomate.gui.filter_preview_utils import foci_channel_key_for_path
@@ -894,7 +936,7 @@ class FilteringTab(AnalyzeMasksBase):
                             self.parent_window.log_output(f'[Filtering] Foci filtering failed for {src.name}: {e}\n')
                         continue
         finally:
-            pass
+            self._filter_settings=active_settings
         cancelled = bool(getattr(self, '_cancel_filtering_requested', False))
 
         def _resolve_output_folder():

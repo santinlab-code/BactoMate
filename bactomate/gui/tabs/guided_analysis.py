@@ -81,15 +81,17 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         for widget in (self.compare,self.rep_points):widget.toggled.connect(self.mark_dirty)
         self.preview.hide();self.figure_changed()
 
-    def open_figure_guide(self):
+    def open_figure_guide(self,_checked=False,parent=None):
         from bactomate.gui.figure_guide import FigureGuide
         if self.worker is not None and self.worker.isRunning():
             QMessageBox.information(self,'Figure calculation running','Wait for the current calculation to finish.');return
         try:guide=FigureGuide(self)
         except Exception as exc:
             QMessageBox.warning(self,'Cannot open Figure guide',str(exc));return
-        goal={'Demograph':'demograph','Maxima map':'maxima','Foci count':'counts'}.get(self.figure_choice.currentData())
-        if goal:guide.goal.setCurrentIndex(guide.goal.findData(goal))
+        if parent is not None:guide.setParent(parent,Qt.WindowType.Dialog)
+        goal={'Violin plot':'distribution','Box plot':'distribution','Histogram':'distribution','ECDF':'distribution',
+              'Scatter':'relationship','Mean curve':'relationship','Demograph':'demograph','Maxima map':'maxima','Foci count':'counts','Kymograph':'kymograph'}.get(self.figure_choice.currentData())
+        if goal and parent is None:guide.goal.setCurrentIndex(guide.goal.findData(goal))
         self._figure_guide=guide
         guide.exec()
         self._figure_guide=None
@@ -138,7 +140,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
 
     def figure_changed(self,*_):
         kind=self.figure_choice.currentData()
-        guided=kind in ('Demograph','Maxima map','Foci count')
+        guided=kind in ('Demograph','Maxima map','Foci count','Kymograph')
         self.metric.setVisible(not guided);self.simple_form.labelForField(self.metric).setVisible(not guided)
         self.second_metric.setVisible(kind in ('Scatter','Mean curve'))
         self.simple_form.labelForField(self.second_metric).setVisible(kind in ('Scatter','Mean curve'))
@@ -149,9 +151,10 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.simple_hint.setText({
             'Demograph':'One row per cell, sorted by length. Position runs from 0 to 1. Use Figure guide to choose the channel, condition, frame and pole alignment.',
             'Maxima map':'Maxima on a normalized reference cell. Use Figure guide to choose brightest pixels or kept detected foci. The outline is schematic.',
+            'Kymograph':'Follow one verified cell across a time-lapse. Use Figure guide to choose one XY, a persistent ID and the time interval.',
             'Foci count':'Percentage of cells with 0, 1, 2… foci. Use Figure guide to choose the count column and compare conditions.'
         }.get(kind,'Cells form the distribution. Coloured points show replicate means. Give XYs from the same biological replicate the same replicate name.'))
-        if kind in SPATIAL-{'Demograph','Maxima map','Foci count'}:self.advanced.setChecked(True)
+        if kind in SPATIAL-{'Demograph','Maxima map','Foci count','Kymograph'}:self.advanced.setChecked(True)
         if hasattr(self,'advanced') and self.advanced.isChecked():self.kind.setCurrentText(kind)
         self.mark_dirty()
 
@@ -163,6 +166,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.mark_dirty()
 
     def clear_session(self):
+        self.close_figure_windows()
         self._figure_generation+=1
         self._last_figure_plan=None
         self.catalog_root=None;self._results_root=None;self._spatial_tables={}
@@ -298,7 +302,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
             if table is None:
                 QMessageBox.information(self,'My data','Project results appear here after the analysis completes.');return
             kind=self.figure_choice.currentData()
-            if kind in SPATIAL-{'Demograph','Maxima map','Foci count'}:self.advanced.setChecked(True);return
+            if kind in SPATIAL-{'Demograph','Maxima map','Foci count','Kymograph'}:self.advanced.setChecked(True);return
             compare=self.compare.isChecked()
             needs_rep=self.rep_points.isChecked() and kind in ('Violin plot','Box plot')
             frame_value=self.frame_choice.currentData()
@@ -343,13 +347,15 @@ class GuidedAnalysisTab(FigureAnalysisTab):
 
     def apply_figure_plan(self,plan,pairs):
         from bactomate.gui.spatial_sources import SpatialBatchWorker
-        if plan.goal in ('demograph','maxima'):
+        if plan.goal in ('demograph','maxima','kymograph'):
             if not pairs:raise ValueError('No matching mask/channel images for this population.')
+            if plan.goal=='kymograph' and (not plan.track_confirmed or len(pairs)!=1):
+                raise ValueError('Kymograph needs one XY and verified persistent cell/track identities.')
             if self.worker is not None and self.worker.isRunning():raise ValueError('Wait for the current calculation to finish.')
             if plan.goal=='maxima' and plan.maxima_profile=='focus' and any(not p['foci_csv'] for p in pairs):
                 raise ValueError('Saved filtered foci are missing for one or more XYs. Run Filtering → Filter File/Folder first, or choose brightest pixels.')
             options=dict(pixel_size=plan.pixel_size,method=plan.method,orientation=plan.orientation,
-                         use_foci=plan.goal=='maxima' and plan.maxima_profile=='focus')
+                         use_foci=plan.goal=='maxima' and plan.maxima_profile=='focus',tracked_mask=plan.tracked_mask if plan.goal=='kymograph' else '',time_interval=plan.time_interval)
             self.mark_dirty()
             self.guide_button.setEnabled(False)
             worker=SpatialBatchWorker(pairs,options,self.assignments,self);self.worker=worker
@@ -383,14 +389,20 @@ class GuidedAnalysisTab(FigureAnalysisTab):
 
     def draw_figure_plan(self,table,plan,provenance):
         from bactomate.modules.figure_analysis import FigureSpec
-        spatial=plan.goal in ('demograph','maxima')
+        spatial=plan.goal in ('demograph','maxima','kymograph')
         needs_rep=not spatial and plan.replicate and plan.kind in ('Violin plot','Box plot')
         required=(['Condition'] if plan.compare and not spatial else [])+(['Replicate'] if needs_rep else [])
         if any(c not in table or table[c].fillna('').astype(str).str.strip().eq('').any() for c in required):
             raise ValueError('Fill in Conditions & replicates first, or turn off condition comparison / replicate means.')
         spec=FigureSpec(kind=plan.kind,title=plan.title or (plan.channel if spatial and plan.channel else plan.kind),
                         cmap='inferno' if spatial else 'viridis')
-        if plan.goal=='demograph':
+        if plan.goal=='kymograph':
+            identity='track_id' if 'track_id' in table else 'cell_id'
+            table=table[table[identity].eq(plan.track_id)]
+            if table.empty:raise ValueError('The selected cell / track ID has no observations.')
+            spec.x='relative_position';spec.y='time_min' if 'time_min' in table else 'frame'
+            spec.value='intensity';spec.group=identity;spec.track_confirmed=plan.track_confirmed;spec.normalization=plan.normalization
+        elif plan.goal=='demograph':
             spec.x='relative_position';spec.y='object_key';spec.value='intensity';spec.sort='length_um';spec.normalization=plan.normalization
         elif plan.goal=='maxima':
             spec.x='relative_width';spec.y='relative_position';spec.value='intensity'
@@ -398,6 +410,9 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         else:
             spec.x=plan.metric;spec.y=plan.second_metric
             spec.group='Condition' if plan.compare else '';spec.replicate='Replicate' if needs_rep else ''
+        if plan.figure_options:
+            from dataclasses import replace
+            spec=replace(spec,**plan.figure_options)
         # Validate before changing the current figure or its exported snapshot.
         from bactomate.modules.figure_analysis import prepare
         prepare(table,spec)
@@ -422,6 +437,9 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.plot_table(table,spec,provenance)
         self.simple_export.setEnabled(True)
         self._last_figure_plan=plan
+        if self._figure_windows:
+            from copy import deepcopy
+            self._figure_windows[-1].plan=deepcopy(plan)
         frame='first frame per XY' if plan.frame=='first' else ('all frames' if plan.frame is None else 'frame '+str(plan.frame))
         used,plotted,*_=self.snapshot
         detail=f"{used.object_key.nunique()} cells" if spatial else f"{len(used):,} observations"

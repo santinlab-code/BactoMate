@@ -41,6 +41,8 @@ def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp):
         click = canvas._total_offset(scale) + QPointF(image_x*scale, image_y*scale)
         rid = dlg._preview_request_id
         QTest.mouseClick(canvas, Qt.MouseButton.RightButton, pos=click.toPoint())
+        assert controller.context_menu.isVisible()
+        controller.context_menu.actions()[0].trigger();controller.context_menu.close()
         assert _wait_for_apply_generation(dlg, rid_before=rid)
         assert 1 in dlg._last_preview['accepted']
         assert panel.cur.data['cells']['0']['1'] is True
@@ -91,6 +93,7 @@ def test_foci_table_highlight_and_backspace_are_channel_specific(tmp_path, qapp)
         scale = dlg.canvas.view_scale()
         point = dlg.canvas._total_offset(scale) + QPointF(image_x*scale, image_y*scale)
         QTest.mouseClick(dlg.canvas, Qt.MouseButton.RightButton, pos=point.toPoint())
+        controller.context_menu.actions()[0].trigger();controller.context_menu.close()
         assert len(called) == 2
         assert panel.cur.peaks(0, panel.channel(), [{'y':34, 'x':40}], []) == ([{'y':34, 'x':40}], [])
         assert panel.cur.peaks(0, 'unrelated', [], [{'y':34, 'x':40}]) == ([], [{'y':34, 'x':40}])

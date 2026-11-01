@@ -85,6 +85,9 @@ def test_channel_click_selects_focus_delete_keeps_cell(tmp_path,qapp):
         scale=canvas.view_scale();point=canvas._total_offset(scale)+QPointF(dx*scale,dy*scale)
         rid=dlg._preview_request_id
         QTest.mouseClick(canvas,Qt.MouseButton.RightButton,pos=point.toPoint())
+        controller=dlg._curation_image_window
+        assert controller.context_menu.isVisible()
+        controller.context_menu.actions()[0].trigger();controller.context_menu.close()
         assert _wait_for_apply_generation(dlg,rid_before=rid)
         assert panel.kind.currentIndex()==1
         assert set(dlg._last_preview['accepted'])==accepted

@@ -926,6 +926,8 @@ class MainWindow(QMainWindow):
         self.analyze_tab._update_fi_feedback()
         self.analyze_tab._refresh_foci_csv_hint()
         self.filtering_tab._filter_preview_mask_path = None
+        for key in ('_mask_settings_store','_filter_lut_ranges','_filter_batch_root'):
+            if hasattr(self.filtering_tab,key):delattr(self.filtering_tab,key)
         for tab in (self.analyze_tab,self.filtering_tab):
             tab.folder_output_paths=[]
             tab.folder_fi_tasks=[]
@@ -978,6 +980,15 @@ class MainWindow(QMainWindow):
         if not self._open_analysis_when_loaded:return
         self._open_analysis_when_loaded = False
         self._go_module_from_dashboard(MODULE_ANALYSIS)
+
+    def _inspect_generated_files(self):
+        from bactomate.gui.output_audit import OutputAuditDialog
+        from PyQt6.QtWidgets import QFileDialog
+        root=getattr(self,'_workspace_root',None)
+        if root is None:
+            root=QFileDialog.getExistingDirectory(self,'Choose the project folder to inspect')
+        if not root:return
+        dialog=OutputAuditDialog(self,root);dialog.exec();dialog.deleteLater()
 
     def _clear_workspace(self) -> None:
         """Reset to a fresh session: no workspace, empty paths, closed embedded previews."""
@@ -1351,6 +1362,9 @@ class MainWindow(QMainWindow):
         open_ws.triggered.connect(self._open_workspace_dialog)
         open_ws.setToolTip('Choose a folder; create or load bactomate_project.json')
         file_menu.addAction(open_ws)
+        inspect=QAction('Inspect generated files…',self)
+        inspect.triggered.connect(self._inspect_generated_files)
+        file_menu.addAction(inspect)
         clear_ws = QAction('Clear current session', self)
         clear_ws.triggered.connect(self._clear_workspace)
         clear_ws.setToolTip('Reset paths and previews without deleting files on disk (same as dashboard Clear current session)')

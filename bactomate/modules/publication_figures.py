@@ -58,12 +58,12 @@ def draw_maxima(figure,ax,plot,spec,labels):
     density[density<.01]=np.nan
     im=ax.imshow(density.T,extent=[xe[0],xe[-1],ye[0],ye[-1]],origin='lower',
                  cmap=spec.cmap,vmin=0,vmax=1,aspect='auto',interpolation='nearest')
-    if spec.show_points:ax.scatter(plot.x,plot.y,s=5,c='black',alpha=.65,rasterized=False)
+    if spec.show_points:ax.scatter(plot.x,plot.y,s=spec.point_size,c='black',alpha=spec.point_alpha,rasterized=False)
     # A schematic capsule only: never clip or move measured points to its outline.
     angle=np.linspace(0,np.pi,100)
     x=np.r_[.5*np.cos(angle),.5*np.cos(angle+np.pi),.5]
     y=np.r_[1-1/6+np.sin(angle)/6,1/6+np.sin(angle+np.pi)/6,1-1/6]
-    ax.plot(x,y,color='.25',linewidth=1)
+    ax.plot(x,y,color='.25',linewidth=spec.line_width)
     ax.set_xlim(-.58,.58);ax.set_ylim(1.05,-.05)
     cax=ax.inset_axes([1.04,0,.04,1])
     figure.colorbar(im,cax=cax,label=labels['colorlabel'])

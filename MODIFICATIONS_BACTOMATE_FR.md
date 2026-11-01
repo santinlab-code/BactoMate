@@ -393,3 +393,50 @@ des cellules rejetées, le changement de projet pendant un calcul, les zéros de
 comptages et l’exécution du script Python exporté. Deux contrôles finaux valident
 la carte des maxima et la reprise des choix avec remise à zéro des anciens filtres.
 Des aperçus issus de données simulées figurent dans docs/FIGURE_GUIDE.md.
+
+## Filtering et figures : corrections après tests Mac — 1 novembre 2026
+
+Filtering mémorise les LUT par canal et masque, y compris lors de changements
+rapides et pour un contraste volontairement sombre. Exclude fully outside est
+coché par défaut. Le clic droit ouvre un menu ; il ne réintègre plus un objet
+immédiatement. Les créations de foci au point cliqué et de cellules par contour
+sont enregistrées comme annotations manuelles, reprises dans les tables et les
+exports filtrés, sans modifier les sources. Maj-clic choisit exactement les
+objets cliqués. Les recettes et calibrations sont indépendantes par XY ; un nouvel
+XY hérite des derniers paramètres. La liste du lot et l’état des résultats sont
+rétablis même après une navigation vers un fichier isolé. L’export utilise la
+recette de chaque masque et ne remplace pas les réglages de l’image active.
+
+L’affichage des figures ne force plus une taille en pouces différente du canevas
+Qt. Chaque figure possède sa propre fenêtre, ses données et son export. Exporter
+travaille sur une copie hors écran et ne redimensionne pas l’affichage. Figure
+options propose ordre/libellés/couleurs des catégories, espacement et largeur des
+boîtes/violons, limites d’axes, rotation des X, polices, points, traits, légende,
+grille, échelle de couleurs, dimensions et DPI. Edit with Figure guide reprend le
+bon graphe, dans la bonne fenêtre, y compris pour un box plot avancé. Les options
+de publication sont conservées lors de cette reprise.
+
+Le guide ajoute un kymographe pour un XY, un ID de cellule/piste et un intervalle
+temporel. Il retrouve les masques exportés par Tracking. L’identité doit être
+vérifiée ; les labels de segmentation ne sont pas considérés comme des pistes
+persistantes sans confirmation. Les axes utilisent le temps en minutes lorsque
+l’intervalle est connu, sinon les frames.
+
+File → Inspect generated files fournit un rapport des contenus identiques et des
+copies de tables CSV/XLSX, sans suppression. L’audit distingue les étapes brutes/
+filtrées, les aperçus PNG/TIFF et les classeurs agrégés. L’écriture redondante d’un
+même PNG dans l’étape Filtering a été évitée. Les parcours sont détaillés dans
+docs/FILTERING_REVIEW_FR.md et docs/FIGURE_GUIDE.md.
+
+Validation : 610 tests réussis, 5 ignorés dans la suite complète, suivis de
+27 tests ciblés réussis pour les derniers ajustements FI/foci, la création
+manuelle depuis une vue Phase et la propagation aux classeurs. Le test d’audit
+a aussi été rejoué. Les contrôles vérifient que les sources restent intactes,
+que les fenêtres de figures sont indépendantes, que l’export ne change pas le
+canevas affiché, et que les kymographes utilisent les masques suivis et le temps
+réel. Les fenêtres de figures, les options de catégories et le menu de curation
+ont été relus visuellement sur des données simulées. Le rendu natif sur Mac et
+l’exécution native des scripts R/MATLAB restent à valider localement.
+Quatre vérifications finales des fenêtres de figures, de l’édition guidée et du
+kymographe (graduations longitudinales 0 / 0,5 / 1 et export Python) réussissent
+également après la dernière retouche des axes.

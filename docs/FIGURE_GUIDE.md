@@ -7,7 +7,7 @@ including tables with a legacy French replicate column.
 Click **Figure guide…** and follow four steps:
 
 1. **Question.** Compare a measurement, relate two measurements, draw a demograph,
-   locate maxima, or count foci per cell.
+   locate maxima, count foci per cell, or follow one cell in a time-lapse.
 2. **Population.** Choose a condition and frame. For spatial figures, choose a
    channel and either all matching XYs or one sample. Existing project masks and
    fluorescence images are matched automatically. Filtered masks are preferred.
@@ -65,7 +65,8 @@ table cannot supply cells with zero foci and must not be used as its denominator
 
 ## Square publication output
 
-Live canvases preserve a square shape when resizing. Figure exports use a 6 × 6
+Each figure opens in an independent movable window. The live canvas fills its
+window and is never resized by an export. The default export uses a 6 × 6
 inch canvas: PNG is 1800 × 1800 at 300 dpi; PDF/SVG retain the square page. The
 normalized-cell map has a taller plotting area inside this square canvas so the
 reference cell is not stretched into a square.
@@ -87,3 +88,42 @@ These examples use simulated images and foci, not experimental results.
 ![Square demograph of 200 simulated cell observations](images/analysis-demograph-example.png)
 
 ![Normalized maxima map of 200 simulated foci](images/analysis-maxima-example.png)
+
+## Independent windows and figure options
+
+Every draw creates a separate figure window. Older windows retain their own data,
+options and export. Resizing or exporting one does not redraw the others. Escape
+does not dismiss a figure. Clear current session closes all its figure windows.
+
+**Figure options…** includes category order and labels, colours, box/violin
+spacing and width, axis bounds, X label rotation, fonts, markers, opacity, lines,
+legend/grid/title visibility, image colour bounds, export dimensions and PNG DPI.
+Square export remains the default; the export size is independent of screen size.
+Apply redraws only this window. Export works on an off-screen copy.
+
+**Edit with Figure guide…** restores this window’s scientific choices and keeps
+its publication options. A metric figure drawn with advanced controls can also
+reopen the guide using the rows actually plotted. Figure options remains available
+for expert spatial figures that do not have a saved guided recipe. Figures from
+another project must be edited with that project open; their export stays usable.
+
+## Time-lapse kymograph
+
+Choose **Follow one cell through a time-lapse (kymograph)** in the guide. Select
+one sample/XY and channel, a tracked-mask export (automatically found in
+`_tracking`), and one cell/track ID. Confirm that the ID follows the same cell.
+Source segmentation labels may be used only after this explicit verification.
+Changing labels must be linked in Tracking first.
+
+The plot uses every available frame for that cell, relative longitudinal
+position on X, and minutes on Y when a frame interval is supplied or found in
+metadata; otherwise Y uses frames. One image cannot form a kymograph. At least
+two observations are required. Geometric orientation does not establish pole
+identity for a rotating cell; inspect the tracking/orientation before interpreting
+pole-specific dynamics. Track IDs and original frame indices remain exported.
+
+These screenshots use simulated measurements:
+
+![Independent figure window](images/free-figure-window-example.png)
+
+![Category order, labels, colours and spacing](images/figure-category-options-example.png)

@@ -1,7 +1,7 @@
 """Detachable Filtering canvas and keyboard/table selection feedback."""
 import numpy as np
-from PyQt6.QtCore import Qt, QEvent
-from PyQt6.QtWidgets import QLabel, QPushButton
+from PyQt6.QtCore import Qt, QEvent, QPointF
+from PyQt6.QtWidgets import QLabel, QPushButton, QMenu, QMessageBox
 
 
 from bactomate.gui.preview.detachable_image import DetachablePreviewImage
@@ -10,6 +10,7 @@ from bactomate.gui.preview.detachable_image import DetachablePreviewImage
 class CurationImageWindow(DetachablePreviewImage):
     def __init__(self, preview, panel, mask):
         self.panel, self.mask = panel, mask
+        self._polygon=None;self.context_menu=None
         super().__init__(preview, title='Filtering — image (click to select; Delete to exclude)',
                          extra_widgets=(panel.manual_controls,))
         self.kind = panel.kind
@@ -18,7 +19,7 @@ class CurationImageWindow(DetachablePreviewImage):
         self.controls_layout.addWidget(self.outline_color)
         panel.kind.currentIndexChanged.connect(self.highlight)
         self.floating_layout.insertWidget(1, QLabel(
-            'Left click: select · right click: keep · Delete: exclude · foci: green kept / red excluded · cells: kept contours'))
+            'Left click: select · Shift+click: add clicked object · right click: object menu · Delete: exclude'))
         panel.table.itemSelectionChanged.connect(self.highlight)
         panel.foci_table.itemSelectionChanged.connect(self.highlight)
         panel.table.cellClicked.connect(lambda *_: panel.kind.setCurrentIndex(0))
@@ -43,63 +44,111 @@ class CurationImageWindow(DetachablePreviewImage):
         if self.panel.isEnabled() and table.selectionModel().selectedRows():
             self.panel.edit(False)
 
-    def keep_at(self, position):
-        if not self.panel.isEnabled():
-            return
+    def _native_position(self,position):
+        image=self.canvas._widget_to_image(position);size=self.canvas._image_size
+        if image is None or not size:return None
+        shape=np.asarray(self.mask()).shape
+        point=(image[0]*shape[1]/size[0],image[1]*shape[0]/size[1])
+        return point if 0<=point[0]<shape[1] and 0<=point[1]<shape[0] else None
+
+    def _target_at(self,position):
         choose_kind=getattr(self.preview,'_pf_image_object_kind',None)
         if choose_kind is not None:
             kind=choose_kind()
             if kind is not None:self.panel.kind.setCurrentIndex(kind)
-        image_pos = self.canvas._widget_to_image(position)
-        size = self.canvas._image_size
-        if image_pos is None or not size:
-            return
-        mask = np.asarray(self.mask())
-        x, y = image_pos[0]*mask.shape[1]/size[0], image_pos[1]*mask.shape[0]/size[1]
-        cells = self.panel.kind.currentIndex() == 0
-        table = self.panel.table if cells else self.panel.foci_table
-        row = None
+        point=self._native_position(position)
+        if point is None:return None
+        x,y=point;mask=np.asarray(self.mask());cells=self.panel.kind.currentIndex()==0
+        table=self.panel.table if cells else self.panel.foci_table
         if cells:
-            label = int(mask[int(y), int(x)])
-            row = next((i for i in range(table.rowCount())
-                        if int(table.item(i, 0).text()) == label), None)
-        else:
-            best = (float('inf'), None)
-            for i in range(table.rowCount()):
-                item = table.item(i, 2)
-                coords = item.data(Qt.ItemDataRole.UserRole) if item else None
-                if coords:
-                    distance = (float(coords[0])-y)**2 + (float(coords[1])-x)**2
-                    if distance < best[0]:
-                        best = (distance, i)
-            radius=max(2.0,5.0/max(self.canvas.view_scale(),1e-6))*mask.shape[1]/size[0]
-            if best[0] <= radius**2:
-                row = best[1]
-        if row is None:
-            return
-        # A right click inside a multi-selection keeps that entire selection.
-        if row not in {i.row() for i in table.selectionModel().selectedRows()}:
-            self.canvas.clicked_image.emit(*image_pos)
-        self.canvas.setFocus()
-        self.panel.edit(True)
+            label=int(mask[int(y),int(x)])
+            return next((row for row in range(table.rowCount()) if int(table.item(row,0).text())==label),None)
+        radius=max(2.,5./max(self.canvas.view_scale(),1e-6))*mask.shape[1]/self.canvas._image_size[0]
+        best=(float('inf'),None)
+        for row in range(table.rowCount()):
+            item=table.item(row,2);coords=item.data(Qt.ItemDataRole.UserRole) if item else None
+            if coords:
+                distance=(float(coords[0])-y)**2+(float(coords[1])-x)**2
+                if distance<best[0]:best=(distance,row)
+        return best[1] if best[0]<=radius**2 else None
 
-    def eventFilter(self, obj, event):
-        if not hasattr(self, 'preview'):
-            return False
-        if obj is not self.preview:
-            if (obj is self.canvas and event.type() == QEvent.Type.MouseButtonPress
-                    and event.button() == Qt.MouseButton.RightButton):
-                self.keep_at(event.position())
-                return True
-            if event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-                if obj is self.panel.table:
-                    self.panel.kind.setCurrentIndex(0)
-                elif obj is self.panel.foci_table:
-                    self.panel.kind.setCurrentIndex(1)
-                self.exclude()
-                return True
-            return False
-        return super().eventFilter(obj, event)
+    def _edit_at(self,position,keep):
+        row=self._target_at(position)
+        if row is None:
+            if keep:self.create_at(position)
+            return
+        table=self.panel.table if self.panel.kind.currentIndex()==0 else self.panel.foci_table
+        if row not in {i.row() for i in table.selectionModel().selectedRows()}:
+            from PyQt6.QtCore import QItemSelectionModel
+            table.selectionModel().select(table.model().index(row,0),QItemSelectionModel.SelectionFlag.ClearAndSelect|QItemSelectionModel.SelectionFlag.Rows)
+        self.canvas.setFocus();self.panel.edit(keep)
+
+    def keep_at(self,position):
+        # Explicit API; right clicks themselves only open the menu.
+        self._edit_at(position,True)
+
+    def show_object_menu(self,position,global_position):
+        if not self.panel.isEnabled() or self._native_position(position) is None:return
+        if self.context_menu is not None:self.context_menu.close();self.context_menu.deleteLater()
+        menu=QMenu(self.window);self.context_menu=menu
+        menu.addAction('Add / keep object',lambda:self._edit_at(position,True))
+        remove=menu.addAction('Remove / exclude object',lambda:self._edit_at(position,False))
+        remove.setEnabled(self._target_at(position) is not None)
+        menu.addSeparator()
+        menu.addAction('Create new object here…',lambda:self.create_at(position))
+        menu.popup(global_position)
+
+    def create_at(self,position):
+        point=self._native_position(position)
+        if point is None:return
+        if self.panel.kind.currentIndex()==0:
+            self._polygon=[point];self._update_polygon()
+            self.canvas.setToolTip('New cell: click contour points; double-click or Enter to finish; Escape to cancel.')
+            self.canvas.setFocus()
+        else:self._create('foci',[point])
+
+    def _create(self,kind,points):
+        previous=getattr(self.panel,'pending_action','Apply filters')
+        try:
+            self.panel.pending_action='Create manual '+('cell' if kind=='cells' else 'focus')
+            self.preview._pf_create_object(kind,points)
+        except Exception as exc:
+            self.panel.pending_action=previous
+            QMessageBox.warning(self.window,'Cannot create object',str(exc))
+
+    def _update_polygon(self):
+        shape=np.asarray(self.mask()).shape;size=self.canvas._image_size
+        self.canvas.manual_polygon=[(x*size[0]/shape[1],y*size[1]/shape[0]) for x,y in self._polygon] if self._polygon else []
+        self.canvas.update()
+
+    def _finish_polygon(self):
+        points=self._polygon;self._polygon=None;self._update_polygon()
+        if points:self._create('cells',points)
+
+    def eventFilter(self,obj,event):
+        if not hasattr(self,'preview'):return False
+        if obj is self.preview:return super().eventFilter(obj,event)
+        if obj is self.canvas:
+            if self._polygon is not None:
+                if event.type()==QEvent.Type.KeyPress and event.key()==Qt.Key.Key_Escape:
+                    self._polygon=None;self._update_polygon();return True
+                if event.type()==QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Enter,Qt.Key.Key_Return):
+                    self._finish_polygon();return True
+                if event.type()==QEvent.Type.MouseButtonDblClick:
+                    self._finish_polygon();return True
+                if event.type()==QEvent.Type.MouseButtonPress and event.button()==Qt.MouseButton.LeftButton:
+                    point=self._native_position(event.position())
+                    if point:self._polygon.append(point);self._update_polygon()
+                    return True
+            if event.type()==QEvent.Type.MouseButtonPress:
+                if event.button()==Qt.MouseButton.RightButton:
+                    self.show_object_menu(QPointF(event.position()),event.globalPosition().toPoint());return True
+                self.canvas.setProperty('filter_additive_click',bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier))
+        if event.type()==QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Delete,Qt.Key.Key_Backspace):
+            if obj is self.panel.table:self.panel.kind.setCurrentIndex(0)
+            elif obj is self.panel.foci_table:self.panel.kind.setCurrentIndex(1)
+            self.exclude();return True
+        return False
 
     def highlight(self, *_):
         self.canvas.object_selection_boxes = []

@@ -3,7 +3,7 @@ import csv
 from pathlib import Path
 from typing import Any, Callable, Optional
 import numpy as np
-from PyQt6.QtCore import QEvent, QObject, Qt, QThread, QTimer
+from PyQt6.QtCore import QEvent, QObject, Qt, QThread, QTimer, QItemSelectionModel
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QTableWidget, QTabWidget, QTextEdit, QVBoxLayout, QWidget
 from bactomate.gui.analyze_masks_preview_worker import AnalyzeMasksPreviewWorker
 from bactomate.gui.filter_apply_progress import FilterApplyProgressDialog, _qt_alive
@@ -468,6 +468,7 @@ def stretch_plane_to_uint8(
     vmax: Optional[float],
     *,
     fallback_shape: tuple[int, int] | None = None,
+    preserve_lut: bool = False,
 ) -> np.ndarray:
     """Map a 2D View plane to uint8, auto-correcting crushed LUT windows.
 
@@ -509,12 +510,12 @@ def stretch_plane_to_uint8(
         or (not np.isfinite(use_vmin))
         or (not np.isfinite(use_vmax))
         or float(use_vmax) <= float(use_vmin)
-        or (not _lut_window_spans_frame(use_vmin, use_vmax, bg_f))
+        or (not preserve_lut and not _lut_window_spans_frame(use_vmin, use_vmax, bg_f))
     ):
         (use_vmin, use_vmax) = _autoscale()
     vrange = max(float(use_vmax) - float(use_vmin), 1e-06)
     out = ((bg_f - float(use_vmin)) / vrange * 255.0).clip(0, 255).astype(np.uint8)
-    if int(out.max()) < 40 and mx > mn:
+    if not preserve_lut and int(out.max()) < 40 and mx > mn:
         (use_vmin, use_vmax) = _autoscale()
         vrange = max(float(use_vmax) - float(use_vmin), 1e-06)
         out = ((bg_f - float(use_vmin)) / vrange * 255.0).clip(0, 255).astype(np.uint8)
@@ -600,6 +601,16 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     if mask_path is None or not mask_path.exists():
         show_message_dialog(tab, 'No Masks Found', 'No mask files were found in the selected path.', kind='warning')
         return
+    from bactomate.gui.mask_filter_settings import source_mask
+    original=source_mask(mask_path)
+    if original!=mask_path:masks_preloaded=None
+    mask_path=original
+    tab._filter_preview_mask_path=mask_path
+    try:tab.activate_mask_settings(mask_path)
+    except (OSError,ValueError) as exc:
+        show_message_dialog(tab,'Cannot restore mask state',str(exc),kind='warning')
+        return
+    tab._filter_batch_root=p if p.is_dir() else (p.parent.parent if p.parent.name=='filtered_masks' else p.parent)
     if masks_preloaded is not None:
         try:
             masks = np.asarray(masks_preloaded)
@@ -666,7 +677,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         bg_paths = filter_paths_for_mask(tab, mask_path, _list_background_paths())
     bg_paths = enrich_background_paths_for_mask(tab, mask_path, bg_paths)
     from bactomate.gui.filter_preview_utils import short_foci_stack_label
-    foci_sources = [Path(fp) for fp in bg_paths if '_foci' in fp.name.lower() or 'fi_foci' in fp.name.lower()]
+    from bactomate.gui.filter_preview_utils import unique_foci_sources
+    foci_sources=unique_foci_sources(bg_paths)
     has_foci_image_files = len(foci_sources) > 0
     try:
         if hasattr(tab, 'ensure_foci_channel_settings_for_sources'):
@@ -981,7 +993,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     # Include sibling XYs even when the preview was opened from one mask file.
     search_root=p if p.is_dir() else p.parent
     if search_root.name=='filtered_masks':search_root=search_root.parent
-    mask_candidates=discover_mask_tiffs_for_workspace(search_root)
+    from bactomate.gui.mask_filter_settings import mask_candidates as filtering_candidates
+    mask_candidates=filtering_candidates(search_root)
     current_mask=mask_path.resolve()
     if current_mask not in mask_candidates:mask_candidates.append(current_mask)
     mask_candidates=sorted(set(mask_candidates))
@@ -1059,7 +1072,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         except Exception:
             return ('none', -1)
 
-    nav_ctrl.set_spec(PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=sources, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, cell_overlay_label="Show cell contours", show_cell_outline_color=True, cell_outline_context="filtering", show_foci_overlay_toggle=True, cell_overlay_default=True, debounce_ms=400), emit_init=False)
+    nav_ctrl.set_spec(PreviewNavSpec(frame_count=int(max(1, num_frames)), image_sources=sources, show_image=True, show_channel=False, show_z=False, show_cell_overlay_toggle=True, cell_overlay_label="Show cell contours", show_cell_outline_color=True, cell_outline_context="filtering", show_foci_overlay_toggle=True, cell_overlay_default=True, debounce_ms=0), emit_init=False)
     try:
         nav_ctrl.set_state(PreviewNavState(source_key=_normalize_source_key(image_combo.currentData()), frame_idx=int(frame_spin.value()) - 1), emit=False)
     except Exception:
@@ -1166,7 +1179,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         if path is None:
             return False
         low = path.name.lower()
-        return '_foci' in low or 'fi_foci' in low
+        stem=path.stem.lower()
+        return '_foci' in low or '_fi_' in stem or stem.endswith('_fi')
 
     def _foci_index_for_path(target: Optional[Path]) -> int:
         if target is None or not foci_sources:
@@ -1183,6 +1197,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             except Exception:
                 if Path(fp) == Path(target):
                     return int(i)
+        channel=foci_channel_key_for_path(Path(target))
+        for i,fp in enumerate(foci_sources):
+            if foci_channel_key_for_path(fp)==channel:return i
         return 0
 
     def _active_foci_channel_index() -> int:
@@ -1292,6 +1309,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
 
     def _commit_filter_apply_result(*, frame_idx: int, accepted: set[int], rejected: set[int], n_obj: Optional[int], foci_channels_last: dict[str, dict[str, list]], request_settings_sig: str, cell_settings_sig: str, foci_channel_sigs: dict[str, str], request_source_key: tuple, foci_txt: str='') -> None:
         cur = _current_curation()
+        from copy import deepcopy
+        cur.data['filter_settings']=deepcopy(tab.get_filter_settings())
         all_labels = accepted | rejected
         accepted = cur.cells(frame_idx, accepted, all_labels)
         rejected = all_labels - accepted
@@ -1502,7 +1521,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         img_path = _image_path_for_source_key(source_key)
         if img_path is not None:
             img_name = img_path.name.lower()
-            if '_foci' in img_name:
+            if _view_path_is_foci(img_path):
                 for fp in foci_sources:
                     try:
                         if Path(fp).resolve() == img_path.resolve():
@@ -1552,7 +1571,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         key = _rows_cache_key(src)
         cache = getattr(dlg, '_foci_rows_cache', None) if dlg is not None else None
         if isinstance(cache, dict) and key in cache:
-            return list(cache.get(key) or [])
+            return _current_curation().augment_foci(list(cache.get(key) or []),foci_channel_key_for_path(src)) if src is not None else []
         csv_path = _csv_path_for_foci_source(src)
         rows: list[dict] = []
         if csv_path is not None and csv_path.exists():
@@ -1565,8 +1584,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 rows = []
         if isinstance(cache, dict):
             cache[key] = list(rows)
-        return rows
-    foci_overlay_sources: list[Path] = [Path(fp) for fp in foci_sources if _csv_path_for_foci_source(fp) is not None]
+        return _current_curation().augment_foci(rows,foci_channel_key_for_path(src)) if src is not None else rows
+    foci_overlay_sources: list[Path] = [Path(fp) for fp in foci_sources]
     foci_overlay_available = len(foci_overlay_sources) > 0
     _foci_ch_overlay_labels: tuple[str, ...] = ()
     if foci_overlay_available:
@@ -1588,12 +1607,20 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 out.append(r)
         return out
 
+    def _filter_lut_key():
+        return (str(mask_path.resolve()),str(_selected_image_path()))
+
     def _apply_lut_to_bg(bg_2d: Optional[np.ndarray], vmin: Optional[float], vmax: Optional[float]) -> np.ndarray:
-        return stretch_plane_to_uint8(bg_2d, vmin, vmax, fallback_shape=tuple(masks.shape[1:3]))
+        return stretch_plane_to_uint8(bg_2d, vmin, vmax, fallback_shape=tuple(masks.shape[1:3]),preserve_lut=_filter_lut_key() in getattr(tab,'_filter_lut_ranges',{}))
 
     def _sync_state_lut_to_bg(bg_2d: Optional[np.ndarray], state) -> None:
         """Keep PreviewState LUT aligned with the plane actually being painted."""
         if bg_2d is None or state is None:
+            return
+        saved=getattr(tab,'_filter_lut_ranges',{}).get(_filter_lut_key())
+        if saved is not None:
+            state.vmin,state.vmax=saved
+            dlg.lut_widget.set_lut(*saved)
             return
         arr = np.asarray(bg_2d)
         if _lut_window_spans_frame(getattr(state, 'vmin', None), getattr(state, 'vmax', None), arr):
@@ -1805,7 +1832,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             return
         dlg._preview_request_id += 1
         rid = int(dlg._preview_request_id)
-        _stack = getattr(dlg, '_preview_masks', masks)
+        _stack = _preview_mask_stack()
         mask_2d = np.asarray(_stack[frame_idx], dtype=np.int32)
         request_settings = dict(settings_snapshot)
         request_settings_sig = str(settings_sig)
@@ -2306,8 +2333,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     def _preview_mask_stack() -> np.ndarray:
         stack = getattr(dlg, '_preview_masks', None)
         if stack is None:
-            return masks
-        return np.asarray(stack)
+            stack=masks
+        return _current_curation().augment_masks(np.asarray(stack))
 
     def _render(state) -> RenderResult:
         last = getattr(dlg, '_last_preview', None) or {}
@@ -2742,6 +2769,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 show_message_dialog(tab,'Load Error',f'Could not load mask:\n{exc}',kind='warning')
                 return
             _ui_to_settings()
+            tab.save_active_mask_settings()
             dlg.close()
             tab._filter_preview_dialog=None
             tab.file_path.setText(str(selected))
@@ -2753,7 +2781,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         dlg._filter_settings_host = settings_host
         dlg._close_pending = False
         dlg._preview_request_id = 0
-        dlg._pixel_size_locked_from_metadata = False
+        dlg._pixel_size_locked_from_metadata = bool(getattr(tab.mask_settings_store(),'was_restored',False))
 
         class _FilterPreviewResizeFilter(QObject):
 
@@ -2847,12 +2875,6 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 return
             if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
                 return
-            try:
-                bg = _get_bg_frame(int(getattr(dlg.state(), 'frame_idx', 0) or 0), _source_key_from_state(dlg.state(), _selected_source))
-                if bg is not None and (not _lut_window_spans_frame(vmin, vmax, bg)):
-                    return
-            except Exception:
-                pass
             dlg.state().vmin = float(vmin)
             dlg.state().vmax = float(vmax)
             dlg.set_extra('lut_only', True)
@@ -2863,6 +2885,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         _lut_debounce.timeout.connect(_commit_lut_refresh)
 
         def _on_filter_lut_changed(vmin: float, vmax: float) -> None:
+            if not hasattr(tab,'_filter_lut_ranges'):tab._filter_lut_ranges={}
+            tab._filter_lut_ranges[_filter_lut_key()]=(float(vmin),float(vmax))
             _lut_pending['vmin'] = float(vmin)
             _lut_pending['vmax'] = float(vmax)
             _lut_debounce.start(80)
@@ -3234,15 +3258,21 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
             native_x, native_y = x * shape[1] / size[0], y * shape[0] / size[1]
             if _view_path_is_foci(_selected_image_path()):
                 curation_panel.kind.setCurrentIndex(1)
+            additive=bool(dlg.canvas.property('filter_additive_click'))
+            def choose(table,row):
+                flags=QItemSelectionModel.SelectionFlag.Select|QItemSelectionModel.SelectionFlag.Rows
+                if not additive:flags|=QItemSelectionModel.SelectionFlag.Clear
+                table.selectionModel().select(table.model().index(row,0),flags)
+                table.scrollToItem(table.item(row,0))
             if curation_panel.kind.currentIndex() == 0:
                 if not (0 <= native_x < shape[1] and 0 <= native_y < shape[0]):
                     return
                 label = int(_preview_mask_stack()[int(dlg.state().frame_idx)][int(native_y), int(native_x)])
-                curation_panel.table.clearSelection()
+                if not additive:curation_panel.table.clearSelection()
                 for row in range(curation_panel.table.rowCount()):
                     if int(curation_panel.table.item(row, 0).text()) == label:
                         curation_section.set_expanded(True)
-                        curation_panel.table.selectRow(row)
+                        choose(curation_panel.table,row)
                         curation_panel.table.scrollToItem(curation_panel.table.item(row, 0))
                         break
             else:
@@ -3260,13 +3290,24 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 if best is not None and best[0] <= radius**2:
                     table_tabs.setCurrentWidget(foci_table_section)
                     dlg._highlight_foci_yx=tuple(foci_table.item(best[1],2).data(Qt.ItemDataRole.UserRole))
-                    foci_table.selectRow(best[1])
+                    choose(foci_table,best[1])
                     foci_table.scrollToItem(foci_table.item(best[1],2))
                 else:
                     dlg._highlight_foci_yx=None
-                    foci_table.clearSelection()
+                    if not additive:foci_table.clearSelection()
         dlg.canvas.clicked_image.connect(_pick_curated_object)
         from bactomate.gui.curation_image_window import CurationImageWindow
+        def create_object(kind,points):
+            cur=_current_curation();frame=int(dlg.state().frame_idx)
+            if kind=='cells':
+                cur.add_cell(frame,points,getattr(dlg,'_preview_masks',masks))
+            else:
+                x,y=map(int,points[0]);plane=_get_foci_plane(frame,_active_foci_source())
+                if plane is None:raise ValueError('Choose a fluorescence image first.')
+                if not (0<=y<plane.shape[0] and 0<=x<plane.shape[1]):raise ValueError('Click inside the image.')
+                cur.add_focus(frame,_active_foci_channel_key(),x,y,float(plane[y,x]))
+            _curation_changed()
+        dlg._pf_create_object=create_object
         dlg._pf_choose_outline_color=nav_ctrl._choose_outline_color
         dlg._pf_image_object_kind=lambda: 1 if _view_path_is_foci(_selected_image_path()) else None
         dlg._curation_image_window = CurationImageWindow(dlg, curation_panel,

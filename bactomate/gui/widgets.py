@@ -659,6 +659,7 @@ def show_file_selection_dialog(
     initial_filename_filter="",
     return_filename_filter=False,
     default_checked: Optional[Callable[[Path], bool]] = None,
+    result_status: Optional[Callable[[Path], str]] = None,
 ):
     """
     Show a dialog with checkboxes for file selection.
@@ -720,7 +721,8 @@ def show_file_selection_dialog(
     file_items = []
     for f in files:
         path = Path(f)
-        item = QListWidgetItem(path.name)
+        item = QListWidgetItem(path.name+(" — "+str(result_status(path)) if result_status else ""))
+        item.setToolTip(str(path))
         if default_checked is None:
             checked = True
         else:

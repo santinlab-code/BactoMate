@@ -218,7 +218,7 @@ def default_foci_channel_settings() -> dict[str, Any]:
         "foci_per_cell_ratio_enabled": False,
         "foci_per_cell_ratio": 2.0,
         "foci_exclude_outside_cells": False,
-        "foci_exclude_outside_clear": False,
+        "foci_exclude_outside_clear": True,
         "foci_exclude_outside_touching": False,
         "foci_blob_threshold_frac": 0.9,
         "foci_blob_max_radius": 5,
@@ -373,6 +373,18 @@ def request_filter_preview_apply(
     else:
         _run()
     return True
+
+
+def unique_foci_sources(paths):
+    """One focus source per channel; prefer the detection stack over a duplicate FI view."""
+    result=[];seen=set()
+    for path in sorted((Path(p) for p in paths),key=lambda p:'_foci' not in p.stem.lower()):
+        stem=path.stem.lower()
+        if not ('_foci' in stem or '_fi_' in stem or stem.endswith('_fi')):continue
+        channel=short_foci_stack_label(path)
+        if channel in seen:continue
+        seen.add(channel);result.append(path)
+    return result
 
 
 def short_foci_stack_label(path: Path) -> str:

@@ -421,20 +421,14 @@ class SegmentationTab(QWidget):
             surf.set_candidate_files([])
             return
         try:
-            if po.is_file():
-                paths = [str(po.resolve())]
-            else:
-                paths = [
-                    str(p.resolve())
-                    for p in self.filtering_tab._get_mask_files_for_feedback()
-                ]
+            paths=[str(p.resolve()) for p in self.filtering_tab._get_mask_files_for_feedback()]
             if paths:
                 # Do not auto-pick the first mask in a folder; keep placeholder until the
                 # user chooses. Once a mask is active (dropdown pick or open preview), show it.
                 sel = surf.current_candidate_path()
                 preview_open = getattr(self.filtering_tab, "_filter_preview_dialog", None) is not None
                 active_mask = getattr(self.filtering_tab, "_filter_preview_mask_path", None)
-                if sel is None and preview_open and active_mask is not None:
+                if preview_open and active_mask is not None:
                     try:
                         sel = str(Path(active_mask).resolve())
                     except OSError:

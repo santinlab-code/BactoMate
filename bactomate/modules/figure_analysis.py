@@ -2,7 +2,7 @@
 
 No implicit tracking, missing-pixel filling, or fluorescence normalization.
 """
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import json
 import hashlib
@@ -37,6 +37,31 @@ class FigureSpec:
     show_points: bool = True
     density_bins: int = 96
     density_sigma: float = 2.0
+    group_order: tuple = ()
+    category_labels: dict = field(default_factory=dict)
+    category_colors: dict = field(default_factory=dict)
+    category_spacing: float = 1.0
+    category_width: float = .6
+    font_size: float = 10.0
+    xlabel: str = ''
+    ylabel: str = ''
+    x_min: float | None = None
+    x_max: float | None = None
+    y_min: float | None = None
+    y_max: float | None = None
+    x_tick_rotation: float = 0.0
+    show_grid: bool = False
+    show_legend: bool = True
+    show_title: bool = True
+    show_outliers: bool = True
+    colorbar_min: float | None = None
+    colorbar_max: float | None = None
+    point_size: float = 12.0
+    point_alpha: float = .7
+    line_width: float = 1.5
+    figure_width: float = 6.0
+    figure_height: float = 6.0
+    export_dpi: int = 300
 
 
 def load_tables(path):
@@ -268,7 +293,7 @@ def prepare(table, spec):
 
 
 def draw(figure, plot, spec, labels):
-    figure.clear(); figure.set_size_inches(6,6,forward=False); ax = figure.subplots()
+    figure.clear(); ax = figure.subplots()
     matrix = spec.kind in ('Correlation','Heatmap','Demograph','Kymograph','Normalized cell heatmap')
     if spec.kind=='Maxima map':
         from bactomate.modules.publication_figures import draw_maxima
@@ -288,19 +313,28 @@ def draw(figure, plot, spec, labels):
                 image.set_extent([0,1,len(plot),0]);ax.set_xticks([0,.5,1],['0','0.5','1'])
             else:ax.set_xticks(np.linspace(0,len(cols)-1,3),[f'{v:g}' for v in np.linspace(cols.min(),cols.max(),3)])
             ax.set_yticks([])
+        if spec.kind=='Kymograph' and spec.x=='relative_position':
+            image.set_extent([0,1,len(plot)-.5,-.5]);ax.set_xticks([0,.5,1],['0','0.5','1'])
         if spec.kind=='Correlation': ax.tick_params(axis='x',rotation=60)
     else:
-        groups = list(plot.groupby('group', sort=True))
+        from bactomate.modules.figure_style import ordered_groups
+        groups=ordered_groups(plot,spec)
         for i, (name, sub) in enumerate(groups):
-            if spec.kind in ('Histogram','Foci count'): ax.bar(sub.x,sub.y,width=sub.width,alpha=.5,label=name)
-            elif spec.kind == 'Scatter': ax.scatter(sub.x,sub.y,s=12,alpha=.7,label=name)
-            elif spec.kind == 'Mean curve': ax.plot(sub.x,sub.y,label=name)
-            elif spec.kind == 'ECDF': ax.step(sub.x,sub.y,where='post',label=name)
-            elif spec.kind == 'Box plot': ax.boxplot([sub.x],positions=[i+1],manage_ticks=False)
+            color=spec.category_colors.get(str(name))
+            colors={'color':color} if color else {}
+            position=1+i*spec.category_spacing
+            if spec.kind in ('Histogram','Foci count'): ax.bar(sub.x,sub.y,width=sub.width,alpha=spec.point_alpha,label=name,**colors)
+            elif spec.kind == 'Scatter': ax.scatter(sub.x,sub.y,s=spec.point_size,alpha=spec.point_alpha,label=name,**colors)
+            elif spec.kind == 'Mean curve': ax.plot(sub.x,sub.y,label=name,linewidth=spec.line_width,**colors)
+            elif spec.kind == 'ECDF': ax.step(sub.x,sub.y,where='post',label=name,linewidth=spec.line_width,**colors)
+            elif spec.kind == 'Box plot': ax.boxplot([sub.x],positions=[position],widths=spec.category_width,manage_ticks=False,showfliers=spec.show_outliers,patch_artist=bool(color),**({'boxprops':{'facecolor':color}} if color else {}))
             elif spec.kind == 'Violin plot':
-                if sub.x.nunique() < 2: ax.scatter(np.full(len(sub),i+1),sub.x)
-                else: ax.violinplot([sub.x],positions=[i+1],showmedians=True)
-        if spec.kind in ('Box plot','Violin plot'): ax.set_xticks(range(1,len(groups)+1),[g[0] for g in groups])
+                if sub.x.nunique() < 2: ax.scatter(np.full(len(sub),position),sub.x,s=spec.point_size,alpha=spec.point_alpha,**colors)
+                else:
+                    bodies=ax.violinplot([sub.x],positions=[position],widths=spec.category_width,showmedians=True)
+                    if color:
+                        for body in bodies['bodies']:body.set_facecolor(color)
+        if spec.kind in ('Box plot','Violin plot'): ax.set_xticks([1+i*spec.category_spacing for i in range(len(groups))],[spec.category_labels.get(g[0],g[0]) for g in groups])
         elif len(groups)>1: ax.legend()
         if spec.kind in ('Box plot','Violin plot') and spec.replicate and spec.show_replicates:
             names=[name for name,_ in groups]
@@ -308,25 +342,36 @@ def draw(figure, plot, spec, labels):
             for ri,rep in enumerate(reps):
                 sub=plot[plot.replicate==rep].groupby('group').x.mean()
                 offset=0 if len(reps)==1 else -.15+.3*ri/(len(reps)-1)
-                ax.scatter([names.index(str(g))+1+offset for g in sub.index],sub.values,
-                           s=38,label=str(rep),zorder=5)
+                ax.scatter([1+names.index(str(g))*spec.category_spacing+offset for g in sub.index],sub.values,
+                           s=spec.point_size*3,label=str(rep),zorder=5)
             ax.legend(title='Replicate means')
 
     ax.set_box_aspect(2 if spec.kind=='Maxima map' else 1)
     if spec.kind=='Demograph':
         xlabel='Relative cell length' if spec.relative_position or spec.x=='relative_position' else labels['xlabel']
         labels.update(xlabel=xlabel+f'\n(n = {len(plot)} cells)',ylabel='Cells, sorted by length' if spec.sort=='length_um' else 'Cells')
+    elif spec.kind=='Kymograph':
+        labels.update(xlabel='Relative cell length' if spec.x=='relative_position' else spec.x,ylabel='Time (min)' if spec.y=='time_min' else 'Frame (0-based)')
     elif spec.kind=='Maxima map':
         count=plot.shape[0]
         labels.update(xlabel=labels['xlabel']+f'\n(n = {count} points)')
     ax.set(xlabel=labels['xlabel'],ylabel=labels['ylabel'],title=spec.title or spec.kind)
+    from bactomate.modules.figure_style import apply_style
+    apply_style(figure,ax,spec)
+    labels.update(xlabel=ax.get_xlabel(),ylabel=ax.get_ylabel())
     figure.tight_layout()
     return ax
 
 
 def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png','pdf','svg'), provenance=None):
     folder = Path(folder); folder.mkdir(parents=True, exist_ok=True)
-    figure.set_size_inches(6,6,forward=False)
+    from copy import deepcopy
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    figure=deepcopy(figure)
+    FigureCanvasAgg(figure)
+    figure.set_size_inches(spec.figure_width,spec.figure_height,forward=False)
+    figure.tight_layout()
+    labels=dict(labels,xlabel=figure.axes[0].get_xlabel(),ylabel=figure.axes[0].get_ylabel())
     matrix = spec.kind in ('Correlation','Heatmap','Demograph','Kymograph','Normalized cell heatmap')
     used.to_csv(folder/'source_rows.csv',index=False)
     plotted.to_csv(folder/'plot_data.csv',index=matrix)
@@ -343,7 +388,7 @@ def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png'
     (folder/'figure.json').write_text(json.dumps(config,indent=2,ensure_ascii=False),encoding='utf8')
     for fmt in formats:
         if fmt not in ('png','pdf','svg'): raise ValueError('Unsupported figure format.')
-        figure.savefig(folder/f'figure.{fmt}',dpi=300)
+        figure.savefig(folder/f'figure.{fmt}',dpi=spec.export_dpi)
     # Export data-space drawing primitives so KDE/box statistics are identical
     # across languages without requiring BactoMate in the receiving environment.
     _write_scripts(folder, figure, labels, spec)
@@ -355,26 +400,30 @@ def _write_scripts(folder, figure, labels, spec):
     """Export rendered data-space primitives so all languages share identical statistics."""
     from matplotlib.colors import to_rgba
     ax = figure.axes[0]; records=[]; index=0
-    def add(kind, x, y, color, alpha=1):
+    def add(kind, x, y, color, alpha=1,point_size=12,line_width=1.5):
         nonlocal index
         rgb = to_rgba(color)
-        for a,b in zip(x,y): records.append(dict(element=index,kind=kind,x=float(a),y=float(b),r=rgb[0],g=rgb[1],b=rgb[2],alpha=alpha))
+        for a,b in zip(x,y): records.append(dict(element=index,kind=kind,x=float(a),y=float(b),r=rgb[0],g=rgb[1],b=rgb[2],alpha=alpha,point_size=point_size,line_width=line_width))
         index += 1
     for line in ax.lines:
         x,y = line.get_data()
         # Steps are expanded so R/MATLAB do not reinterpret their interpolation.
         vertices = line.get_path().vertices
-        add('line',vertices[:,0],vertices[:,1],line.get_color())
-        if line.get_marker() not in ('None','', ' '): add('point',x,y,line.get_color())
+        add('line',vertices[:,0],vertices[:,1],line.get_color(),line_width=line.get_linewidth())
+        if line.get_marker() not in ('None','', ' '): add('point',x,y,line.get_color(),point_size=line.get_markersize()**2)
     for patch in ax.patches:
         verts = ax.transData.inverted().transform(patch.get_transform().transform(patch.get_path().vertices))
         add('polygon',verts[:,0],verts[:,1],patch.get_facecolor(),patch.get_alpha() or 1)
+        edge=patch.get_edgecolor()
+        if edge[3]>0 and patch.get_linewidth()>0:
+            boundary=np.vstack([verts,verts[0]])
+            add('line',boundary[:,0],boundary[:,1],edge,line_width=patch.get_linewidth())
     for collection in ax.collections:
         from matplotlib.collections import PathCollection, PolyCollection
         colors=collection.get_facecolors()
         color=colors[0] if len(colors) else (0,0,0,1)
         if isinstance(collection,PathCollection):
-            pts=np.asarray(collection.get_offsets()); add('point',pts[:,0],pts[:,1],color,collection.get_alpha() or 1)
+            pts=np.asarray(collection.get_offsets()); add('point',pts[:,0],pts[:,1],color,collection.get_alpha() or 1,point_size=float(collection.get_sizes()[0]) if len(collection.get_sizes()) else spec.point_size)
         elif isinstance(collection,PolyCollection):
             for path in collection.get_paths(): add('polygon',path.vertices[:,0],path.vertices[:,1],color,collection.get_alpha() or 1)
         else:
@@ -387,9 +436,9 @@ def _write_scripts(folder, figure, labels, spec):
         for row,col in np.ndindex(values.shape):
             if np.ma.is_masked(values[row,col]) or not np.isfinite(values[row,col]): continue
             add('polygon',[xe[col],xe[col+1],xe[col+1],xe[col]],[ye[row],ye[row],ye[row+1],ye[row+1]],rgba[row,col])
-    geometry=pd.DataFrame(records,columns=['element','kind','x','y','r','g','b','alpha'])
+    geometry=pd.DataFrame(records,columns=['element','kind','x','y','r','g','b','alpha','point_size','line_width'])
     geometry.to_csv(folder/'figure_geometry.csv',index=False)
-    meta=dict(box_aspect=ax.get_box_aspect(),xlim=list(ax.get_xlim()),ylim=list(ax.get_ylim()),title=spec.title or spec.kind,**labels,
+    meta=dict(figure_size=[spec.figure_width,spec.figure_height],export_dpi=spec.export_dpi,font_size=spec.font_size,xtick_rotation=spec.x_tick_rotation,box_aspect=ax.get_box_aspect(),xlim=list(ax.get_xlim()),ylim=list(ax.get_ylim()),title=ax.get_title(),**labels,
               xticks=list(ax.get_xticks()),xticklabels=[t.get_text() for t in ax.get_xticklabels()],
               yticks=list(ax.get_yticks()),yticklabels=[t.get_text() for t in ax.get_yticklabels()])
     meta['legend'] = []
@@ -412,15 +461,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 root=Path(__file__).resolve().parent
 d=pd.read_csv(root/'figure_geometry.csv'); m=json.loads((root/'axes.json').read_text())
-fig,ax=plt.subplots(figsize=(6,6))
+fig,ax=plt.subplots(figsize=m.get('figure_size',[6,6]))
 ax.set_box_aspect(m.get('box_aspect',1))
 for _,g in d.groupby('element',sort=False):
     color=tuple(g.iloc[0][['r','g','b']]); kind=g.kind.iloc[0]; alpha=g.alpha.iloc[0]
     if kind=='polygon': ax.fill(g.x,g.y,color=color,alpha=alpha)
-    elif kind=='point': ax.scatter(g.x,g.y,color=[color],s=12,alpha=alpha)
-    else: ax.plot(g.x,g.y,color=color,alpha=alpha)
+    elif kind=='point': ax.scatter(g.x,g.y,color=[color],s=float(g.point_size.iloc[0]),alpha=alpha)
+    else: ax.plot(g.x,g.y,color=color,alpha=alpha,linewidth=float(g.line_width.iloc[0]))
 ax.set(xlim=m['xlim'],ylim=m['ylim'],title=m['title'],xlabel=m['xlabel'],ylabel=m['ylabel'])
-ax.set_xticks(m['xticks'],m['xticklabels']); ax.set_yticks(m['yticks'],m['yticklabels'])
+ax.set_xticks(m['xticks'],m['xticklabels'],rotation=m.get('xtick_rotation',0)); ax.set_yticks(m['yticks'],m['yticklabels'])
 if m['legend']:
     from matplotlib.lines import Line2D
     ax.legend(handles=[Line2D([],[],color=g['color'],label=g['name']) for g in m['legend']])
@@ -430,8 +479,10 @@ if m['color_scale']:
     scale=m['color_scale']; palette=pd.read_csv(root/'palette.csv').to_numpy()
     cax=ax.inset_axes([1.04,0,.04,1])
     fig.colorbar(ScalarMappable(norm=Normalize(scale['lo'],scale['hi']),cmap=ListedColormap(palette)),cax=cax,label=scale['label'])
+ax.tick_params(labelsize=m.get('font_size',10))
+ax.xaxis.label.set_fontsize(m.get('font_size',10));ax.yaxis.label.set_fontsize(m.get('font_size',10))
 fig.tight_layout()
-for ext in ('png','pdf','svg'): fig.savefig(root/('reproduced.'+ext),dpi=300)
+for ext in ('png','pdf','svg'): fig.savefig(root/('reproduced.'+ext),dpi=m.get('export_dpi',300))
 ''')
     (folder/'reproduce.R').write_text('''# Run in this bundle folder. Requires jsonlite. Uses precomputed geometry, no hidden KDE/statistics.
 library(jsonlite)
@@ -442,8 +493,8 @@ render <- function() {
  for (id in unique(d$element)) {
   g <- d[d$element==id,]; col <- rgb(g$r[1],g$g[1],g$b[1],g$alpha[1])
   if (g$kind[1]=="polygon") polygon(g$x,g$y,col=col,border=NA)
-  else if (g$kind[1]=="point") points(g$x,g$y,col=col,pch=16,cex=.5)
-  else lines(g$x,g$y,col=col)
+  else if (g$kind[1]=="point") points(g$x,g$y,col=col,pch=16,cex=sqrt(g$point_size[1])/6)
+  else lines(g$x,g$y,col=col,lwd=g$line_width[1])
  }
  if (length(m$legend$name)) legend("topright",legend=m$legend$name,col=apply(m$legend$color,1,function(c) rgb(c[1],c[2],c[3])),lty=1)
  if (!is.null(m$color_scale)) {
@@ -453,24 +504,24 @@ render <- function() {
   text(x+w,yy[c(1,n+1)],labels=c(m$color_scale$lo,m$color_scale$hi),pos=4,xpd=NA,cex=.7)
  }
 }
-pdf("reproduced_R.pdf",width=6,height=6); render(); dev.off()
-png("reproduced_R.png",width=1800,height=1800,res=300); render(); dev.off()
-svg("reproduced_R.svg",width=6,height=6); render(); dev.off()
+pdf("reproduced_R.pdf",width=m$figure_size[1],height=m$figure_size[2],pointsize=m$font_size); render(); dev.off()
+png("reproduced_R.png",width=round(m$figure_size[1]*m$export_dpi),height=round(m$figure_size[2]*m$export_dpi),res=m$export_dpi); render(); dev.off()
+svg("reproduced_R.svg",width=m$figure_size[1],height=m$figure_size[2],pointsize=m$font_size); render(); dev.off()
 ''')
     (folder/'reproduce.m').write_text('''% Run from this bundle folder. Base MATLAB, readtable + jsondecode + exportgraphics.
 d=readtable('figure_geometry.csv'); m=jsondecode(fileread('axes.json'));
-figure('Units','inches','Position',[1 1 6 6]); hold on;
+figure('Units','inches','Position',[1 1 m.figure_size(1) m.figure_size(2)]); hold on;
 pbaspect([1 m.box_aspect 1]);
 for id=unique(d.element)'
  g=d(d.element==id,:); c=[g.r(1),g.g(1),g.b(1)]; k=string(g.kind(1));
  if k=="polygon", patch(g.x,g.y,c,'EdgeColor','none','FaceAlpha',g.alpha(1));
- elseif k=="point", scatter(g.x,g.y,12,c,'filled');
- else, plot(g.x,g.y,'Color',c); end
+ elseif k=="point", scatter(g.x,g.y,g.point_size(1),c,'filled');
+ else, plot(g.x,g.y,'Color',c,'LineWidth',g.line_width(1)); end
 end
 xlim(sort(m.xlim)); ylim(sort(m.ylim));
 if m.xlim(1)>m.xlim(2), set(gca,'XDir','reverse'); end
 if m.ylim(1)>m.ylim(2), set(gca,'YDir','reverse'); end
-xticks(m.xticks); xticklabels(m.xticklabels); yticks(m.yticks); yticklabels(m.yticklabels);
+xticks(m.xticks); xticklabels(m.xticklabels); xtickangle(m.xtick_rotation); yticks(m.yticks); yticklabels(m.yticklabels);
 xlabel(m.xlabel); ylabel(m.ylabel); title(m.title);
 if ~isempty(m.color_scale)
  p=readtable('palette.csv'); colormap([p.r,p.g,p.b]); caxis([m.color_scale.lo,m.color_scale.hi]); cb=colorbar; ylabel(cb,m.color_scale.label);
@@ -480,8 +531,8 @@ if ~isempty(m.legend)
  for j=1:length(m.legend), h(j)=plot(nan,nan,'Color',m.legend(j).color); end
  legend(h,{m.legend.name});
 end
-set(gcf,'PaperUnits','inches','PaperPosition',[0 0 6 6],'PaperSize',[6 6]);
+set(gcf,'PaperUnits','inches','PaperPosition',[0 0 m.figure_size(1) m.figure_size(2)],'PaperSize',m.figure_size');
 print(gcf,'reproduced_MATLAB.pdf','-dpdf','-painters');
-print(gcf,'reproduced_MATLAB.png','-dpng','-r300');
+print(gcf,'reproduced_MATLAB.png','-dpng',sprintf('-r%d',m.export_dpi));
 print(gcf,'reproduced_MATLAB.svg','-dsvg');
 ''')

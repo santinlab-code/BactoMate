@@ -497,6 +497,15 @@ class ImageCanvas(QWidget):
             for x, y, width, height in self.object_selection_boxes:
                 painter.drawRect(QRectF(offset.x()+x*scale, offset.y()+y*scale,
                                         width*scale, height*scale))
+            points=getattr(self,'manual_polygon',[])
+            if points:
+                painter.setPen(QPen(QColor('cyan'),2))
+                for i,(x,y) in enumerate(points):
+                    here=QPointF(offset.x()+x*scale,offset.y()+y*scale)
+                    painter.drawEllipse(here,3,3)
+                    if i:
+                        px,py=points[i-1]
+                        painter.drawLine(QPointF(offset.x()+px*scale,offset.y()+py*scale),here)
             for roi in (self._editable_roi, self._pending_roi):
                 if roi is None:
                     continue

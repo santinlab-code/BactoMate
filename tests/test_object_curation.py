@@ -123,6 +123,7 @@ def test_batch_writes_curated_cells(tmp_path, qapp, monkeypatch):
     tab.file_path.setText(str(path))
     monkeypatch.setattr(tab,'_show_finished_dialog_with_output_folder',lambda **kwargs:None)
     try:
+        monkeypatch.setattr('bactomate.gui.tabs._analyze_masks_filtering.show_file_selection_dialog',lambda parent,files,**kw:(list(files),''))
         tab.filter_masks()
         assert _wait_until(lambda:not tab._filtering_in_progress)
         out=tifffile.imread(filtered_mask_path_for_mask(path))
@@ -160,6 +161,7 @@ def test_batch_foci_export_obeys_manual_keep_and_exclude(tmp_path, qapp, monkeyp
     monkeypatch.setattr(tab,'_resolve_foci_paths_for_mask',lambda *args:[source])
     monkeypatch.setattr(tab,'_show_finished_dialog_with_output_folder',lambda **kwargs:None)
     try:
+        monkeypatch.setattr('bactomate.gui.tabs._analyze_masks_filtering.show_file_selection_dialog',lambda parent,files,**kw:(list(files),''))
         tab.filter_masks()
         assert _wait_until(lambda:not tab._filtering_in_progress)
         out=artifacts.filtered_foci_csv_path(artifacts.infer_pipeline_dir_from_mask(path),mask_path=path,foci_source_path=source)
