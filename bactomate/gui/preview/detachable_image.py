@@ -10,8 +10,13 @@ class _ImageWindow(QDialog):
         pass
 
     def closeEvent(self,event):
+        from bactomate.gui.image_close import close_choice,save_canvas_image
+        from PyQt6.QtWidgets import QMessageBox
+        answer=close_choice(self)
+        if answer==QMessageBox.StandardButton.Cancel:event.ignore();return
+        if answer==QMessageBox.StandardButton.Save and not save_canvas_image(self,self.controller.canvas):event.ignore();return
         self.controller.attach()
-        event.ignore()
+        self.hide();event.accept()
 
 
 class DetachablePreviewImage(QObject):
@@ -19,6 +24,8 @@ class DetachablePreviewImage(QObject):
         super().__init__(preview)
         self.preview,self.canvas=preview,preview.canvas
         self._lut_policy=preview.lut_section.sizePolicy()
+        self._home_alignment=preview._layout.alignment()
+        self._home_min_height=preview.minimumHeight()
         self.home=self.canvas.parentWidget(); self.layout=self.home.layout()
         self.index=self.layout.indexOf(self.canvas); self.is_detached=False
         self._docked=[(widget,widget.parentWidget().layout(),0)
@@ -63,6 +70,8 @@ class DetachablePreviewImage(QObject):
         self.image_host.layout().addWidget(self.canvas,0,0)
         self.preview.lut_section.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Maximum)
         self.lut_layout.addWidget(self.preview.lut_section)
+        self.preview._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.preview.setMinimumHeight(0);self.preview.updateGeometry()
         self.is_detached=True; self.button.setEnabled(False); self.window.show()
         self._sync_scrollbars(); self.highlight()
 
@@ -73,6 +82,8 @@ class DetachablePreviewImage(QObject):
         self.preview.lut_section.setSizePolicy(self._lut_policy)
         for widget,layout,index in sorted(self._docked,key=lambda slot:slot[2]):
             layout.insertWidget(index,widget,1 if widget is self.canvas else 0)
+        self.preview._layout.setAlignment(self._home_alignment)
+        self.preview.setMinimumHeight(self._home_min_height);self.preview.updateGeometry()
         self.is_detached=False; self.window.hide(); self.button.setEnabled(True)
 
     def _sync_scrollbars(self,*_):

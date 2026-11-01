@@ -367,7 +367,15 @@ class DistancePreview(QDialog):
             zoom.add_patch(Rectangle((x0+1, y1-2), 1, 1, fill=False, edgecolor='white'))
             zoom.text(x0+2.5, y1-1, '1 px', color='white')
         self.overview.set_title('Click a cell')
-        zoom.set_title(f'Cell {label} — pixel coordinates')
+        cell_pairs=[]
+        if label is not None:
+            for pair in self.pairs:
+                y,x=pair['foci_coordinates'];y2,x2=pair['colocalized_foci_coordinates']
+                if any(0<=int(py)<mask.shape[0] and 0<=int(px)<mask.shape[1] and int(mask[int(py),int(px)])==int(label) for py,px in ((y,x),(y2,x2))):cell_pairs.append(pair)
+        coloc=any(pair['is_valid'] for pair in cell_pairs)
+        state='Choose a cell' if label is None else ('Colocalized' if coloc else 'Not Colocalized')
+        zoom.set_title(f'Cell {label} — {state}',color='green' if coloc else 'darkorange')
+        self.cell_colocalization_state=state
         valid = sum(bool(p['is_valid']) for p in self.pairs)
         calibration = f'1 px = {self.pixel_size:.4g} µm. ' if self.pixel_size > 0 else ''
         text = f'{calibration}Frame: {valid} colocalized / {len(self.pairs)} matched pairs.'

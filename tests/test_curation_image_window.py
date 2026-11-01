@@ -3,7 +3,9 @@ from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtTest import QTest
 
 
-def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp):
+def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp,monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch.setattr('bactomate.gui.image_close.close_choice',lambda *_:QMessageBox.StandardButton.Discard)
     from tests.test_filtering_preview_apply_flow import (
         _open_preview, _wait_for_filter_apply, _wait_for_apply_generation, _shutdown, _wait_until)
     tab, parent, dlg = _open_preview(tmp_path)

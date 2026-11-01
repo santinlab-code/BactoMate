@@ -1,7 +1,7 @@
 """
-Standard pipeline QC artifacts: overlays, filter visualizations, PNG previews.
+Standard pipeline QC artifacts: TIFF overlays and filter visualizations.
 
-These outputs are always written by BactoMate (not gated on optional UI checkboxes).
+Automatic PNG previews are disabled.
 """
 from __future__ import annotations
 
@@ -29,51 +29,8 @@ def write_png_preview_from_tiff(
 
     ``frame`` may be an int index or ``"mid"`` (default) for the middle frame.
     """
-    tiff_path = Path(tiff_path)
-    if not tiff_path.is_file():
-        return None
-    if png_path is None:
-        png_path = tiff_path.with_suffix(".png")
-    else:
-        png_path = Path(png_path)
-    try:
-        stack = tifffile.imread(str(tiff_path))
-        if stack.ndim == 2:
-            plane = stack
-        elif stack.ndim >= 3:
-            n = int(stack.shape[0])
-            if frame == "mid":
-                idx = n // 2
-            else:
-                idx = int(frame)
-                idx = max(0, min(idx, n - 1))
-            plane = stack[idx]
-        else:
-            return None
-        if plane.ndim == 3 and plane.shape[-1] in (3, 4):
-            rgb = np.asarray(plane[..., :3], dtype=np.uint8)
-        elif plane.ndim == 2:
-            from bactomate.scripts.analyze_cell_areas import _normalize_plane_for_visualization_u8
-
-            gray = _normalize_plane_for_visualization_u8(plane)
-            if gray is None:
-                return None
-            rgb = np.stack([gray, gray, gray], axis=-1)
-        else:
-            return None
-        png_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            from PIL import Image
-
-            Image.fromarray(np.ascontiguousarray(rgb, dtype=np.uint8)).save(str(png_path))
-        except ImportError:
-            import imageio.v2 as imageio
-
-            imageio.imwrite(str(png_path), rgb)
-        return png_path
-    except Exception as exc:
-        _logger.warning("PNG preview failed for %s: %s", tiff_path, exc)
-        return None
+    # Kept as a compatibility hook for pipeline callers: no automatic PNG output.
+    return None
 
 
 def write_png_previews_for_tiffs(paths: Iterable[Path | str], log: LogFn = None) -> list[Path]:
@@ -243,8 +200,6 @@ def write_filter_stage_visualization(
             foci_table=list(foci_table) if foci_table else None,
             background_images=bg_images,
         )
-        # create_filter_visualization already writes this preview.
-        if not vis_output.with_suffix(".png").is_file():write_png_preview_from_tiff(vis_output)
         if log is not None:
             log(f"[Filtering] Wrote filter visualization: {vis_output.name}\n")
         return vis_output

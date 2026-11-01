@@ -79,8 +79,8 @@ def load_tables(path):
     return result
 
 
-def extract_profiles(masks, images, *, pixel_size, source, bins=48, across=16,
-                     orientation='geometric', method='principal axis', foci=None):
+def extract_profiles(masks, images, *, pixel_size, source, bins=24, across=16,
+                     orientation='geometric', method='principal axis', foci=None, sampling='fixed'):
     """Pixel skeleton or straight principal-axis profiles (not MicrobeJ subpixel contours).
 
     Pixels are averaged in normalized bins; empty bins remain NaN. Polarity is
@@ -180,9 +180,21 @@ def extract_profiles(masks, images, *, pixel_size, source, bins=48, across=16,
             xi = np.minimum(((u+1)*bins/2).astype(int), bins-1)
             yi = np.minimum(((v+1)*across/2).astype(int), across-1)
             tmp = pd.DataFrame(dict(xi=xi, yi=yi, intensity=intensity))
-            for idx, vals in tmp.groupby('xi').intensity:
-                samples.append(dict(**base, profile='longitudinal', position=-1+(idx+.5)*2/bins,
-                                    transverse=np.nan, intensity=vals.mean(), pixel_count=vals.count()))
+            if sampling=='native':
+                from bactomate.modules.profile_sampling import native_profile
+                length=distances[-1] if method=='medial axis' else np.ptp(centered@axis)
+                positions,native,target,values=native_profile(u,intensity,length,bins)
+                for pos,(_,measurement) in zip(positions,native.iterrows()):
+                    samples.append(dict(**base,profile='native longitudinal',position=pos,transverse=np.nan,
+                        intensity=measurement['mean'],pixel_count=int(measurement['count']),sampling='native measured'))
+                for pos,value in zip(target,values):
+                    samples.append(dict(**base,profile='longitudinal',position=pos,transverse=np.nan,
+                        intensity=value,pixel_count=np.nan,sampling='native resampled'))
+            elif sampling=='fixed':
+                for idx, vals in tmp.groupby('xi').intensity:
+                    samples.append(dict(**base, profile='longitudinal', position=-1+(idx+.5)*2/bins,
+                                        transverse=np.nan, intensity=vals.mean(), pixel_count=vals.count(),sampling='fixed measured'))
+            else:raise ValueError('Unknown profile sampling method.')
             for (i, j), vals in tmp.groupby(['xi', 'yi']).intensity:
                 samples.append(dict(**base, profile='cell map', position=-1+(i+.5)*2/bins,
                                     transverse=-1+(j+.5)*2/across, intensity=vals.mean(), pixel_count=vals.count()))
@@ -363,7 +375,7 @@ def draw(figure, plot, spec, labels):
     return ax
 
 
-def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png','pdf','svg'), provenance=None):
+def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('pdf','svg'), provenance=None,native_profiles=None):
     folder = Path(folder); folder.mkdir(parents=True, exist_ok=True)
     from copy import deepcopy
     from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -373,6 +385,7 @@ def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png'
     figure.tight_layout()
     labels=dict(labels,xlabel=figure.axes[0].get_xlabel(),ylabel=figure.axes[0].get_ylabel())
     matrix = spec.kind in ('Correlation','Heatmap','Demograph','Kymograph','Normalized cell heatmap')
+    if native_profiles is not None and not native_profiles.empty:native_profiles.to_csv(folder/'native_profiles.csv',index=False)
     used.to_csv(folder/'source_rows.csv',index=False)
     plotted.to_csv(folder/'plot_data.csv',index=matrix)
     with pd.ExcelWriter(folder/'figure_data.xlsx') as writer:
@@ -391,12 +404,12 @@ def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('png'
         figure.savefig(folder/f'figure.{fmt}',dpi=spec.export_dpi)
     # Export data-space drawing primitives so KDE/box statistics are identical
     # across languages without requiring BactoMate in the receiving environment.
-    _write_scripts(folder, figure, labels, spec)
+    _write_scripts(folder, figure, labels, spec,formats)
     hashes = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in folder.iterdir() if p.is_file() and p.name!='manifest.json'}
     (folder/'manifest.json').write_text(json.dumps(hashes,indent=2))
 
 
-def _write_scripts(folder, figure, labels, spec):
+def _write_scripts(folder, figure, labels, spec,formats):
     """Export rendered data-space primitives so all languages share identical statistics."""
     from matplotlib.colors import to_rgba
     ax = figure.axes[0]; records=[]; index=0
@@ -438,7 +451,7 @@ def _write_scripts(folder, figure, labels, spec):
             add('polygon',[xe[col],xe[col+1],xe[col+1],xe[col]],[ye[row],ye[row],ye[row+1],ye[row+1]],rgba[row,col])
     geometry=pd.DataFrame(records,columns=['element','kind','x','y','r','g','b','alpha','point_size','line_width'])
     geometry.to_csv(folder/'figure_geometry.csv',index=False)
-    meta=dict(figure_size=[spec.figure_width,spec.figure_height],export_dpi=spec.export_dpi,font_size=spec.font_size,xtick_rotation=spec.x_tick_rotation,box_aspect=ax.get_box_aspect(),xlim=list(ax.get_xlim()),ylim=list(ax.get_ylim()),title=ax.get_title(),**labels,
+    meta=dict(formats=list(formats),figure_size=[spec.figure_width,spec.figure_height],export_dpi=spec.export_dpi,font_size=spec.font_size,xtick_rotation=spec.x_tick_rotation,box_aspect=ax.get_box_aspect(),xlim=list(ax.get_xlim()),ylim=list(ax.get_ylim()),title=ax.get_title(),**labels,
               xticks=list(ax.get_xticks()),xticklabels=[t.get_text() for t in ax.get_xticklabels()],
               yticks=list(ax.get_yticks()),yticklabels=[t.get_text() for t in ax.get_yticklabels()])
     meta['legend'] = []
@@ -482,7 +495,7 @@ if m['color_scale']:
 ax.tick_params(labelsize=m.get('font_size',10))
 ax.xaxis.label.set_fontsize(m.get('font_size',10));ax.yaxis.label.set_fontsize(m.get('font_size',10))
 fig.tight_layout()
-for ext in ('png','pdf','svg'): fig.savefig(root/('reproduced.'+ext),dpi=m.get('export_dpi',300))
+for ext in m.get('formats',['pdf','svg']): fig.savefig(root/('reproduced.'+ext),dpi=m.get('export_dpi',300))
 ''')
     (folder/'reproduce.R').write_text('''# Run in this bundle folder. Requires jsonlite. Uses precomputed geometry, no hidden KDE/statistics.
 library(jsonlite)
@@ -505,7 +518,7 @@ render <- function() {
  }
 }
 pdf("reproduced_R.pdf",width=m$figure_size[1],height=m$figure_size[2],pointsize=m$font_size); render(); dev.off()
-png("reproduced_R.png",width=round(m$figure_size[1]*m$export_dpi),height=round(m$figure_size[2]*m$export_dpi),res=m$export_dpi); render(); dev.off()
+if ("png" %in% m$formats) { png("reproduced_R.png",width=round(m$figure_size[1]*m$export_dpi),height=round(m$figure_size[2]*m$export_dpi),res=m$export_dpi); render(); dev.off() }
 svg("reproduced_R.svg",width=m$figure_size[1],height=m$figure_size[2],pointsize=m$font_size); render(); dev.off()
 ''')
     (folder/'reproduce.m').write_text('''% Run from this bundle folder. Base MATLAB, readtable + jsondecode + exportgraphics.
@@ -533,6 +546,6 @@ if ~isempty(m.legend)
 end
 set(gcf,'PaperUnits','inches','PaperPosition',[0 0 m.figure_size(1) m.figure_size(2)],'PaperSize',m.figure_size');
 print(gcf,'reproduced_MATLAB.pdf','-dpdf','-painters');
-print(gcf,'reproduced_MATLAB.png','-dpng',sprintf('-r%d',m.export_dpi));
+if any(strcmp(m.formats,'png')), print(gcf,'reproduced_MATLAB.png','-dpng',sprintf('-r%d',m.export_dpi)); end
 print(gcf,'reproduced_MATLAB.svg','-dsvg');
 ''')

@@ -440,3 +440,41 @@ l’exécution native des scripts R/MATLAB restent à valider localement.
 Quatre vérifications finales des fenêtres de figures, de l’édition guidée et du
 kymographe (graduations longitudinales 0 / 0,5 / 1 et export Python) réussissent
 également après la dernière retouche des axes.
+
+## Profils, PNG et fenêtres — 1 novembre 2026
+
+Les profils longitudinaux utilisent 24 segments par défaut. Figure guide et les
+réglages avancés proposent aussi Native resolution → 24 positions : les moyennes
+sont mesurées sur une grille d’environ un pixel le long de l’axe, puis interpolées
+linéairement sur la grille commune. Les extrémités utilisent la moyenne du premier/
+dernier segment mesuré. Les profils mesurés et rééchantillonnés sont distingués ;
+l’export ajoute native_profiles.csv pour garder les mesures natives.
+
+Les aperçus PNG automatiques du pipeline sont désactivés. Les nouveaux bundles de
+figures exportent PDF/SVG par défaut, ainsi que les données et scripts. Les scripts
+Python/R/MATLAB n’ajoutent pas de PNG par défaut. Les images PNG existantes ne font
+pas l’objet d’une suppression en masse ; le choix explicite d’un PNG reste possible
+avec les outils de sauvegarde manuelle.
+
+La fenêtre Segmentation détachée compacte les contrôles en haut et retrouve sa
+disposition initiale au rattachement. Foci distances affiche Colocalized ou Not
+Colocalized au-dessus de la cellule choisie, à partir des paires valides impliquant
+cette cellule et des seuils actifs.
+
+Les figures sont activées au premier plan après leur génération, sans réactiver
+une fenêtre déjà fermée ou voler le focus à un autre outil. La croix des fenêtres
+d’images détachées et de figures ouvre Save / Discard / Cancel ; une sauvegarde
+annulée laisse l’image ouverte. Échap garde son comportement précédent. Les
+fermetures internes de session ne déclenchent pas ces dialogues.
+
+Figure options utilise des centimètres ou pixels, avec conversion selon le DPI.
+L’unité interne nécessaire à Matplotlib reste masquée. Changer la mesure dans
+Figure guide réinitialise les anciennes surcharges des libellés d’axes : une
+figure de largeur ne conserve plus le libellé de longueur.
+
+Validation : 614 tests réussis, 5 ignorés dans la suite complète, avec contrôles
+ciblés des fermetures, des unités, des profils natifs, de l’absence de PNG et de
+l’état de colocalisation. Les callbacks différés de la fenêtre principale sont
+maintenant liés à sa durée de vie Qt pour éviter leur exécution après destruction.
+Après les dernières retouches de fermeture et d’activation, 11 contrôles ciblés
+réussissent, dont la sauvegarde TIFF réelle et la mise à jour de colocalisation.

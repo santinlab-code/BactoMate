@@ -20,9 +20,12 @@ def test_distances_update_real_pairing_and_analysis_controls(qapp):
     try:
         assert ColocSettings().coloc_max_distance == 3
         assert ColocSettings().coloc_threshold == 2
+        dlg.cell.setCurrentIndex(dlg.cell.findData(1))
+        assert dlg.cell_colocalization_state=='Not Colocalized'
         assert len(dlg.pairs) == 1 and not dlg.pairs[0]['is_valid']
         dlg.threshold.setValue(3)
         assert dlg.pairs[0]['is_valid']
+        assert dlg.cell_colocalization_state=='Colocalized'
         assert tab.coloc_merge_threshold.value() == 3
         dlg.maximum.setValue(2)
         assert not dlg.pairs

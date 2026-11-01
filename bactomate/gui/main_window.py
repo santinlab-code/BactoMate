@@ -277,9 +277,9 @@ class MainWindow(QMainWindow):
         self._session_autosave_timer.setInterval(30000)
         self._session_autosave_timer.timeout.connect(lambda : self._save_session_log(refresh_panel=False))
         self._session_autosave_timer.start()
-        QTimer.singleShot(0, lambda : self._save_session_log(refresh_panel=True))
+        self._schedule(0, lambda : self._save_session_log(refresh_panel=True))
         from bactomate.gui.layout_helpers import patch_all_combo_popups
-        QTimer.singleShot(0, lambda : patch_all_combo_popups(self))
+        self._schedule(0, lambda : patch_all_combo_popups(self))
 
     def init_ui(self) -> None:
         self.setWindowTitle('BactoMate')
@@ -291,7 +291,7 @@ class MainWindow(QMainWindow):
                 get_unet_models_dir()
             except Exception:
                 pass
-        QTimer.singleShot(0, _ensure_model_dirs)
+        self._schedule(0, _ensure_model_dirs)
         (eff_min_w, eff_min_h, init_w, init_h) = _initial_window_dimensions(_MAIN_WIN_MIN_W, _MAIN_WIN_MIN_H, _MAIN_WIN_PREFERRED_W, _MAIN_WIN_PREFERRED_H, screen_margin=_MAIN_WIN_SCREEN_MARGIN, size_ratio=_MAIN_WIN_SIZE_RATIO)
         self._window_init_w = init_w
         self._window_init_h = init_h
@@ -433,14 +433,14 @@ class MainWindow(QMainWindow):
                     log_group.setTitle('Status && Session logs  ▲')
                     log_group.setFixedHeight(32)
                     log_group.setStyleSheet(_COLLAPSED_LINE_STYLE)
-                    QTimer.singleShot(0, lambda : self._sync_log_panel_splitter_sizes(True))
+                    self._schedule(0, lambda : self._sync_log_panel_splitter_sizes(True))
                 else:
                     self._log_content.setVisible(True)
                     log_group.setTitle('Status && Session logs  ▼')
                     log_group.setMinimumHeight(0)
                     log_group.setMaximumHeight(16777215)
                     log_group.setStyleSheet('')
-                    QTimer.singleShot(0, self._prepare_expanded_log_panel_geometry)
+                    self._schedule(0, self._prepare_expanded_log_panel_geometry)
             except Exception:
                 pass
 
@@ -473,8 +473,8 @@ class MainWindow(QMainWindow):
         self.log_output('Omnipose Batch Processing GUI started.\n')
         self.log_output('Open a workspace from the dashboard, pick a module, and configure parameters to begin.\n')
         self.log_output('Expand Status && Session logs at the bottom to watch progress and session snapshots.\n\n')
-        QTimer.singleShot(0, lambda : self._sync_log_panel_splitter_sizes(True))
-        QTimer.singleShot(120, lambda : self._sync_log_panel_splitter_sizes(True))
+        self._schedule(0, lambda : self._sync_log_panel_splitter_sizes(True))
+        self._schedule(120, lambda : self._sync_log_panel_splitter_sizes(True))
 
     def _sync_log_panel_splitter_sizes(self, collapsed: Optional[bool]=None) -> None:
         """Keep the bottom splitter pane from reserving space when logs are collapsed (avoids empty gap)."""
@@ -490,7 +490,7 @@ class MainWindow(QMainWindow):
             if h < 60:
                 self._log_split_defer_count = self._log_split_defer_count + 1
                 if self._log_split_defer_count <= 12:
-                    QTimer.singleShot(50, lambda c=collapsed: self._sync_log_panel_splitter_sizes(c))
+                    self._schedule(50, lambda c=collapsed: self._sync_log_panel_splitter_sizes(c))
                 return
             self._log_split_defer_count = 0
             if collapsed:
@@ -557,7 +557,7 @@ class MainWindow(QMainWindow):
         self._log_group.setMinimumHeight(0)
         self._log_group.setMaximumHeight(16777215)
         self._log_group.setStyleSheet('')
-        QTimer.singleShot(0, self._prepare_expanded_log_panel_geometry)
+        self._schedule(0, self._prepare_expanded_log_panel_geometry)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -569,6 +569,14 @@ class MainWindow(QMainWindow):
                 self._sync_log_panel_splitter_sizes(True)
         except Exception:
             pass
+
+    def _schedule(self,delay,callback):
+        # Own deferred callbacks so destroying the window cancels them safely.
+        timer=QTimer(self);timer.setSingleShot(True)
+        def invoke():
+            try:callback()
+            finally:timer.deleteLater()
+        timer.timeout.connect(invoke);timer.start(delay)
 
     def closeEvent(self, event):
 
@@ -732,7 +740,7 @@ class MainWindow(QMainWindow):
                                 log_exception(get_logger(), 'Auto-load folder for file conversion')
             if hasattr(self.nd2_tab, 'refresh_conversion_candidate_list'):
                 self.nd2_tab.refresh_conversion_candidate_list()
-            QTimer.singleShot(150, lambda : getattr(self.nd2_tab, '_refresh_embedded_conversion_preview', lambda : None)())
+            self._schedule(150, lambda : getattr(self.nd2_tab, '_refresh_embedded_conversion_preview', lambda : None)())
         elif module_id == MODULE_SEGMENTATION:
             seg_path = getattr(self.segmentation_tab, 'file_path', None)
             if seg_path is not None and self._should_apply_workspace_hint_to_path_widget(seg_path):
@@ -813,7 +821,7 @@ class MainWindow(QMainWindow):
                 self.nd2_tab.refresh_conversion_candidate_list()
             except Exception:
                 log_exception(get_logger(), 'Refresh conversion candidate list on module show')
-            QTimer.singleShot(
+            self._schedule(
                 100,
                 lambda: getattr(self.nd2_tab, '_refresh_embedded_conversion_preview', lambda: None)(),
             )
@@ -1047,7 +1055,7 @@ class MainWindow(QMainWindow):
         else:
             self._show_dashboard()
         self.log_output(f'Workspace opened: {self._workspace_root}\n')
-        QTimer.singleShot(0, lambda : getattr(self.nd2_tab, 'refresh_conversion_candidate_list', lambda : None)())
+        self._schedule(0, lambda : getattr(self.nd2_tab, 'refresh_conversion_candidate_list', lambda : None)())
 
     def _apply_project_paths_to_tabs(self) -> None:
         if not self._workspace_root or not isinstance(self._project_data, dict):

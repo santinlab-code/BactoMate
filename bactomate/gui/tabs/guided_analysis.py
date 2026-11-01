@@ -354,7 +354,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
             if self.worker is not None and self.worker.isRunning():raise ValueError('Wait for the current calculation to finish.')
             if plan.goal=='maxima' and plan.maxima_profile=='focus' and any(not p['foci_csv'] for p in pairs):
                 raise ValueError('Saved filtered foci are missing for one or more XYs. Run Filtering → Filter File/Folder first, or choose brightest pixels.')
-            options=dict(pixel_size=plan.pixel_size,method=plan.method,orientation=plan.orientation,
+            options=dict(pixel_size=plan.pixel_size,method=plan.method,orientation=plan.orientation,sampling=plan.sampling,
                          use_foci=plan.goal=='maxima' and plan.maxima_profile=='focus',tracked_mask=plan.tracked_mask if plan.goal=='kymograph' else '',time_interval=plan.time_interval)
             self.mark_dirty()
             self.guide_button.setEnabled(False)

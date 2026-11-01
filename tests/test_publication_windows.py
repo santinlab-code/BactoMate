@@ -28,7 +28,7 @@ def test_independent_windows_redraw_and_export_do_not_shrink_live_canvas(qapp,tm
         assert len(first.figure.axes)==1
         assert list(first.figure.axes[0].get_xticks())==[1,3]
         original_size=first.figure.get_size_inches().copy()
-        export_bundle(tmp_path,first.figure,first.used,first.plot,first.spec,first.labels)
+        export_bundle(tmp_path,first.figure,first.used,first.plot,first.spec,first.labels,formats=("png","pdf","svg"))
         assert np.allclose(first.figure.get_size_inches(),original_size)
         assert Image.open(tmp_path/'figure.png').size==(1800,1800)
         assert np.allclose(first.figure.bbox.size,[first.canvas.width(),first.canvas.height()])

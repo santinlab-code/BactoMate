@@ -6,7 +6,7 @@ import pandas as pd
 from bactomate.modules.figure_analysis import load_tables
 
 IGNORED={'venv','.venv','.git','__pycache__','Logs'}
-EXPORTS={'source_rows.csv','plot_data.csv','figure_geometry.csv','palette.csv','replicate_summary.csv'}
+EXPORTS={'native_profiles.csv','source_rows.csv','plot_data.csv','figure_geometry.csv','palette.csv','replicate_summary.csv'}
 
 
 def discover_results(root):

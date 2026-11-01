@@ -4,7 +4,9 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtTest import QTest
 
 
-def test_segmentation_image_detach_attach_and_lifecycle(qapp):
+def test_segmentation_image_detach_attach_and_lifecycle(qapp,monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch.setattr('bactomate.gui.image_close.close_choice',lambda *_:QMessageBox.StandardButton.Discard)
     from bactomate.gui.preview.preview_window import PreviewDialogBase
     from bactomate.gui.preview.detachable_image import DetachablePreviewImage
     preview = PreviewDialogBase(title='Segmentation Preview')

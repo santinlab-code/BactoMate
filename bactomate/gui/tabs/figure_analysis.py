@@ -70,6 +70,7 @@ class FigureAnalysisTab(QWidget):
         self.calibration=QDoubleSpinBox(); self.calibration.setDecimals(6); self.calibration.setRange(.000001,1000); self.calibration.setValue(.108)
         form.addRow('Profiles: µm / px',self.calibration)
         self.method=QComboBox(); self.method.addItems(['medial axis','principal axis']); form.addRow('Profile coordinates',self.method)
+        self.sampling=QComboBox();self.sampling.addItem('24 segments','fixed');self.sampling.addItem('Native → 24 positions','native');form.addRow('Profile sampling',self.sampling)
         self.orientation=QComboBox(); self.orientation.addItems(['geometric','bright pole']); form.addRow('Profile orientation',self.orientation)
         note=QLabel('Medial-axis mode follows a pixel skeleton for curved rods; ambiguous/branched axes are refused. Principal-axis mode uses a straight projection. Geometric orientation is not pole age. Bright-pole alignment changes the population average. Map intensity controls normalization; raw is the default. Missing bins stay missing. Calibrate before extraction.\n\nKymograph: choose position for X, frame/time for Y, intensity for Value, a verified track ID for Group, then filter to one track and source/XY.\n\nNormalized cell heatmaps average each occupied cell bin equally. Cell counts may differ between bins.'); note.setWordWrap(True); note.setMaximumWidth(340); form.addRow(note)
         render=QPushButton('Draw figure'); render.clicked.connect(self.render); form.addRow(render)
@@ -150,7 +151,7 @@ class FigureAnalysisTab(QWidget):
         if not mask:return
         image,_=QFileDialog.getOpenFileName(self,'Choose matching fluorescence channel (TYX)','','TIFF (*.tif *.tiff)')
         if not image:return
-        options=dict(pixel_size=self.calibration.value(),source=Path(mask).stem,orientation=self.orientation.currentText(),method=self.method.currentText())
+        options=dict(pixel_size=self.calibration.value(),source=Path(mask).stem,orientation=self.orientation.currentText(),method=self.method.currentText(),sampling=self.sampling.currentData())
         provenance=dict(mask=str(Path(mask).resolve()),image=str(Path(image).resolve()),**options)
         self.worker=ProfileWorker(mask,image,options,self)
         self.worker.ready.connect(lambda tables:self.set_tables(tables,provenance))
@@ -178,7 +179,9 @@ class FigureAnalysisTab(QWidget):
         self._figure_windows.append(window)
         self.figure,self.canvas=window.figure,window.canvas
         self.snapshot=window.snapshot()
-        window.show();window.raise_()
+        from PyQt6.QtCore import QTimer
+        window.bring_to_front()
+        QTimer.singleShot(0,lambda:window.bring_to_front(deferred=True))
         self.export.setEnabled(True)
         self.status.setText(f'{len(used):,} source rows used. Export includes source data, plotted values, square figures and Python/R/MATLAB code.')
 
@@ -187,7 +190,8 @@ class FigureAnalysisTab(QWidget):
             window=self._figure_windows[-1];window.show();window.raise_();window.activateWindow()
 
     def close_figure_windows(self):
-        for window in self._figure_windows:window.close();window.deleteLater()
+        for window in self._figure_windows:
+            window._allow_close=True;window.close();window.deleteLater()
         self._figure_windows=[]
         self.figure,self.canvas=self._embedded_figure,self._embedded_canvas
 
@@ -199,7 +203,8 @@ class FigureAnalysisTab(QWidget):
             from datetime import datetime
             folder=Path(root)/('figure_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f'))
             used,plot,spec,labels,provenance=self.snapshot
-            export_bundle(folder,self.figure,used,plot,spec,labels,provenance=provenance)
+            export_bundle(folder,self.figure,used,plot,spec,labels,provenance=provenance,
+                native_profiles=self._figure_windows[-1].source.query("profile == 'native longitudinal'") if self._figure_windows and 'profile' in self._figure_windows[-1].source else None)
             self.status.setText(f'Figure, table and scripts exported to {folder}')
         except Exception as exc:QMessageBox.warning(self,'Export failed',str(exc))
 
@@ -207,4 +212,5 @@ class FigureAnalysisTab(QWidget):
         if self.worker is not None and self.worker.isRunning():
             QMessageBox.information(self,'Profile extraction running','Wait for profile extraction to finish before closing.')
             event.ignore(); return
+        self.close_figure_windows()
         super().closeEvent(event)

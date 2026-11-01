@@ -67,7 +67,7 @@ table cannot supply cells with zero foci and must not be used as its denominator
 
 Each figure opens in an independent movable window. The live canvas fills its
 window and is never resized by an export. The default export uses a 6 × 6
-inch canvas: PNG is 1800 × 1800 at 300 dpi; PDF/SVG retain the square page. The
+inch internal canvas (15.24 × 15.24 cm): PDF/SVG retain the square page. The
 normalized-cell map has a taller plotting area inside this square canvas so the
 reference cell is not stretched into a square.
 
@@ -97,7 +97,7 @@ does not dismiss a figure. Clear current session closes all its figure windows.
 
 **Figure options…** includes category order and labels, colours, box/violin
 spacing and width, axis bounds, X label rotation, fonts, markers, opacity, lines,
-legend/grid/title visibility, image colour bounds, export dimensions and PNG DPI.
+legend/grid/title visibility, image colour bounds, export dimensions in cm/pixels and raster DPI.
 Square export remains the default; the export size is independent of screen size.
 Apply redraws only this window. Export works on an off-screen copy.
 
@@ -127,3 +127,21 @@ These screenshots use simulated measurements:
 ![Independent figure window](images/free-figure-window-example.png)
 
 ![Category order, labels, colours and spacing](images/figure-category-options-example.png)
+
+## Profile sampling and updated export behaviour
+
+The default is now **24 segments**. **Profile sampling** offers **Native resolution
+→ 24 positions** as an alternative. Native bins average pixels at approximately
+one-pixel longitudinal spacing. The measured averages are linearly resampled onto
+24 common positions; edge positions retain the first/last measured bin average.
+This resampling does not add optical resolution. Source native measurements are
+included in `native_profiles.csv` when exporting a native-sampled spatial figure.
+
+Automatic pipeline PNG previews are disabled. New figure bundles default to PDF
+and SVG, alongside tables and scripts; PNG is only produced when explicitly
+requested. Existing PNG files are not removed in bulk.
+
+**Export size** uses **cm** or **pixels** and a raster DPI conversion. The image
+window close button offers **Save / Discard / Cancel**. Cancel, including cancellation
+of the save location, keeps the window open. Changing the measured variable in the
+guide resets stale axis label overrides from the preceding variable.

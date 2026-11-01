@@ -63,13 +63,24 @@ class FigureOptions(QDialog):
             text(form,key,label,'' if getattr(spec,key) is None else getattr(spec,key)).setPlaceholderText('Automatic')
         form=page('Export size')
         self.square=QCheckBox('Square export');self.square.setChecked(spec.figure_width==spec.figure_height);form.addRow(self.square)
-        width=spin(form,'figure_width','Width (inches)',spec.figure_width,2,20)
-        height=spin(form,'figure_height','Height (inches)',spec.figure_height,2,20)
+        self.export_unit=QComboBox();self.export_unit.addItems(['cm','pixels']);form.addRow('Units',self.export_unit)
+        width=spin(form,'figure_width','Width',spec.figure_width*2.54,.1,100)
+        height=spin(form,'figure_height','Height',spec.figure_height*2.54,.1,100)
         def match_square():
             height.setEnabled(not self.square.isChecked())
             if self.square.isChecked():height.setValue(width.value())
         width.valueChanged.connect(match_square);self.square.toggled.connect(match_square);match_square()
-        dpi=QSpinBox();dpi.setRange(72,1200);dpi.setValue(spec.export_dpi);form.addRow('PNG DPI',dpi);self.values['export_dpi']=dpi
+        dpi=QSpinBox();dpi.setRange(72,1200);dpi.setValue(spec.export_dpi);form.addRow('Raster DPI',dpi);self.values['export_dpi']=dpi
+        self._last_unit='cm'
+        def change_unit():
+            old_factor=2.54 if self._last_unit=='cm' else dpi.value()
+            factor=2.54 if self.export_unit.currentText()=='cm' else dpi.value()
+            w,h=width.value()/old_factor,height.value()/old_factor
+            for widget,value in ((width,w),(height,h)):
+                widget.blockSignals(True);widget.setRange(.1 if factor==2.54 else 1,100 if factor==2.54 else 50000)
+                widget.setDecimals(2 if factor==2.54 else 0);widget.setValue(value*factor);widget.blockSignals(False)
+            self._last_unit=self.export_unit.currentText()
+        self.export_unit.currentIndexChanged.connect(change_unit)
         form.addRow(QLabel('Display fills the window. Export size is independent of the screen size.'))
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Apply|QDialogButtonBox.StandardButton.Close)
         buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(self.apply)
@@ -100,6 +111,8 @@ class FigureOptions(QDialog):
                     value=widget.text()
                     if key in ('x_min','x_max','y_min','y_max','colorbar_min','colorbar_max'):value=float(value) if value.strip() else None
                 values[key]=value
+            factor=2.54 if self.export_unit.currentText()=='cm' else values['export_dpi']
+            values['figure_width']/=factor;values['figure_height']/=factor
             order=[];labels={};colors={}
             for row in range(self.categories.rowCount()):
                 name=self.categories.item(row,0).text();order.append(name)
@@ -127,6 +140,22 @@ class PublicationFigureWindow(QDialog):
         layout.addLayout(row);layout.addWidget(self.canvas,1)
         self.redraw(spec)
 
+    def bring_to_front(self,deferred=False):
+        from PyQt6.QtWidgets import QApplication
+        if getattr(self,'_closed',False):return
+        active=QApplication.activeWindow()
+        if deferred and active not in (self,self.tab.window()) and not isinstance(active,PublicationFigureWindow):return
+        self.show();self.raise_();self.activateWindow();QApplication.setActiveWindow(self)
+
+    def closeEvent(self,event):
+        if getattr(self,'_allow_close',False) or getattr(self,'_saved',False):
+            self._closed=True;self.hide();event.accept();return
+        from bactomate.gui.image_close import close_choice
+        answer=close_choice(self)
+        if answer==QMessageBox.StandardButton.Cancel:event.ignore();return
+        if answer==QMessageBox.StandardButton.Save and not self.export(notify=False):event.ignore();return
+        self._closed=True;self.hide();event.accept()
+
     def reject(self):
         # Keep the figure visible when Escape is pressed.
         pass
@@ -141,6 +170,7 @@ class PublicationFigureWindow(QDialog):
         except Exception:
             if hasattr(self,'plot'):draw(self.figure,self.plot,previous,self.labels)
             raise
+        self._saved=False
         self.spec=deepcopy(spec);self.used,self.plot,self.labels=used,plot,labels
         self.setWindowTitle(spec.title or spec.kind);self.toolbar.update();self.canvas.draw_idle()
         if getattr(self.tab,'_figure_windows',[]) and self.tab._figure_windows[-1] is self:
@@ -180,12 +210,16 @@ class PublicationFigureWindow(QDialog):
             self.tab._last_figure_plan=plan
         self.tab.open_figure_guide(parent=self)
 
-    def export(self):
+    def export(self,_checked=False,notify=True):
         root=QFileDialog.getExistingDirectory(self,'Choose a folder for this figure')
-        if not root:return
+        if not root:return False
         try:
             from datetime import datetime
             folder=Path(root)/('figure_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f'))
-            export_bundle(folder,self.figure,self.used,self.plot,self.spec,self.labels,provenance=self.provenance)
-            QMessageBox.information(self,'Figure exported',str(folder))
-        except Exception as exc:QMessageBox.warning(self,'Export failed',str(exc))
+            export_bundle(folder,self.figure,self.used,self.plot,self.spec,self.labels,provenance=self.provenance,
+                native_profiles=self.source[self.source.profile.eq('native longitudinal')] if 'profile' in self.source else None)
+            self._saved=True
+            if notify:QMessageBox.information(self,'Figure exported',str(folder))
+            return True
+        except Exception as exc:
+            QMessageBox.warning(self,'Export failed',str(exc));return False

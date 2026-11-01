@@ -76,7 +76,7 @@ def test_guide_demograph_from_project_images(project_window,qapp,tmp_path):
     assert [t.get_text() for t in tab.figure.axes[0].get_xticklabels()]==['0','0.5','1']
     assert provenance['sources'][0]['orientation']=='bright pole'
     assert not tab.advanced.isChecked()
-    export_bundle(tmp_path/'figure_demo',tab.figure,used,plot,spec,labels,provenance=provenance)
+    export_bundle(tmp_path/'figure_demo',tab.figure,used,plot,spec,labels,provenance=provenance,formats=("png","pdf","svg"))
     assert Image.open(tmp_path/'figure_demo'/'figure.png').size==(1800,1800)
     assert 'Relative cell length' in (tmp_path/'figure_demo'/'axes.json').read_text()
     guide.close()
@@ -95,7 +95,7 @@ def test_guide_kept_foci_positions_and_square_reproduction(project_window,tmp_pa
     assert set(used.x_px)=={20,22}
     assert used.relative_position.between(0,1).all()
     assert used.relative_width.between(-.5,.5).all()
-    folder=tmp_path/'figure_maxima';export_bundle(folder,tab.figure,used,plot,spec,labels,provenance=provenance)
+    folder=tmp_path/'figure_maxima';export_bundle(folder,tab.figure,used,plot,spec,labels,provenance=provenance,formats=("png","pdf","svg"))
     result=subprocess.run([os.sys.executable,str(folder/'reproduce.py')],capture_output=True,text=True,env={**os.environ,'MPLBACKEND':'Agg'})
     assert result.returncode==0,result.stderr
     assert Image.open(folder/'figure.png').size==Image.open(folder/'reproduced.png').size==(1800,1800)

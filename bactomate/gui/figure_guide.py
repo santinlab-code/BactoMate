@@ -42,6 +42,7 @@ class FigurePlan:
     tracked_mask:str=''
     time_interval:float=0.
     figure_options:dict=field(default_factory=dict)
+    sampling:str='fixed'
 
 
 class GuidePage(QWizardPage):
@@ -107,6 +108,8 @@ class FigureGuide(QWizard):
         look.form.addRow('Intensity',self.normalization)
         self.method=QComboBox();self.method.addItem('Straight rods — principal axis','principal axis')
         self.method.addItem('Curved rods — medial axis','medial axis');look.form.addRow('Cell shape',self.method)
+        self.sampling=QComboBox();self.sampling.addItem('24 segments (direct measurements)','fixed')
+        self.sampling.addItem('Native resolution → 24 positions','native');look.form.addRow('Profile sampling',self.sampling)
         self.orientation=QComboBox();self.orientation.addItem('Geometric — no pole-age inference','geometric')
         self.orientation.addItem('Put the brighter pole at the left / top','bright pole');look.form.addRow('Cell orientation',self.orientation)
         self.maxima=QComboBox();self.maxima.addItem('Brightest pixel in each cell','maximum');self.maxima.addItem('Kept detected foci (saved Filtering results)','focus')
@@ -138,6 +141,7 @@ class FigureGuide(QWizard):
             else:self.frame.setEditText(str(previous.frame))
             self.orientation.setCurrentIndex(self.orientation.findData(previous.orientation))
             self.method.setCurrentIndex(self.method.findData(previous.method))
+            self.sampling.setCurrentIndex(self.sampling.findData(previous.sampling))
             self.maxima.setCurrentIndex(self.maxima.findData(previous.maxima_profile))
             self.pixel_size.setValue(previous.pixel_size);self.points.setChecked(previous.show_points)
             self.compare.setChecked(previous.compare);self.replicate.setChecked(previous.replicate)
@@ -219,7 +223,7 @@ class FigureGuide(QWizard):
                     self.style.setCurrentText(self._previous_plan.kind)
                     self.normalization.setCurrentIndex(self.normalization.findData(self._previous_plan.normalization))
                 self._appearance_goal=goal
-            for widget in (self.orientation,self.method):self._visible(self.look_page,widget,spatial)
+            for widget in (self.orientation,self.method,self.sampling):self._visible(self.look_page,widget,spatial)
             self._visible(self.look_page,self.normalization,goal in ('demograph','kymograph'))
             self._visible(self.look_page,self.maxima,goal=='maxima');self.points.setVisible(goal=='maxima')
             self.compare.setVisible(not spatial);self.replicate.setVisible(goal=='distribution')
@@ -241,6 +245,9 @@ class FigureGuide(QWizard):
                 (not self.condition.currentData() or (self.tab.assignments.get(s['source_id'],{}).get('condition') or s.get('metadata',{}).get('condition',''))==self.condition.currentData())]
 
     def plan(self):
+        options=dict(self._previous_plan.figure_options) if self._previous_plan and self._previous_plan.goal==self.goal.currentData() else {}
+        if self._previous_plan and (self.metric.currentText()!=self._previous_plan.metric or self.other.currentText()!=self._previous_plan.second_metric):
+            options.pop('xlabel',None);options.pop('ylabel',None)
         text=self.frame.currentText().strip()
         frame=self.frame.currentData() if text in ('First frame','All frames (repeated observations)') else text
         return FigurePlan(goal=self.goal.currentData(),kind=self.style.currentText(),dataset=self.dataset.currentText(),
@@ -248,7 +255,7 @@ class FigureGuide(QWizard):
             frame=frame,channel=self.channel.currentText(),source_id=self.sample.currentData(),
             normalization=self.normalization.currentData(),orientation=self.orientation.currentData(),
             maxima_profile=self.maxima.currentData(),show_points=self.points.isChecked(),pixel_size=self.pixel_size.value(),
-            method=self.method.currentData(),track_id=self.track_id.value(),track_confirmed=self.track_confirmed.isChecked(),tracked_mask=self.tracked.currentData() or '',time_interval=self.time_interval.value(),figure_options=self._previous_plan.figure_options if self._previous_plan and self._previous_plan.goal==self.goal.currentData() else {},compare=self.compare.isChecked(),replicate=self.replicate.isChecked(),title=self.title.text().strip())
+            method=self.method.currentData(),track_id=self.track_id.value(),track_confirmed=self.track_confirmed.isChecked(),tracked_mask=self.tracked.currentData() or '',time_interval=self.time_interval.value(),sampling=self.sampling.currentData(),figure_options=options,compare=self.compare.isChecked(),replicate=self.replicate.isChecked(),title=self.title.text().strip())
 
     def validate_step(self,step):
         from PyQt6.QtWidgets import QMessageBox

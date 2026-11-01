@@ -47,7 +47,7 @@ def test_figure_export_all_kinds(kind,tmp_path):
     spec=FigureSpec(kind=kind,x='x',y='y',value='value',group='group',track_confirmed=True)
     used,plot,labels=prepare(data,spec)
     fig=Figure();draw(fig,plot,spec,labels)
-    export_bundle(tmp_path,fig,used,plot,spec,labels)
+    export_bundle(tmp_path,fig,used,plot,spec,labels,formats=("png","pdf","svg"))
     assert (tmp_path/'figure.svg').stat().st_size>100
     from PIL import Image
     assert Image.open(tmp_path/'figure.png').size==(1800,1800)

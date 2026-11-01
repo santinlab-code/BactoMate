@@ -88,6 +88,6 @@ class SpatialBatchWorker(QThread):
                     if interval>0:frame['time_min']=frame['frame']*interval
                     if tracked_mask:frame['track_id']=frame['cell_id']
                 tables.append(profiles);cells.append(cell)
-                sources.append(dict(**pair,pixel_size=options['pixel_size'],method=options['method'],orientation=options['orientation'],tracked_mask=tracked_mask,time_interval_min=interval))
+                sources.append(dict(**pair,pixel_size=options['pixel_size'],method=options['method'],orientation=options['orientation'],sampling=options.get('sampling','fixed'),tracked_mask=tracked_mask,time_interval_min=interval))
             self.ready.emit(dict(profiles=pd.concat(tables,ignore_index=True),cells=pd.concat(cells,ignore_index=True),sources=sources))
         except Exception as exc:self.failed.emit(str(exc))
