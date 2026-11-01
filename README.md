@@ -1,107 +1,101 @@
-<div align="center">
-<p align="center">
-<img src="img/banner.png" style="width:50%;"/>
-<br><br>
-<img src="img/overview.png" style="width:100%;"/>
-</p>
-</div>
+# BactoMate Custom
 
-## What is BactoMate?
+BactoMate Custom is a bacterial microscopy workflow for conversion, segmentation,
+filtering and manual curation, fluorescence/foci measurements, tracking and figures.
+This repository documents the laboratory customizations built on BactoMate 2.9.5.
 
-**BactoMate** is an integrated microscopy analysis platform for file conversion, segmentation ([Omnipose](https://github.com/kevinjohncutler/omnipose), [Cellpose-SAM](https://github.com/MouseLand/cellpose), U-Net), mask analysis, [tracking](https://github.com/weigertlab/trackastra), **lineage quality control and export**, training, and reporting.
+**Active custom branch: [`BactoMate_Custom_New-Analyses`](https://github.com/santinlab-code/BactoMate/tree/BactoMate_Custom_New-Analyses).**
+The former `BactoMate_Custom_V1` and `BactoMate_Custom_Analyses` branches were
+removed from GitHub. Use this active branch for installation and further work.
+The package may still report version `2.9.5`; record the Git commit to identify
+this custom build. Documentation reviewed on **1 November 2026**, against `811d5b6`.
 
-To learn more, check out the [paper](https://www.biorxiv.org/content/10.64898/2026.08.06.743177v1) or watch our [tutorials](https://www.youtube.com/watch?v=Vwot_dErn6g&list=PLYQZb_PwGpYw). For questions or support, please open an [issue](https://github.com/Molinfect/BactoMate) or [contact us](https://www.molinfect.hu-berlin.de).
+## Install this custom version
 
-### Demo
-<div align="center"><p align="center">
-<img src="img/BactoMate_teaser_2x.gif" style="width:80%;"/>
-</p></div>
+Use the active branch's source, rather than an upstream release app: upstream
+DMG/Windows downloads do not establish that these custom features are included.
 
-## Citation
+```bash
+git clone --branch BactoMate_Custom_New-Analyses --single-branch \
+  https://github.com/santinlab-code/BactoMate.git BactoMate_custom
+cd BactoMate_custom
+```
 
-**If you use BactoMate, please cite the [BactoMate paper](https://www.biorxiv.org/content/):**
+Without Git, [download the branch ZIP](https://github.com/santinlab-code/BactoMate/archive/refs/heads/BactoMate_Custom_New-Analyses.zip),
+extract it, and rename the extracted folder `BactoMate_custom` if desired.
+Keep the folder containing `main.py`, `requirements.txt` and `launch_gui.sh`.
 
-Hallenga, L., Fornoff, S., Pesch, M., Kohlheyer, D., Ahmada, S., Hör, J., Erhardt, M., Popp, P. F. (2026). BactoMate: an integrated platform for reproducible bacterial microscopy analysis. <em>bioRxiv</em>.
+### macOS
 
-Paper raw microscopy data: [`paper-data` branch](https://github.com/Molinfect/BactoMate/tree/paper-data) ([docs/PAPER_DATA.md](docs/PAPER_DATA.md)).
-
-
-## Installation
-
-**Prefer a ready-made app?** Download **BactoMate.dmg** (macOS) or **BactoMate-win64.zip** (Windows) from the [latest GitHub Release](https://github.com/Molinfect/BactoMate/releases/latest) — no Python or Terminal needed.
-
-**Install from source:** Clone this repository, or download and extract its ZIP archive, then follow the instructions for your operating system below. No build step is required. The GitHub **Source code (zip)** on a release is the same repository archive; for lab use, prefer the release DMG or Windows zip — see [INSTALL.txt](INSTALL.txt).
-
-## macOS — install and launch
-
-**Requires:** macOS 10.15+, Python 3.11, Terminal.
-
-Open Terminal in the project folder:
+Use Python 3.11 and open Terminal in that folder:
 
 ```bash
 chmod +x setup/macos/*.sh launch_gui.sh
 ./setup/macos/install.sh
-```
-
-Verify:
-
-```bash
-source venv/bin/activate
-python main.py --version    # BactoMate 2.9.5
-python main.py --smoke-test # Smoke test OK
-```
-
-Launch:
-
-```bash
 ./launch_gui.sh
 ```
 
-## Windows — install and launch
+If the folder is directly under your home directory, subsequent launches are:
 
-**Requires:** 64-bit Windows 10/11, 64-bit Python 3.11, and the [64-bit Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+```bash
+cd ~/BactoMate_custom
+./launch_gui.sh
+```
 
-Install under your user folder (e.g., `C:\Users\<you>\BactoMate`), not `Program Files`. Do not run as Administrator.
+Create the virtual environment in its final folder. Moving a `venv` from an old
+installation can leave absolute paths pointing to the old code. Recreate it with
+the installer after moving/replacing the project. See [setup](setup/README.md).
 
-Open Command Prompt in the project folder:
+### Windows
+
+Use 64-bit Python 3.11 and a user-writable folder. In Command Prompt:
 
 ```bat
 setup\windows\install.bat
+launch_windows.bat
 ```
 
-Then double-click `launch_windows.bat`, run it from Command Prompt, or launch the installed console command:
+See the [Windows guide](docs/INSTALL_AND_LAUNCH_windows.md) for runtime requirements
+and dependency repairs. GPU acceleration is optional; CPU processing is supported.
 
-```bat
-venv\Scripts\activate
-bactomate
-```
+## Current workflow
 
-For complete Windows troubleshooting, see **[docs/INSTALL_AND_LAUNCH_windows.md](docs/INSTALL_AND_LAUNCH_windows.md)**.
+1. **File conversion:** export each ND2 XY and channel, preserving calibration.
+2. **Segmentation → Filtering → Analyze:** detect cells/foci, curate each XY,
+   save filtered results and measure the retained objects.
+3. **Analysis:** results load automatically after Analyze. Assign conditions and
+   replicates, then use the simple controls or Figure guide to draw figures.
+4. **Tracking:** link time-lapse cell identities before making a kymograph.
+
+Detached image windows keep their LUT controls on the right, support mouse zoom
+and pan, and offer recentering and position sliders. Filtering supports object
+selection, reversible exclusion and manual annotation. Analysis opens each figure
+in its own window and exports PDF/SVG, tables and Python/R/MATLAB reproduction code.
+Automatic result PNG previews are disabled.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [setup/README.md](setup/README.md) | Install and launch scripts (start here) |
-| [scripts/pre_push_check.sh](scripts/pre_push_check.sh) | Local smoke test + pytest before push (optional) |
-| [docs/README.md](docs/README.md) | Full user guide, CLI, and workflows |
-| [bactomate/scripts/README.md](bactomate/scripts/README.md) | Script reference (GUI subprocesses, CLI tools, diagnostics) |
-| [docs/BACTOMATE_USER_MANUAL.md](docs/BACTOMATE_USER_MANUAL.md) | Tab-by-tab reference |
-| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Version history |
-| [docs/INSTALL_AND_LAUNCH_windows.md](docs/INSTALL_AND_LAUNCH_windows.md) | Windows install details |
-| [build/README.md](build/README.md) | **Maintainers only** — package `.app`/DMG or Windows zip |
+| Start here | Purpose |
+| --- | --- |
+| [Documentation index](docs/README.md) | All current guides |
+| [User manual](docs/BACTOMATE_USER_MANUAL.md) / [PDF](docs/BactoMate.pdf) | Complete workflow and control reference |
+| [Testing guide — English](GUIDE_TEST_BACTOMATE_EN.md) / [French](GUIDE_TEST_BACTOMATE_FR.md) | Installation and acceptance checks |
+| [Custom changes — English](MODIFICATIONS_BACTOMATE_EN.md) / [French](MODIFICATIONS_BACTOMATE_FR.md) | Consolidated changes since the upstream baseline |
+| [Simple Analysis](docs/NEW_ANALYSIS.md) / [Figure guide](docs/FIGURE_GUIDE.md) | Conditions, replicates, demographs, maxima and kymographs |
+| [Release notes](docs/RELEASE_NOTES.md) | Custom development milestones and validation limits |
 
-## Quick troubleshooting
+## Scientific interpretation and attribution
 
-| Issue | Fix |
-|-------|-----|
-| macOS Qt / PyQt6 errors | Re-run `./setup/macos/install.sh` or `./setup/macos/repair_pyqt6.sh` |
-| Windows DLL / torch errors | Install VC++ Redistributable x64, use Python 3.11 64-bit, recreate `venv` |
-| ILP tracking says `No module named 'motile'` or `NodeSelection` | Re-run `pip install -r requirements.txt` in the BactoMate `venv` |
-| Preview says `cannot import name 'unique_nonzero' from 'ncolor'` | In the BactoMate `venv`: `pip install "ncolor>=1.4.3,<2"` (ncolor 2.x dropped that name; omnipose 1.1.4 still imports it) |
-| Cellpose segmentation errors | `python setup/apply_all_patches.py` (with venv active) |
-| GPU is optional | CPU works; CUDA PyTorch is offered during install |
+Cell area uses mask pixels and calibration; length and width are equivalent-ellipse
+axes. Display LUTs never change the source fluorescence measurements. Segmentation
+labels do not establish tracking identity or pole age. Replicate means are shown
+explicitly; cell counts are not automatically biological replicates.
 
-## License
+This work builds on [upstream BactoMate](https://github.com/Molinfect/BactoMate),
+[Omnipose](https://omnipose.readthedocs.io/), [Cellpose](https://cellpose.readthedocs.io/)
+and [Trackastra](https://github.com/weigertlab/trackastra). The figure workflow is
+inspired by [MicrobeJ](https://pmc.ncbi.nlm.nih.gov/articles/PMC5010025/); it does not
+run the Fiji plugin. See the upstream project for its citation and paper data,
+and [docs/PAPER_DATA.md](docs/PAPER_DATA.md) for data access.
 
-MIT — see [LICENSE](LICENSE).
+License: MIT; see [LICENSE](LICENSE).

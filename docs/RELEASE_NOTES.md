@@ -1,639 +1,134 @@
-# BactoMate Release Notes
+# BactoMate Custom — release and development notes
 
-Append a new section for each release. Keep entries in release-note style (what changed, for whom).
+Documentation reviewed **1 November 2026** against code **`811d5b6`**.
+Active custom branch: **BactoMate_Custom_New-Analyses**.
+The package still reports upstream version 2.9.5; custom milestones below are Git
+commits, not newly assigned upstream release numbers. These notes consolidate
+the custom history; [the change summary](../MODIFICATIONS_BACTOMATE_EN.md) defines
+current behavior and [the manual](BACTOMATE_USER_MANUAL.md) describes its use.
 
----
+## Current documentation revision
 
-## v2.9.5 (2026-10-20)
+The English user manual, guides, setup/script/packaging instructions and current
+PDF replace stale upstream/early-custom instructions. Testing and consolidated
+changes also have French editions. Other former French topic guides are replaced
+by English files and linked from the documentation index. Removed branches,
+automatic PNG exports and obsolete control placements are no longer presented as
+current instructions. Existing synthetic screenshots are explicitly illustrations.
+This is a documentation update, not a new biological validation or application
+version bump.
 
-### Downloads
+## 1 November 2026 — profiles, output and window refinements
 
-- **macOS DMG is back on the release page:** the DMG is now LZMA-compressed and leaves build-only files (TensorFlow/torch C++ headers, package test folders, `cmake`) out of the app, bringing it from 2.4 GB to about 1 GiB — under GitHub's 2 GiB limit, which caused v2.9.4 to ship without a DMG. A release now fails instead of publishing without the DMG.
-- **Windows zip launcher:** fix "Failed to configure bundled virtual environment" on first launch, caused by a path-quoting bug in `BactoMate.bat` (not by Python or the extract location). Windows install guide now leads with the ready-to-run zip.
+Code: [`811d5b6`](https://github.com/santinlab-code/BactoMate/commit/811d5b6)
 
-### Install from source
+- Default 24-segment longitudinal profiles; optional native-pixel measurement plus
+  interpolation onto 24 positions, with separate native export/provenance.
+- Automatic pipeline PNG previews disabled; new bundles/scripts default PDF/SVG.
+- Detached Segmentation controls compact; selected-cell colocalization title added.
+- Figure windows brought forward safely; image/figure close crosses support
+  Save/Discard/Cancel, with cancelled saving preserving the window.
+- Export dimensions in cm/pixels, square default, and updated labels when the
+  guide switches metric. Main-window deferred callbacks owned by its Qt lifetime.
 
-- **macOS installer fails fast with a clear reason:** requires plain Python 3.11 (python.org or Homebrew) and rejects Conda and other versions before anything is installed; also finds a python.org/Homebrew 3.11 when Conda is first on `PATH`. numpy, scipy and scikit-image install from prebuilt wheels only, so no compiler is needed. Every failure ends with a one-line `REASON:`, and the full transcript is saved to `Logs/install.log`.
-- **Safer macOS reinstall:** your previous `venv` is kept as `venv.previous` until the new one passes the smoke test, with restore instructions if the install fails.
-- **Windows installer:** no longer tries to build `dbscan` from source (which needs Microsoft C++ Build Tools); it stops with a pointer to the troubleshooting section.
-- **Lab users:** release notes, README and a new `INSTALL.txt` point to the DMG / Windows zip; GitHub's "Source code" zip is for developers. BactoMate now requires Python 3.11.
+Recorded validation: 614 passed / 5 skipped in the full suite, followed by 11
+passing targeted checks after final refinements, including actual TIFF saving.
 
-### Segmentation and Analysis
+## 1 November 2026 — per-mask filtering and independent figures
 
-- **Omnipose preview:** pin `ncolor<2` so fresh installs can import `unique_nonzero`; the preview no longer tells you to reinstall cellpose-omni for unrelated import errors.
-- **Foci pairing:** pairs DIA inputs and names with a channel token before `_fi_foci` (e.g. `…_GFP_fi_foci`), while replicate IDs still prevent cross-well mismatches.
+Code: [`9a48cd6`](https://github.com/santinlab-code/BactoMate/commit/9a48cd6)
 
-### Other
+- LUT memory per mask/channel, including quick channel switching and dark settings.
+- Exclude fully outside default, context menu and manual focus/polygon annotations.
+- Shift-click selects only clicked objects; XY recipes/calibration independent,
+  with inherited starting settings on first visit to a new mask.
+- Batch mask/result selection restored; each export uses that mask's recipe.
+- File audit reports identical content/table copies without deletion.
+- Independent figure windows, off-screen export, per-window Figure options,
+  category ordering/spacing, guided editing and verified-identity kymographs.
 
-- macOS release builds write correct Finder version tags.
-- Paper raw data is published on a separate `paper-data` branch (see `docs/PAPER_DATA.md`) and is not included in releases.
-- New README banner.
+Recorded validation: 610 passed / 5 skipped, plus subsequent targeted checks.
+These intermediate totals are historical, not the current suite count.
 
----
+## 31 October 2026 — publication-style guided Analysis
 
-## v2.9.4 (2026-08-11)
+Code: [`57c3078`](https://github.com/santinlab-code/BactoMate/commit/57c3078)
 
-### Segmentation and Filtering
+English four-step guide, Conditions & replicates available at the top in both
+modes, automatic spatial source matching with filtered-mask preference, demograph,
+normalized maxima and per-cell foci count layouts, explicit orientation and square
+publication output. Brightest pixels and detected foci are separate sources.
 
-- **Preview folder:** new QC button between single-file Preview and Segment/Filter File/Folder. When the source folder has more than one eligible file, runs current settings on up to 48 candidates and shows a zoomable thumbnail grid in the right panel; double-click a tile to open the existing single-file preview. Segmentation uses Omnipose/Cellpose-SAM at preview quality; Filtering applies current morphology/size/focus filters with accept/reject coloring.
-- **Foci preview overlays:** exclusive blob assignment for close foci; hollow outlines with peak markers; clearer pass/fail hover tooltips.
-- **Foci hover metrics:** rename misleading `Rel. intens.` to **Frame-rel. intens.** (peak / frame median) and show **Per-cell ratio** (blob mean / rest-of-cell mean) — the same quantity used by the Per-cell ratio filter.
-- **Filter preview View sync:** fix Apply/View desync when Qt returns source keys as lists vs tuples (View no longer snaps to the wrong stack while filters stay on Phase).
+## 31 October 2026 — session reset and automatic result loading
 
-### Tracking
+Code: [`b8127c4`](https://github.com/santinlab-code/BactoMate/commit/b8127c4)
 
-- **Re-track applies filters:** change Model/Mode/filters, then hit **Re-track** — Trackastra re-runs and current filters/stitch are applied to the overlay and metrics table. Removed the separate **Redraw filtered tracks** step.
-- **Metrics table:** header double-click sort; unchecking Metrics table clears selection/highlight.
-- **Report workbook:** Excel keeps **Run info**, **raw** (all tracks + Pass), and **filtered** only — dropped redundant unfiltered `track_summary` sheet (canonical `tables/track_summary.parquet` remains for pipelines).
+Clear current session, directly visible right-side detached LUTs, Filtering XY
+selector and automatic loading/opening of Analysis after final Analyze outputs.
 
-### Docs
+## 31 October 2026 — simpler Analysis and explicit replicates
 
-- README paper link points to the bioRxiv preprint.
+Code: [`cefd100`](https://github.com/santinlab-code/BactoMate/commit/cefd100)
 
----
+Automatic result catalogue/cache, distinct data families, a simple measurement/
+figure workflow, editable per-file conditions/replicates in analysis_groups.json,
+replicate means and explicit frame selection. Advanced controls retained.
 
-## v2.9.3 (2026-08-07)
+## 31 October 2026 — image navigation and retained contours
 
-### Dependencies
+Codes: `5909d3e`, `9f14b5f`, `53ec722`
 
-- **Spotiflow + TensorFlow on Windows:** pin `wandb` / `protobuf` / `tensorboard` in the overlap that satisfies both Spotiflow and U-Net (`wandb>=0.22,<0.28`, `protobuf>=4.25,<5`, `tensorboard>=2.12,<2.17`). Installer runs `setup/windows/ensure_spotiflow_deps.py` before smoke test; smoke fails if `protobuf` is ≥5. Fixes Spotiflow foci failing with `cannot import name 'Imports' from 'wandb.proto...'` without breaking TensorFlow via a unbounded wandb upgrade.
+Per-channel LUT navigation, Escape-safe detached windows, right-side LUTs,
+recenter/sliders, fixed Filtering panels, ten-row tables/history and focus-specific
+clicking with kept/rejected markers. Thin configurable cell contours show only
+retained cells; rejected cells remain recoverable through curation.
 
-### Tracking
+## 31 October 2026 — independent quantitative Analysis
 
-- **Clearer track vs analysis IDs:** overlays and exports distinguish analysis `Cell_ID` (`C…`) from Trackastra track IDs (`T…`) via `Cell_ID_Source`, `DisplayID`, and compact labels — avoids confusing segmentation labels with trajectory IDs.
-- **Lineage PNG quality:** figure export floors at **600 DPI**.
-- **Lineage figure export safety:** tracking worker no longer auto-writes lineage PNGs on a background thread (could crash on macOS with Matplotlib/OpenBLAS stack overflow); workbook still writes; use the lineage UI **Export figures** action for PNGs.
+Code: [`6cd5500`](https://github.com/santinlab-code/BactoMate/commit/6cd5500)
 
-### Docs / install
+Initial standalone Analysis, advanced table-driven plots, image-derived spatial
+profiles, explicit normalization/tracking requirements, exported source/plot data,
+metadata and Python/R/MATLAB reconstruction. Later milestones extend the initial
+11 plot types to the current 13 and replace its original PNG defaults.
 
-- Windows install guide documents Spotiflow wandb/protobuf repair and the TensorFlow conflict after upgrading wandb.
+## 28 October 2026 — initial custom pipeline and detached curation
 
----
+Codes: `ff37fdf`, `f718acd`, `d874015`, `4715d8b`, `7e92cd7`
 
-## v2.9.2 (2026-08-04)
-
-### Tracking
-
-- **Preview display resolution:** tracking preview overlay now uses the same 2048px cap and scipy zoom downsampling as Analyze filter preview (replacing the old 384px stride), so lineage/tracking previews stay sharp while Trackastra still runs at full resolution.
-
-### Conversion
-
-- **`_fN` stem suffix:** only explicit **Single frame only** mode adds `_fN` to output stems; naturally single-timepoint exports no longer get a spurious `_f1`, consistent across ND2, LIF, CZI, and TIFF.
-
----
-
-## v2.9.1 (2026-08-04)
-
-### Bug fixes
-
-- **Windows tracking Preview:** calibration lookup no longer crashes with `PermissionError` on the profile `Application Data` junction when walking up from a mask path under the user home directory. Unreadable / Windows special folders are skipped.
-
----
-
-## v2.9.0 (2026-08-04)
-
-### Tracking
-
-- **Full-resolution preview linking:** Trackastra preview/Re-track uses real-resolution masks and images; only the displayed overlay is downsampled for the GUI (avoids black/empty canvas on large stacks).
-- **Max link jump:** optional hard gate on Trackastra link distance (µm or px); preview and full runs share the same filter params. Tracked masks are preserved when the gate is off or removes no edges.
-- **Stitch tracks:** post-linking proximity merge across short detection gaps (max gap / max jump), with remapped masks, lineage edges, and CTC when merges occur. Conservative defaults (gap 2, jump 2).
-- **Filter tracks UI:** compact 2-column layout, stitch controls grouped in a bordered box, no settings-strip scrollbars; redraw vs re-track clarified (filters apply on **Redraw filtered tracks**).
-- **ILP linking:** `motile>=0.3,<1.0` pin and preflight so ILP mode matches Trackastra’s expected API.
-
-### Dependencies
-
-- `requirements.txt`: pin `motile>=0.3,<1.0` for Trackastra ILP.
-
-### CI / tests
-
-- Avoid `QApplication.processEvents()` in filter-progress unit tests (draining leftover Analyze Masks `QThread.finished` slots segfaulted macOS release builds).
-- Filtering preview View-switch re-apply now passes an explicit image `source_key` (avoids stale hidden-combo races) and waits for a new apply generation in CI.
-- Release workflow uploads DMG/ZIP directly to the GitHub Release (no Actions artifacts), avoiding artifact storage quota failures.
-
----
-
-## v2.8.9 (2026-07-29)
-
-### Segmentation and Detect foci
-
-- **Folder segmentation overview:** with Detect foci on, the file picker shows a two-column overview — selected segmentation inputs on the left, and the matched Spotiflow companion TIFFs (`*_foci*` / `*_fi_foci*`) on the right — so pairings are visible before the batch starts.
-- **Segmentation inputs:** `*_foci*` / `*_fi_foci*` stacks are no longer listed as cell-segmentation inputs (Spotiflow companions only). Plain `*_fi_*` fluorescence remains available for fluor models; phase is still preferred when present.
-
-### Analyze and Filtering
-
-- **Linked analysis inputs:** Analyze folder picker shows the effective mask plus phase/FI/foci companions; feedback text uses the filtered mask when available and counts only real FI tasks (mask TIFFs are no longer treated as FI inputs).
-- **Filtering View labels:** clearer channel labels — Cells (mask), FI: …, Foci: …, Phase / input — and mask stacks are no longer mislabeled as FI.
-- **Foci sheet:** physical focus size column renamed to **Foci Area (µm²)** (`size_px × pixel_size²`).
-
-### Outputs and packaging
-
-- **Leaner analysis artifacts:** no duplicate `*_masks_cellids.tif` (IDs stay in `*_masks.tif`); overlays under `overlays/`; analysis QC under `_analysis/visualizations/`; CSV and combined summary remain off by default.
-- **Session logs:** GUI/session logs go to BactoMate `Logs/` (or Application Support), not next to raw data.
-- **README:** refreshed landing page with banner / overview / demo assets.
-
----
-
-## v2.8.8 (2026-07-27)
-
-### Repo and packaging
-
-- **GitHub home:** project moved to the lab org — [Molinfect/BactoMate](https://github.com/Molinfect/BactoMate) (docs and release workflow updated).
-
-### Conversion and macOS setup
-
-- **Extract crop:** clearing the crop region also unticks **Extract crop**, so conversion no longer fails with “crop region required” after Clear crop.
-- **macOS install patches:** `setup/macos/install.sh` / `setup_fresh_env.sh` now find `setup/apply_all_patches.py` correctly (was looking under `setup/macos/`).
-
----
-
-## v2.8.7 (2026-07-22)
-
-### Conversion and pairing
-
-- **Channel role tags:** conversion always emits `_phase` / `_fi_<name>` (no bare free-form channel stems); smarter Phase vs FI defaults from metadata/name hints.
-- **Foci pairing:** more robust matching via role-marker strip plus legacy LCP fallback (avoids cross-well mis-pairs).
-- **Channel help UI:** long role/defaults text moved into a Channels `(?)` info icon for consistency with other panels.
-- **Extract crop:** fixed stale preview-canvas crash when toggling crop after the preview was rebuilt.
-
-### Filter preview and out-of-focus cells
-
-- **Settings persistence on View switch:** pixel size and filter params stay after the first apply; switching View re-applies last settings instead of overwriting from metadata.
-- **Out-of-focus filter:** preview worker applies focus rejection (was batch-only); modality choice (phase vs bright-field); phase metric uses radial edge/halo profile tuned on real stacks; gate vs top cells (p80) instead of median.
-- **Hover focus readout:** shows relative focus vs top cells (no confusing raw Laplacian score).
-- **Cell-filter UI:** uniform spin widths; clearer size/focus tooltips (`0.00` = no size limit).
-
----
-
-## v2.8.6 (2026-07-13)
-
-### Filter preview
-
-- **Auto-apply on open:** current cell and foci filters run once when the preview opens, so pass/fail overlays and hover tooltips work immediately.
-- **Cell hover:** tooltips show pass/fail status, morphology metrics, and rejection reasons after apply.
-- **Layout:** cell-filter checkboxes aligned on a cleaner footer row.
-
-### Tracking and lineage exports
-
-- **Trajectory TIFF quality:** export renders at target resolution with anti-aliased paths; fixed coordinate mismatch when overlay was upscaled before drawing paths.
-- **Lineage preflight:** no longer blocks when no filtered mask exists on disk (raw-only pipeline allowed).
-- **Lineage TIFF labels:** biology-style hierarchical labels on `*_lineage.tif` exports.
-- **Lineage outputs:** cell-cycle area summary overlay; lineage tracking folder renamed to `{stem}_lineage_tracking`.
-- **Tracking folders:** movement tracking stays under `{stem}_tracking/`.
-
----
-
-## v2.8.5 (2026-07-10)
-
-### Tracking and lineage
-
-- **Tracking preview:** richer hover tooltips (Cell ID, speed, track scope), true 1px paths, faster scrubbing, and **Create visualization** export with resolution-aware styling; saves `*_overlay_tracked.tif`.
-- **Cell ID alignment:** preview movement metrics and hover IDs match analysis Excel when a workbook is available (`Cell_ID` vs mask label).
-- **Mask workspace:** mask dropdown stays available after preview; switching masks re-runs preview without narrowing the folder to a single file.
-- **Stability:** closing the preview no longer crashes filter sliders (`QSlider` deleted) or hides the mask picker.
-- **Frame limit:** tracking and lineage review previews use up to **20** frames (aligned).
-- **Lineage review:** frame slider spans the full preview stack depth.
-
-### Post-processing, layout, and packaging
-
-- **Montage:** improved merged-color handling for multi-channel montages.
-- **Layout:** responsive control layout fixes on smaller windows.
-- **Release bundles:** macOS DMG and Windows zip exclude maintainer-only docs and ship a clean empty **Logs/** folder for new installs.
-
----
-
-## v2.8.4 (2026-07-07)
-
-### Analysis, conversion, and packaging
-
-- **CZI/LIF conversion:** channel outputs use `_fi` / `_foci` / `_fi_foci` / `_phase` naming when FI/Foci flags are set (same as ND2/TIFF).
-- **Out-of-focus cell filter:** optional per-frame rejection using phase sharpness (Filter preview → “Reject out-of-focus cells”).
-- **Whole-cell foci channel intensity:** Per-Cell Data and `@summary_per-cell-data` include `Mean FI Intensity (whole cell) [<foci channel>]`; refreshed after filtering.
-- **FI refresh on filtered masks:** workbooks update whole-cell FI/foci columns when filtered masks and TIFFs are available.
-
-### Docs and release assets
-
-- **User docs** focus on `setup/` install-and-run; GitHub Releases carry DMG/zip binaries.
-- **`build/`** stubs removed; scripts live under `build/macos/` and `build/windows/` only.
-- **Release workflow** attaches `BactoMate.dmg` and `BactoMate-win64.zip` on every `v*` tag.
-- **macOS Finder tags:** DMG and `.app` tagged with release version from `bactomate.__version__`.
-
----
-
-## v2.8.3 (2026-07-05)
-
-### Windows installer works outside Desktop
-
-- **Root launcher:** `install_windows.bat` at project root (double-click after extracting the ZIP anywhere).
-- **Install hardening:** writable-folder check, reject `Program Files`, auto `Unblock-File` for ZIP downloads, fix Python path parsing when `python.exe` contains spaces.
-- **Install log:** writes `Logs\install_last.log` with resolved project path and errors.
-
----
-
-## v2.8.2 (2026-07-05)
-
-### Segmentation preview: Windows locale spinbox fix
-
-- **Re-detect:** commit in-progress Diameter/Flow/Mask spinbox text (`interpretText`) before reading parameters — fixes European Windows locales where typed `10,0` was ignored until Enter/Tab.
-- **Preview header:** refresh “Pending parameters” when cell-segmentation controls change, so the title line stays in sync with the spinboxes.
-
----
-
-## v2.8.1 (2026-07-05)
-
-### Windows logs, setup/build layout, and install docs
-
-- **Windows logs:** when the project `Logs\` folder is not writable (e.g. install under `Program Files`), logs automatically go to `%APPDATA%\BactoMate\Logs`.
-- **Setup reorganized:** `setup/windows/` (install, launch, constraints) and `setup/macos/` (install, launch, Qt repair); shared `apply_all_patches.py` stays at `setup/`. Legacy stub paths (`setup\install_windows.bat`, etc.) still work.
-- **Build reorganized:** `build/windows/` (portable bundle) and `build/macos/` (`.app`/DMG) with README files clarifying platform scope.
-- **Docs:** Windows install guide updated with install location, logs path, and admin/drag-drop troubleshooting.
-
----
-
-## v2.8.0 (2026-07-05)
-
-### Spatial metrics, pipeline QC outputs, and combined summary workbooks
-
-- **Spatial metrics:** new `spatial_metrics.py` module adds cell geometry (centroid, orientation, circularity), fluorescence distribution stats (interior FI, CV, top-10% mean), foci-to-contour/axis/pole distances, multi-foci spread, membrane-proximal fraction, and per-Cell_ID temporal deltas in Analyze Masks.
-- **Pipeline QC artifacts:** new `pipeline_outputs.py` writes standard overlays, filter visualizations, and PNG previews from TIFF stacks (always on, not gated by optional UI checkboxes).
-- **Analysis workbooks:** combined Summary (long + wide), Per-Cell, and Foci sheets across folder batches; global foci IDs across frames; improved filter visualization labels.
-- **GUI:** Analyze Masks refactored to use shared workbook helpers; tracking and segmentation tabs aligned with pipeline output paths.
-- **Docs:** pipeline flow and folder-structure diagrams (`docs/bactomate_full_pipeline.*`, `docs/pipeline_folder_structure.*`).
-- **Tests:** `test_spatial_metrics.py`; expanded combined-summary and GUI lineage tests.
-
----
-
-## v2.7.10 (2026-06-17)
-
-### I/O performance, integration test, and tooling
-
-- **TIFF stack I/O:** `tiff_stack_io.py` uses memmap for large stacks and smarter frame counting for ImageJ-style volumes.
-- **Tracking:** `tracking_io.py` extracts stack helpers; disk visualization auto-skips when mask stacks exceed 150 frames (checkbox still on for shorter movies).
-- **Tests:** slow pipeline integration test (masks → Cell IDs → analyze → lineage preflight → join); `test_tiff_stack_io.py`.
-- **Tooling:** `pytest-cov` dev extra and coverage config in `pyproject.toml`.
-
----
-
-## v2.7.9 (2026-06-17)
-
-### Plan execution: U-Net Cell IDs, CI, docs, cleanup
-
-- **U-Net persistent Cell IDs:** checkbox on U-Net inference panel; writes `{stem}_cellids.tif` after batch segmentation (parity with Omnipose/Cellpose).
-- **Shared helper:** `write_persistent_cellid_mask_file()` in `cell_id_linking.py` (used by Omnipose and U-Net).
-- **Tracking UX:** lineage preflight dialog reminds users about 1-based analysis vs 0-based tracking frames and filtered-mask workflow.
-- **CI:** GitHub Actions runs on `dev` branch pushes and PRs (in addition to `main`).
-- **Tests:** `test_workers_imports.py`; U-Net Cell ID smoke tests in `test_gui_lineage_and_cellids.py`.
-- **Cleanup:** removed deprecated coloc matching flags; fixed `get_scripts_dir()` to prefer `bactomate/scripts/`; deleted `docs/archive/v1.6/`.
-
----
-
-## v2.7.8 (2026-06-17)
-
-### Session schema and workers package split
-
-- **Session schema:** new `session_schema.py` migrates legacy tab keys (e.g. `unet_segment`) to the composed Segmentation module layout; session logs panel aligned with current tab structure.
-- **Workers split:** monolithic `gui/workers.py` replaced by `gui/workers/base.py`, `tracking.py`, and `growth_curve.py`; public imports unchanged via `gui/workers/__init__.py`.
-- **Tests:** smoke tests for session schema migration and persistent Cell ID mask writing from the Omnipose panel.
-
----
-
-## v2.7.7 (2026-06-17)
-
-### Lineage preflight, persistent Cell IDs, and tracking performance
-
-- **Lineage preflight:** tracking tab warns when analyze used filtered masks but lineage would use raw masks (breaks Cell_ID mapping); see `LINEAGE_ANALYSIS_JOIN_CONTRACT.md`.
-- **Persistent Cell IDs:** Omnipose/Cellpose panel checkbox writes `{stem}_masks_cellids.tif` after segmentation; shared `cell_id_linking.py` module with Hungarian centroid assignment.
-- **Tracking worker:** model caching, preview frame limiting, overlay-base trajectory visualization, and faster preview mode (`preview_fast`).
-- **Analyze script:** refactored to use shared cell-ID linking; lineage integration strengthened.
-- **Cleanup:** removed dead `processing.py` tab and `migrate_message_boxes.py`; archived v1.6 refactor notes under `docs/archive/v1.6/`; added `bactomate/scripts/README.md`.
-- **Tests:** `test_lineage_preflight.py`, `test_cell_id_linking.py`.
-
----
-
-## v2.7.6 (2026-06-17)
-
-### Analyze masks: CSV export and combined folder summary
-
-- **Also save CSV:** enabled by default; passes `--export-csv` to the analysis script so Summary, Per-Cell, and Foci tables are written beside each `*_analysis.xlsx`.
-- **Create combined summary:** new Analyze-tab option (on by default) that, after a folder batch, writes `{folder}_combined_summary.xlsx` in `_analysis/` with a wide Summary sheet plus Per-Cell sheets.
-- **Session defaults:** `export_csv` and `create_combined_summary` default to on for new sessions.
-- **Tests:** verify `--export-csv` is included in analyze CLI args when the checkbox is checked.
-
----
-
-## v2.7.5 (2026-06-17)
-
-### Windows launcher fix
-
-- **`bactomate/__main__.py`:** add `if __name__ == "__main__"` guard so `python -m bactomate` (used by `launch_windows.bat` and the desktop shortcut) actually starts the GUI instead of exiting silently.
-
----
-
-## v2.7.4 (2026-06-17)
-
-### Windows portable bundle build fixes
-
-- **`build_windows_bundle.py`:** fix `_should_skip_dir()` call that crashed the bundle build; rewrite `pyvenv.cfg` with absolute runtime paths (Windows venv launcher does not accept relative paths).
-- **Portable bundle launcher:** add `setup/launch_windows_bundle.bat` and `setup/patch_bundle_pyvenv.py` so `BactoMate.bat` re-patches venv paths when the bundle folder is moved.
-- **`create_windows_zip.bat`:** use 7-Zip or built-in `tar` instead of PowerShell `Compress-Archive` for much faster zip creation on large bundles.
-
----
-
-## v2.7.3 (2026-06-17)
-
-### Track Windows bundle build scripts in git
-
-- **`.gitignore`:** whitelist `build/*.bat` and `build/build_windows_bundle.py` so Windows portable bundle scripts are versioned (they were previously ignored while docs referenced them).
-- **Added to repo:** `build/build_windows_bundle.bat`, `build/build_windows_bundle.py`, `build/create_windows_zip.bat`.
-
----
-
-## v2.7.2 (2026-06-17)
-
-### Windows install hardening and CI
-
-- **Installer:** verify Python 3.11 (64-bit, non-Conda) before venv creation; install only via `venv\Scripts\python.exe`; pre-install `dbscan==0.0.10` wheel; apply `setup\constraints_windows.txt` so Omnipose does not compile native code.
-- **Launchers:** strict `launch_windows.bat` clears `PYTHONHOME`/`PYTHONPATH`, sets `PYTHONNOUSERSITE=1`, and runs the venv interpreter directly (no `activate`).
-- **Subprocess workers:** Windows child processes use the project venv Python and ignore stray user-site packages.
-- **CI:** Windows workflow matches the new install path (verify script, constraints, explicit venv Python for smoke test and pytest).
-- **Docs:** updated Windows install guide and portable bundle build instructions.
-
----
-
-## v2.7.1 (2026-06-17)
-
-### Windows install, UI polish, and TIFF loading
-
-- **Windows installer:** fix `install_windows.bat` batch parsing after PyTorch install; pin pip below 26; reinstall PyTorch with `--no-deps` and realign NumPy `<2`; suppress pip upgrade nag.
-- **Windows launcher:** root `launch_windows.bat` minimizes the console on start; generates `BactoMate.ico` and Desktop/project shortcuts during install.
-- **GUI fixes:** dark dropdown menus on Windows; compact buttons no longer clip labels (dashboard workspace row, metadata dialog, segmentation combos); metadata editor opens reliably and “Use for output TIFFs” sizes correctly.
-- **TIFF I/O:** plain TIFFs load via `bioio-tifffile` to avoid OME XML parse warnings; added `bioio-tifffile` dependency.
-- **Dependencies:** `numpy>=1.26,<2` for TensorFlow compatibility.
-
----
-
-## v2.7.0 (2026-06)
-
-### Lineage workspace, conversion crop, and preview refactors
-
-- **Lineage analysis workspace:** expanded in-app lineage inspector and dedicated analysis panel with plots, metrics, and export from tracking outputs.
-- **File conversion crop:** optional extract-crop ROI in the conversion preview (right-drag box, handles, clear crop); drift correction runs on the full frame before cropping.
-- **Preview/module refactors:** shared preview patterns across file conversion, filtering, segmentation, tracking, and post-processing modules.
-- **TIFF metadata:** improved ImageJ-style metadata read/write helpers and tests.
-- **Build:** macOS launcher and app-bundle script updates.
-- **Tests:** conversion crop, lineage integration/viz, TIFF metadata write, and Omnipose affinity model loading.
-
----
-
-## v2.6.1 (2026-06)
-
-### Reproducible installs, CI, and Apple MPS segmentation
-
-- **Pin PyTorch stack:** `torch==2.11.0` and `torchvision==0.26.0` in `requirements.txt` so fresh installs match tested lab/CI environments (avoids drift to torch 2.12+).
-- **Apple MPS preview fix:** patch `cellpose_omni` `_extend_centers_gpu` to use `float32` on MPS instead of `float64` (fixes preview segmentation crash on Apple Silicon GPU).
-- **CI green on macOS and Windows:** test fixes for Excel file-handle cleanup on Windows, path assertions, and regressions from v2.6.0 preview work.
-
----
-
-## v2.6.0 (2026-06)
-
-### Preview UX: montage LUT, foci detection, and navigation
-
-- **Montage LUT:** histogram reads raw channel tiles (not rendered uint8), merged tiles use derived channel LUTs without global rescale oversaturation, LUT clamped to tile data range, taller histogram, and helper copy for merged tiles.
-- **Montage preview:** double-click a tile to open Edit tiles; top hint and merged-LUT note in the LUT panel.
-- **Foci detection toggle:** Spotiflow peak detection runs in a background thread so enabling “Detect foci” no longer freezes the UI; skips redundant TIFF reload when stacks are already in memory.
-- **Filtering preview:** “Show cell overlay” toggles via full refresh so masks hide/show reliably.
-- **Preview navigation:** taller frame/channel spinboxes and row spacing so controls are not clipped at the bottom.
-
----
-
-## v2.5.1 (2026-06)
-
-### CI fix and install docs
-
-- **Fix macOS CI segfault:** lineage PNG export no longer uses `matplotlib.pyplot` (avoids native macosx backend crash in headless pytest).
-- **README:** prominent copy-paste install commands for macOS and Windows; v2.5 wording and lineage feature mention.
-
----
-
-## v2.5.0 (2026-06)
-
-### In-app lineage QC and export
-
-- **Lineage schema v2:** division events carry review status (`candidate` / `accepted` / `rejected` / `flagged`), richer metrics (generation, asymmetry, distances), lineage growth timeseries, and expanded QC flags.
-- **Quick lineage QC:** preview panel in the Tracking tab with track glossary, division-aware frame summary, lineage total area plot (with honest position-only fallback), and guided 3-step workflow copy.
-- **Lineage review dialog:** Divisions tab opens first for accept/reject/flag review; tree graph and growth/FI plots; Cmd+W to close.
-- **Exports:** Excel lineage report, canonical tables, and PNG figures (`lineage_tree`, `lineage_growth`, division asymmetry) on full **Run lineage export**.
-- **Stability:** fix preview teardown deleting shared tracking parameter widgets (`QComboBox has been deleted`).
-
----
-
-## v2.4.0 (2026-06)
-
-### Unified dark preview UI
-
-- **Shared settings cards:** preview and module panels use centralized `build_settings_card`, compact dark theme tokens, and consistent spacing across filtering, segmentation, montage, and tracking previews.
-- **Montage preview polish:** reorganized action/preset footer, full-width LUT histogram, fixed clipped buttons, and removed figure-style preset buttons; export labels spelled out (`Background`, `Format`).
-- **Spinbox/combo uniformity:** one shared card-aware spinbox style across montage cards, Edit tiles dialog, and preview nav rows (no more bright-blue vs dark arrow wells).
-- **Foci table highlight:** foci table uses theme tokens; double-click row shows a prominent red/white ring on the selected focus.
-- **Workspace drag-and-drop:** drop a folder or file onto the dashboard workspace area to open it as the workspace root.
-
----
-
-## v2.3.7 (2026-06)
-
-### Portable native macOS launcher
-
-- **Bundled framework link:** native launcher and bundled `Python.framework` now use `@executable_path/...` install names, so the app does not depend on Homebrew Python paths after packaging.
-- **Same single-app behavior:** preserves the v2.3.6 in-process launcher fix that keeps BactoMate as the only Dock app identity.
-
----
-
-## v2.3.6 (2026-06)
-
-### macOS native launcher (no Python detour)
-
-- **Real app process:** `BactoMate.app` now uses a compiled native Mach-O launcher linked against the bundled `Python.framework` and runs the GUI in-process via `Py_Main`, instead of shell scripts that `exec` a separate `python3` binary.
-- **Why this matters:** the old launcher made macOS treat Python as a second app, causing mixed Dock icons (bundle icon, raw logo, then Python) and broken reopen behavior.
-
----
-
-## v2.3.5 (2026-06)
-
-### macOS Dock identity cleanup
-
-- **One icon source:** runtime Dock/window icon selection now prefers the packaged `BactoMate.icns`, matching the app bundle icon instead of switching to the raw `img/logo2.png` graphic after Qt starts.
-- **Explicit bundle icon:** generated `Info.plist` now names `BactoMate.icns` directly for clearer LaunchServices registration.
-
----
-
-## v2.3.4 (2026-06)
-
-### macOS bundle dependency repair
-
-- **Build-time repair:** `build/build_app_bundle.sh` now installs missing macOS integration dependencies (`pyobjc-framework-Cocoa` for `AppKit`/`Foundation`, plus `setproctitle`) into the build venv before copying it into `BactoMate.app`.
-- **Fresh setup verification:** `setup/setup_fresh_env.sh` now verifies `AppKit`/`Foundation` during macOS setup so new environments are ready for Dock icon/name integration.
-
----
-
-## v2.3.3 (2026-06)
-
-### macOS duplicate window/icon fix
-
-- **Single running instance:** a second Finder/Dock launch now activates the existing BactoMate window instead of opening another GUI.
-- **One Dock owner:** the app bundle launcher now replaces itself with the Qt process so macOS does not keep both the launcher and the GUI as separate BactoMate entries.
-
----
-
-## v2.3.2 (2026-06)
-
-### macOS Dock icon/name fix
-
-- **Fix Python Dock identity:** macOS app builds now include the Cocoa bridge used by BactoMate to set the Dock icon and process name at runtime.
-- **Build verification:** `build/build_app_bundle.sh` now fails if `setproctitle`, `AppKit`, or `Foundation` are missing from the bundled venv, preventing future app bundles that reopen as Python or lose the BactoMate icon.
-
----
-
-## v2.3.1 (2026-06)
-
-### macOS app bundle fix
-
-- **Fix reopen failure:** the `venv/bin/BactoMate` wrapper incorrectly routed `-c` to `main.py`, so the strict bundle launcher’s Python version check corrupted the Qt plugin path on second launch (“missing Qt plugins”).
-- **Launcher hardening:** strict launcher now queries Python version via `python3` directly; wrapper passes `-c`/`-m` to Python and `--version`/`--smoke-test` to `main.py`.
-
----
-
-## v2.3 (2026-06)
-
-### macOS packaging restored
-
-- **`build/create_icons.sh`** — generate `BactoMate.icns` from `img/logo2.png` (or a fallback icon).
-- **`build/build_app_bundle.sh`** — build `BactoMate.app` from source + `venv`; copy Python.framework when available; create relocatable `venv/bin/BactoMate` launcher; ad-hoc sign; verify `--version` and `--smoke-test`.
-- **`build/create_dmg.sh`** — unchanged wrapper now works again; produces `dist/BactoMate.dmg` with install readme and `Open BactoMate.command`.
-
-### Documentation
-
-- Version metadata and docs updated to **2.3**.
-- README and docs describe local macOS `.app`/DMG build steps. Windows standalone packaging remains deferred.
-
----
-
-## v2.2 (2026-06)
-
-### Stabilization and workflow
-
-- **Workflow replay:** session replay routes through the composed Segmentation tab and respects the active backend (Omnipose / Cellpose-SAM / U-Net) for output-folder resolution.
-- **Project files (schema v2):** persist module paths (conversion, segmentation backend/input, filtering/analyze, tracking, post-processing, training) with migration from schema v1.
-- **QThread shutdown:** cooperative stop/cancel helpers for module switching, preview replacement, app close, and growth-curve video export.
-- **Startup:** lazy tab imports to reduce cold-start cost; smoke test unchanged.
-
-### Post-processing and performance
-
-- Growth-curve video montage: merged/separate FI layouts, graph panel composition, overlay application, and cancel during export.
-- Foci overlay drawing extracted for reuse; filtering preview performance improvements.
-
-### CI and tests
-
-- GitHub Actions runs full `pytest tests/` with headless Qt (`QT_QPA_PLATFORM=offscreen`) on macOS and Windows.
-- New smoke/integration tests: workflow replay paths, conversion, video assembly, project model migration, boundary helpers, training dry-run, Qt thread utils.
-
-### Documentation
-
-- Version metadata and docs updated to **2.2**.
-- **Release model:** v2.2 remains **source-first for developers and researchers**. See root README for clone/install/launch.
-
----
-
-## v2.1 (2026-06)
-
-### Post-processing — growth-curve video montage
-
-- **Graph appearance editor:** double-click the growth graph in preview to edit axis labels, fonts, stroke, and grid; save/load graph presets.
-- **Workflow controls:** Excel Y-column picker, graph width ratio, Y-axis quick actions (Auto, Fit data, Y min = 0), and export current preview frame as PNG.
-- **FI channel layouts:** choose **Merged overlay** (one colored microscopy tile) or **Separate FI tiles** (Phase, each FI channel, and Merged side by side); phase/FI roles inferred from filenames.
-- **Video overlays:** mask contours and foci markers on Phase/Merged tiles; improved small-screen preview with scrollable settings.
-- **Fix:** GUI startup crash when opening Post-processing before Excel path widgets were initialized.
-
-### UI
-
-- Session Logs and Status log areas restyled to match module UI.
-- Growth graph appearance dialog buttons use BactoMate compact styling.
-
-### Setup (Windows)
-
-- Improved CUDA/PyTorch bundle checks and install script reliability (`setup/check_torch_cuda_bundle.py`, `install_windows.bat`).
-
-### Documentation
-
-- Version metadata and docs updated to **2.1**.
-- **Release model:** v2.1 remains **source-first for developers and researchers**; standalone installers are deferred. See root README for clone/install/launch.
-
----
-
-## v2.0 (2026-06)
-
-### Release model
-
-- **Source-first release:** clone from GitHub, run `setup/install_mac.sh` (macOS) or `setup/install_windows.bat` (Windows), then launch with `launch_gui.sh` or `launch_windows.bat`.
-- **No DMG/EXE in this release:** binary packaging (macOS DMG, Windows zip/exe) is deferred to a follow-up release.
-- **Repository renamed** from `BactiMate` to `BactoMate`; Python package/import is `bactomate`.
-
-### Install and launch
-
-- macOS: `setup/setup_fresh_env.sh` and `setup/install_mac.sh` now run `pip install -e .` and a post-install smoke test.
-- Windows: `setup/install_windows.bat` documents VC++ Redistributable, CUDA optional install, patch application, and smoke test; see `docs/INSTALL_AND_LAUNCH_windows.md`.
-- Root `README.md` provides copy-paste clone/install/launch commands for both platforms.
-
-### UI and modules
-
-- **Dashboard layout:** modules (Conversion, Segmentation, Analysis, Tracking, Training, Post-processing, Session Logs) use a consistent shell instead of legacy tab names.
-- **Training module:** unified dataset/augmentation section with backend-specific training (Omnipose, Cellpose-SAM, U-Net) in one place.
-
-### CI
-
-- GitHub Actions runs source-install smoke tests on macOS and Windows (no binary build jobs until packaging scripts are restored).
-
-### Documentation
-
-- Updated user manual, README, and Windows install guide for v2.0 workflows.
-- Release notes and version metadata bumped to 2.0.
-
----
-
-## v1.6 (2026-03)
-
-### Logs (single GUI log + session logs)
-
-- **Session logs:** Unchanged; last 100 `*_session.json` files kept.
-- **Single GUI log:** One **bactomate_gui_YYYY-MM-DD_HH-MM-SS.log** per run (from `launch_gui.sh`). Only the last 20 GUI logs are kept so they don’t grow indefinitely. On macOS, `~/Library/Application Support/BactoMate/Logs/launch.log` still gets one line per launch with the path to the full GUI log.
-- **Single GUI log (continued):** Crash tracebacks, Qt messages (e.g. QThread destroyed while running), and Omnipose/model debug lines are written to the same file by Python. No separate debug log.
-
-### Analysis
-
-- **Per-Cell Data (Excel):** New column **Foci Mean Intensity Ratio** when Run foci is enabled and an FI channel is used. Ratio = (Foci Mean Intensity) / (Whole Cell Mean FI Intensity). Helps compare foci brightness to cell background; only present when both FI and foci analysis are run.
-
-### Performance & I/O
-
-- **Combined summary (Analyze Masks):** Each analysis Excel is read **once** per build (Summary + Per-Cell sheets in a single pass). Previously each file was opened twice.
-- **Combined summary output:** Workbook is built in memory and written with a single save; no create-then-reopen of the output file.
-
-### Code structure
-
-- **Analysis paths:** Shared helpers in `bactomate.gui.analysis_paths` for “where analysis Excel lives” and “find analysis Excel for mask.” Used by Analyze Masks and Tracking; removes duplicate logic.
-- **GUI:** Phase 3 documentation of tab layout and shared patterns (log_output, progress_bar, session params). No behavior change.
-
-### Cleanup & dependencies
-
-- **SAM2 segment tab and worker removed.** The tab was not in the UI; SAM2 is not supported in this release. The **Tracking** tab still offers the Trackastra model **general_2d_w_SAM2_features** (unchanged).
-- **SessionLogsTab class removed.** Only the compact Session Logs panel in the status area is used.
-- **requirements.txt:** `sam2` package and SAM2 optional extra removed. `huggingface_hub` kept for Trackastra model downloads.
-- **pyproject.toml:** Description and optional extras updated (no `[sam2]` extra).
-
-### Documentation
-
-- **Release notes:** This file. Update it for each new version.
-- **User manual:** Note about SAM2 tab removed; Tracking model option and Per-Cell columns described.
-- **README:** Installation and optional extras updated (CUDA only; no SAM2).
-
-### Testing
-
-- Phase 1 gate tests (combined summary, merge FI, session apply) remain in place; all 6 pass after v1.6 changes.
+ND2 multiposition export/PH3 recognition, configurable segmentation contours,
+manual cell/foci curation and persistent sidecars, calibrated cell tables/counts,
+channel-specific filters and portable presets. Distance defaults 3 px / 2 px,
+interactive foci distance view, multi-channel display, graphical LUTs, mouse
+navigation and detached Segmentation/Filtering canvases. Curation actions/LUTs
+follow the detached image. Later milestones supersede immediate right-click keep
+and early control placement/PNG behavior.
+
+## Branch lifecycle
+
+Development began on test/bactomate-optimisations. It was renamed to
+BactoMate_Custom_V1; a copy, BactoMate_Custom_Analyses, held initial Analysis work.
+BactoMate_Custom_New-Analyses was copied from `53ec722` for the simpler interface.
+At the user's request V1 and Analyses were subsequently deleted from GitHub.
+Use only the active New-Analyses branch for this custom workflow. Historical
+commits remain identifiers; deleted branch links are not installation targets.
+
+## Baseline and earlier upstream history
+
+The custom baseline is [`2dfd181`](https://github.com/santinlab-code/BactoMate/commit/2dfd181),
+upstream BactoMate 2.9.5. It already includes the module shell, three segmentation
+backends, FI/foci analysis, Tracking/lineage QC, Training, Post-processing and
+platform setup/build helpers. For pre-custom upstream version history, read the
+[baseline release notes](https://github.com/santinlab-code/BactoMate/blob/2dfd181/docs/RELEASE_NOTES.md)
+or [upstream releases](https://github.com/Molinfect/BactoMate/releases).
+Upstream binary downloads are not proof that the custom code is included.
+
+## What has and has not been validated
+
+Automated checks cover data selection, profiles/coordinates, curation/recipes,
+windows/exports and executable Python reconstruction. Earlier real-image checks
+covered nine pixel-identical TIFFs from a three-XY/three-channel/one-frame ND2,
+contours on all XYs, and curation/export plus a 144-cell GFP demograph on XY001.
+They do not establish biological foci/colocalization accuracy, all real time-lapse
+formats, native macOS focus/close behavior or native R/MATLAB execution. Use the
+[local test guide](../GUIDE_TEST_BACTOMATE_EN.md) and review scientific assumptions.

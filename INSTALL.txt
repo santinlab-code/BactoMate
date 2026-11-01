@@ -1,20 +1,28 @@
-BactoMate — source archive
-============================
+BactoMate Custom — source installation
+======================================
 
-This folder is a GitHub "Source code" archive of the BactoMate repository.
+Use branch BactoMate_Custom_New-Analyses from:
+https://github.com/santinlab-code/BactoMate
 
-Lab users
----------
-Download BactoMate.dmg (macOS) or BactoMate-win64.zip (Windows) from:
-  https://github.com/Molinfect/BactoMate/releases/latest
+Branch ZIP:
+https://github.com/santinlab-code/BactoMate/archive/refs/heads/BactoMate_Custom_New-Analyses.zip
 
-Install from those release files. Do not run the setup installers in this folder unless you intend a developer source install.
+Extract the entire source folder. Use Python 3.11. Upstream release apps may not
+contain this custom code; install from this branch or use a build made from it.
 
-Developers (source install)
----------------------------
-Use plain Python 3.11 (system or python.org installer; avoid Conda and Python 3.12 or newer).
+macOS (Terminal in the folder containing main.py):
+  chmod +x setup/macos/*.sh launch_gui.sh
+  ./setup/macos/install.sh
+  ./launch_gui.sh
 
-  macOS:   ./setup/macos/install.sh
-  Windows: setup\windows\install.bat
+Windows (64-bit Python 3.11, Command Prompt in the project folder):
+  setup\windows\install.bat
+  launch_windows.bat
 
-Full steps: setup/README.md
+Create the venv at its final path. Recreate it after moving or replacing the
+project; do not copy the old venv into a new ZIP folder.
+
+Details: README.md and setup/README.md
+Acceptance checks: GUIDE_TEST_BACTOMATE_EN.md (also available in French)
+Current features: MODIFICATIONS_BACTOMATE_EN.md (also available in French)
+Manual: docs/BACTOMATE_USER_MANUAL.md and docs/BactoMate.pdf

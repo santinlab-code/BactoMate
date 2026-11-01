@@ -1,147 +1,185 @@
-# Analysis figure guide
+# Figure guide: practical recipes
 
-Analysis is in English. **Conditions & replicates…** stays at the top in both
-simple and advanced modes. Existing `analysis_groups.json` files remain valid,
-including tables with a legacy French replicate column.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+[Simple Analysis](NEW_ANALYSIS.md) · [Methods and exports](ANALYSIS.md)
 
-Click **Figure guide…** and follow four steps:
+## Four steps
 
-1. **Question.** Compare a measurement, relate two measurements, draw a demograph,
-   locate maxima, count foci per cell, or follow one cell in a time-lapse.
-2. **Population.** Choose a condition and frame. For spatial figures, choose a
-   channel and either all matching XYs or one sample. Existing project masks and
-   fluorescence images are matched automatically. Filtered masks are preferred.
-   The review reports any unfiltered masks. Conditions can also be assigned here.
-3. **Appearance.** Choose the relevant figure, normalization and pole alignment.
-   Straight rods use the principal axis; curved rods can use the medial axis.
-4. **Review and draw.** Read the selected population and choices, then draw.
-   Spatial extraction runs in the background. Changing projects cannot inject
-   the old calculation into the new project.
+Click **Figure guide…** in Analysis:
 
-Calibration is read from mask/original-image metadata, then fluorescence image
-metadata. If neither contains it, enter a fallback calibration in µm / px.
-No file import dialog is used by this guide. Manual imports remain available in
-**Advanced / MicrobeJ-style controls**. This is an alternative interface inspired
-by MicrobeJ workflows, not the Fiji plugin itself.
+1. **Question:** compare a measurement, relate two metrics, show a demograph,
+   locate maxima, count foci per cell, or follow a cell through a time-lapse.
+2. **Population:** choose data/metric, condition, frame and, for spatial figures,
+   channel and all matching XYs or one sample. Conditions & replicates is available
+   here and remains at the top of the main Analysis view in both modes.
+3. **Appearance:** choose plot type, relevant normalization, coordinate method,
+   sampling and orientation. Only relevant choices are shown.
+4. **Review and draw:** verify population and settings before drawing. Spatial
+   extraction runs in the background and uses existing project images/masks.
 
-## Demograph
+Filtered masks are preferred; unfiltered sources are reported in the review.
+Calibration is read from mask/original-image metadata, then fluorescence metadata;
+enter a fallback µm/px if neither supplies it. The guided path does not open a
+manual table/file-import dialog. External imports remain in advanced controls.
 
-One row is one cell observation, sorted by increasing cell length. The longitudinal
-position is normalized from 0 to 1. Colour shows the mean fluorescence in each
-longitudinal bin. Missing bins are not zero-filled. Per-cell maximum scaling is
-recommended for localization patterns; raw intensity preserves brightness differences.
-The displayed count is the number of cell observations, not the number of profile bins.
-For films, **First frame** is the default; **All frames** repeats observations.
+## Compare cell area between conditions
 
-Geometric alignment does not identify pole age. Explicit brighter-pole alignment
-places the brighter end at the left/top, based on mean fluorescence in the two
-terminal quarters. This choice changes the population pattern and is recorded.
+Set Conditions & replicates first, giving XYs of one biological replicate the
+same name. Choose cell measurement comparison, Cells, Cell area (µm²), the desired
+frame, and Violin plot or Box plot. Enable condition comparison and replicate
+means. Cell distributions are distinct from coloured replicate means. No automatic
+significance test is added. See [the complete example](NEW_ANALYSIS.md).
 
-## Maxima map
+## Demograph: fluorescence along a cell population
 
-Choose between:
+Choose the demograph question. In Population, select the channel, condition, frame
+and XY population. The guide extracts measured profiles from the project's mask
+and fluorescence images; a morphology spreadsheet alone is not enough.
 
-- **Brightest pixel in each cell**: one raw-image intensity maximum per cell.
-  Ties use the first pixel in row-major order. This does not detect foci.
-- **Kept detected foci**: the saved filtered foci CSV for the chosen channel.
-  Save Filtering results first. Foci outside the retained masks are excluded.
+For straight rods choose **Straight rods — principal axis**. For curved rods use
+**Curved rods — medial axis** after checking the masks. Branched/ambiguous skeletons
+are refused rather than assigned invented coordinates. Choose geometric orientation
+unless a deliberate brighter-pole alignment is appropriate. Brighter pole places
+the end with greater mean terminal-quarter signal at left/top; it does not identify
+an old/new pole and changes the apparent population pattern.
 
-Coordinates are normalized separately for cell length (0–1) and width (−0.5–0.5).
-Principal-axis foci coordinates retain subpixel projection; medial-axis positions
-use the nearest measured mask pixel. Raw image x/y and cell metrics are exported.
-The capsule is a schematic reference, not a fitted average cell. No measured
-point is moved into or clipped to this outline. Relative coordinates are not µm.
+One row represents one cell observation, sorted by increasing cell length.
+Longitudinal position is relative, 0–1. Colour represents the mean fluorescence
+in each segment, after the explicit normalization below. The count is the number
+of cell observations, not bins. First frame avoids repeated film observations;
+All frames intentionally includes them. A demograph is not a time-lapse kymograph.
 
-The density is a 96 × 96 histogram with Gaussian smoothing (σ = 2 bins), scaled
-to its peak (0–1).
-Values below 1% of its peak are transparent. This scale is not a probability or
-an intensity measurement. Individual point visibility can be toggled.
+### Choose an intensity scale
 
-## Foci count
+Let I be a cell's measured profile, m its minimum and M its maximum.
 
-Select a **per-cell count** column (for example `num foci [GFP]`). The bars show
-percentages within each condition and include cells with zero foci. A foci-only
-table cannot supply cells with zero foci and must not be used as its denominator.
+| Menu choice | Displayed intensity | What is retained/lost |
+| --- | --- | --- |
+| Keep absolute fluorescence | I | Measured brightness differences between cells; acquisition/background must be comparable |
+| Scale each cell to its maximum | I/M | Pattern and baseline relative to its peak; absolute brightness is lost |
+| Scale each cell from 0 to 1 | (I−m)/(M−m) | Within-cell contrast; minimum/background offset and absolute brightness are lost |
 
-## Square publication output
+Example profile **10, 20, 50** becomes **0.2, 0.4, 1** with max scaling, and
+**0, 0.25, 1** with min–max. A constant profile becomes 0 in min–max; a zero
+denominator also maps to 0. Missing values stay missing. Raw values remain in the
+export when normalization is applied. These operations are not background
+correction. Display LUTs in preview windows are a separate operation and do not
+change the quantitative profile.
 
-Each figure opens in an independent movable window. The live canvas fills its
-window and is never resized by an export. The default export uses a 6 × 6
-inch internal canvas (15.24 × 15.24 cm): PDF/SVG retain the square page. The
-normalized-cell map has a taller plotting area inside this square canvas so the
-reference cell is not stretched into a square.
+### Choose sampling and read missing strips
 
-Exports include source rows, plot data, an Excel workbook, metadata and Python,
-R and MATLAB scripts. The scripts reproduce computed plot geometry; they do not
-repeat segmentation. Python reproduction is exercised in tests. Native R/MATLAB
-execution and native macOS display still require local validation.
+Default **24 segments (direct measurements)** averages the contributing pixels
+in each longitudinal segment. Empty bins remain NaN. More segments can leave gaps
+when cells have few longitudinal pixels; bin count is not optical resolution.
+Bright near-white colormap values and white missing areas must be distinguished
+using the colour scale and exported plot_data.csv.
 
-Reopening the guide restores the previous successful figure choices in the
-current session, including condition, frame, channel, normalization and title.
+**Native resolution → 24 positions** first measures means at approximately
+one-pixel longitudinal intervals and then linearly interpolates the measured means
+onto 24 common positions. Edge positions hold the first/last measured mean.
+The export adds **native_profiles.csv** to preserve the native measurements.
+Resampled positions are labelled separately and have no invented contributing
+pixel counts. This option improves a common display grid without adding image
+resolution. The separate 2D cell-map bins are not changed into native profiles.
 
-## Synthetic examples
+These 24 segments concern Analysis profiles, not the model's cell segmentation.
 
-These examples use simulated images and foci, not experimental results.
+## Maxima on a normalized cell
 
-![Figure guide](images/figure-guide-example.png)
+Choose the maxima-location question and a channel/population. Select one source:
 
-![Square demograph of 200 simulated cell observations](images/analysis-demograph-example.png)
+- **Brightest pixel in each cell:** one raw-image maximum per retained cell;
+  ties use the first row-major pixel. This is not foci detection.
+- **Kept detected foci:** saved filtered foci for that channel. Save Filtering
+  first. Foci outside the retained masks are excluded from this spatial view.
 
-![Normalized maxima map of 200 simulated foci](images/analysis-maxima-example.png)
+Coordinates normalize length to 0–1 and width to −0.5–0.5. Raw x/y, cell metrics
+and source identity remain exportable. Principal-axis foci projections preserve
+subpixel positions; medial-axis positions use the nearest measured pixel.
 
-## Independent windows and figure options
+The capsule is a schematic guide, not an average fitted cell; points are not
+forced inside it. Its axes are relative coordinates, not µm. Density is a
+96 × 96 histogram smoothed with a Gaussian of σ=2 bins and scaled to peak 1;
+values below 1% of peak are transparent. It is relative point density, not
+fluorescence intensity or probability. Individual points can be hidden/shown.
 
-Every draw creates a separate figure window. Older windows retain their own data,
-options and export. Resizing or exporting one does not redraw the others. Escape
-does not dismiss a figure. Clear current session closes all its figure windows.
+## Number of foci per cell
 
-**Figure options…** includes category order and labels, colours, box/violin
-spacing and width, axis bounds, X label rotation, fonts, markers, opacity, lines,
-legend/grid/title visibility, image colour bounds, export dimensions in cm/pixels and raster DPI.
-Square export remains the default; the export size is independent of screen size.
-Apply redraws only this window. Export works on an off-screen copy.
-
-**Edit with Figure guide…** restores this window’s scientific choices and keeps
-its publication options. A metric figure drawn with advanced controls can also
-reopen the guide using the rows actually plotted. Figure options remains available
-for expert spatial figures that do not have a saved guided recipe. Figures from
-another project must be edited with that project open; their export stays usable.
+Choose the foci-count question and a **per-cell count** column, for example a
+channel-specific `num foci` field. Percentages use all selected cells per condition,
+including zero foci. A foci-only table cannot provide that denominator. Use the
+frame choice to avoid pooling repeated observations unintentionally.
 
 ## Time-lapse kymograph
 
-Choose **Follow one cell through a time-lapse (kymograph)** in the guide. Select
-one sample/XY and channel, a tracked-mask export (automatically found in
-`_tracking`), and one cell/track ID. Confirm that the ID follows the same cell.
-Source segmentation labels may be used only after this explicit verification.
-Changing labels must be linked in Tracking first.
+Choose **Follow one cell through a time-lapse (kymograph)**. Select one sample/XY
+and channel, a tracked-mask export found in `_tracking`, and one cell/track ID.
+Confirm **I verified that this ID follows the same cell over time**. Source labels
+are allowed only after explicit continuity verification; changing labels should
+be linked/reviewed in Tracking first.
 
-The plot uses every available frame for that cell, relative longitudinal
-position on X, and minutes on Y when a frame interval is supplied or found in
-metadata; otherwise Y uses frames. One image cannot form a kymograph. At least
-two observations are required. Geometric orientation does not establish pole
-identity for a rotating cell; inspect the tracking/orientation before interpreting
-pole-specific dynamics. Track IDs and original frame indices remain exported.
+Set the frame interval if known. The guide uses the selected ID’s available frames. The plot needs at least two observations of that
+identity. X is relative longitudinal position 0–1; Y uses minutes when the frame
+interval is available/supplied, otherwise frames. Frame indices and track/source
+identity remain in the export. Geometric orientation does not guarantee pole
+continuity for rotating cells; inspect orientation before pole-specific inference.
 
-These screenshots use simulated measurements:
+## Independent windows and Figure options
+
+Each draw opens a movable window in front of BactoMate. Each window keeps its own
+data, recipe, options and exports. The live canvas fills the window; export uses
+an off-screen copy and does not resize the live canvas or overlap older figures.
+The default export is square, **15.24 × 15.24 cm**. A normalized capsule keeps an
+appropriate internal aspect ratio within that page.
+
+**Figure options…** includes:
+
+| Panel | Controls |
+| --- | --- |
+| Labels / axes | Title, X/Y labels, automatic/custom bounds, X-label rotation, title/grid/legend visibility |
+| Categories | Move up/down, display names/colours, box/violin X spacing and width |
+| Appearance | Font and point size, opacity, line width, box outliers, maxima points, colormap/colour bounds |
+| Export size | Square lock, width/height in cm or pixels, raster DPI |
+
+Apply redraws only that figure. Category spacing controls chiefly apply to
+boxes/violins; numeric X values retain their scientific meaning. Pixel dimensions
+are converted using the chosen DPI; vector pages use the corresponding physical
+size. Screen dimensions are independent of exported dimensions.
+
+**Edit with Figure guide…** restores the window's scientific settings and retains
+publication options. Changing a metric clears stale axis-label overrides, so a
+width plot does not keep a length label. Compatible advanced metric figures can
+also reopen the guide from their actual rows. Expert spatial figures without a
+guided recipe retain Figure options. Edit a figure with its original project open;
+its existing export remains usable after project changes.
+
+Escape keeps figures visible. The close cross offers Save / Discard / Cancel
+for new/changed figures; an unchanged exported figure closes directly. Save writes
+the complete bundle; cancelling folder selection keeps the window open. Clear
+current session closes figures internally without individual prompts, so export
+wanted figures before resetting.
+
+## Export and reproduce
+
+**Export figure, data & code…** produces PDF/SVG by default, CSV/XLSX source and
+plot data, metadata/provenance and Python/R/MATLAB scripts. Optional replicate
+summaries and native profiles are included when relevant. Automatic PNG generation
+is off. Explicit manual PNG saving remains available; old PNG files are not removed.
+The scripts redraw computed geometry and do not repeat original analysis. Python
+execution is tested; native R/MATLAB execution and native macOS window behavior
+still need local validation. See [the export reference](ANALYSIS.md#export-bundle).
+
+## Illustrations
+
+These screenshots use **simulated measurements**, not experimental evidence.
+Some show an earlier control arrangement; the current text above defines behavior.
+
+![Four-step guide on synthetic data](images/figure-guide-example.png)
+
+![Synthetic population demograph](images/analysis-demograph-example.png)
+
+![Synthetic normalized maxima map](images/analysis-maxima-example.png)
 
 ![Independent figure window](images/free-figure-window-example.png)
 
 ![Category order, labels, colours and spacing](images/figure-category-options-example.png)
-
-## Profile sampling and updated export behaviour
-
-The default is now **24 segments**. **Profile sampling** offers **Native resolution
-→ 24 positions** as an alternative. Native bins average pixels at approximately
-one-pixel longitudinal spacing. The measured averages are linearly resampled onto
-24 common positions; edge positions retain the first/last measured bin average.
-This resampling does not add optical resolution. Source native measurements are
-included in `native_profiles.csv` when exporting a native-sampled spatial figure.
-
-Automatic pipeline PNG previews are disabled. New figure bundles default to PDF
-and SVG, alongside tables and scripts; PNG is only produced when explicitly
-requested. Existing PNG files are not removed in bulk.
-
-**Export size** uses **cm** or **pixels** and a raster DPI conversion. The image
-window close button offers **Save / Discard / Cancel**. Cancel, including cancellation
-of the save location, keeps the window open. Changing the measured variable in the
-guide resets stale axis label overrides from the preceding variable.

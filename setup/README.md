@@ -1,80 +1,116 @@
-# BactoMate setup scripts
+# Install and launch BactoMate Custom
 
-Platform-specific **install and launch** helpers for everyone using BactoMate from source.
+Use **BactoMate_Custom_New-Analyses** from
+[santinlab-code/BactoMate](https://github.com/santinlab-code/BactoMate/tree/BactoMate_Custom_New-Analyses).
+Reviewed 1 November 2026. The earlier V1/Analyses branches are removed. Upstream
+release apps may not contain this custom code; install this branch's source or a
+bundle explicitly built from it.
 
-**Prefer a ready-made app?** Download **BactoMate.dmg** (macOS) or **BactoMate-win64.zip** (Windows) from [GitHub Releases](https://github.com/Molinfect/BactoMate/releases/latest) — you do not need `setup/` or `build/`. GitHub's automatic **Source code** zip is that repository archive; lab installs use the release DMG or Windows zip ([INSTALL.txt](../INSTALL.txt)).
+## Choose the folder and interpreter
 
-**Shared** scripts live at the top level; **Windows** and **macOS** each have their own subfolder.
+Install plain **Python 3.11**, with 64-bit Python on Windows. The platform installers
+verify the interpreter; avoid substituting Conda, Store Python or an arbitrary
+newer Python. GPU is optional. Keep source in a user-writable folder such as
+`~/BactoMate_custom` or `C:\Users\<you>\BactoMate_custom`.
 
-## Quick start
+Clone the active branch or extract its complete ZIP; the project root contains
+`main.py`, `requirements.txt` and the launchers. Create the venv in its final
+location. Copying/moving a venv or renaming its parent can break absolute shebangs
+and editable-package paths. Recreate it when moving/replacing the project.
 
-| Platform | Install | Launch |
-|----------|---------|--------|
-| **Windows** | `install_windows.bat` or `setup\windows\install.bat` | `launch_windows.bat` (created at project root by the installer) |
-| **macOS** | `./setup/macos/install.sh` | `./launch_gui.sh` |
+## macOS
 
-Legacy paths (`setup\install_windows.bat`, `./setup/install_mac.sh`, etc.) are thin stubs that forward to the folders below.
-
-## Layout
-
-```
-setup/
-  apply_all_patches.py     # Shared — Omnipose/Cellpose patches (both platforms)
-  README.md                # This file
-  windows/                 # Windows only — install, launch, CUDA helpers
-  macos/                   # macOS only — install, launch, Qt repair, GPU test
-  dev/                     # Optional developer diagnostics (not used by install)
-```
-
-### `setup/windows/` (Windows)
-
-| File | Purpose |
-|------|---------|
-| `install.bat` | One-shot install: venv, pip, dbscan wheel, requirements, patches, smoke test |
-| `launch_strict.bat` | Template copied to `launch_windows.bat` at project root |
-| `launch_bundle.bat` | Launcher for portable `dist\BactoMate\` bundles |
-| `constraints.txt` | Pip constraints (dbscan wheel pin; wandb/protobuf for Spotiflow) |
-| `ensure_spotiflow_deps.py` | Repair wandb↔protobuf mismatch that breaks Spotiflow foci |
-| `verify_python.py` | Rejects Conda / Store / non-3.11 Python |
-| `create_launcher_assets.py` | Creates `BactoMate.lnk` and desktop shortcut |
-| `minimize_console.ps1` | Minimizes console when GUI starts |
-| `check_torch_cuda_bundle.py`, `get_cuda_wheel_index.py`, `torch_cuda_available.py` | Optional CUDA PyTorch during install |
-| `patch_bundle_pyvenv.py` | Fixes venv paths when a portable bundle is moved |
-
-**Install location:** use a user-writable folder, e.g. `C:\Users\<you>\BactoMate`. Avoid `Program Files`.
-
-**Logs:** if the project `Logs\` folder is not writable, BactoMate writes to `%APPDATA%\BactoMate\Logs`.
-
-### `setup/macos/` (macOS)
-
-| File | Purpose |
-|------|---------|
-| `install.sh` | One-shot install (calls `setup_fresh_env.sh`) |
-| `setup_fresh_env.sh` | Recreate venv, install requirements, editable install, patches |
-| `launch_gui.sh` | Main GUI launcher |
-| `launch_gui_bundle_strict.sh` | Launcher for `.app` bundle |
-| `install_cuda_pytorch.sh` | Optional NVIDIA CUDA PyTorch |
-| `repair_pyqt6.sh` | Fix missing/broken Qt cocoa plugin |
-| `clear_models.sh` | Clear corrupted Cellpose model cache |
-| `test_mps_gpu.py` | Apple Silicon MPS smoke test |
-
-### `setup/dev/` (optional)
-
-| File | Purpose |
-|------|---------|
-| `show_omnipose_path.py` | Print omnipose/peakdetect install paths |
-| `fix_omnipose_core_syntax.py` | One-off fix for a broken omnipose/core.py in site-packages |
-
-## Shared: `apply_all_patches.py`
-
-Run manually if segmentation fails after upgrading dependencies:
-
-```bat
-venv\Scripts\python.exe setup\apply_all_patches.py
-```
+In Terminal at the project root:
 
 ```bash
-source venv/bin/activate && python setup/apply_all_patches.py
+chmod +x setup/macos/*.sh launch_gui.sh
+./setup/macos/install.sh
+./launch_gui.sh
 ```
 
-Full Windows guide: [docs/INSTALL_AND_LAUNCH_windows.md](../docs/INSTALL_AND_LAUNCH_windows.md)
+The installer delegates to setup_fresh_env.sh, logs to `Logs/install.log`, creates
+a fresh `venv`, installs dependencies/editable package, applies backend patches
+and checks the result. An existing venv is kept as `venv.previous` until the smoke
+check succeeds. Follow the installer's recovery message if a step fails.
+
+For later launches, if installed directly under your home folder:
+
+```bash
+cd ~/BactoMate_custom
+./launch_gui.sh
+```
+
+If the Qt cocoa plugin is broken:
+
+```bash
+./setup/macos/repair_pyqt6.sh
+```
+
+For a clean environment rebuild, rerun `./setup/macos/install.sh`. Model/device
+problems are separate from GUI launch failures; check the application log.
+
+## Windows
+
+Install the [VC++ Redistributable x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist),
+use Python 3.11 x64 and open Command Prompt at the project root:
+
+```bat
+setup\windows\install.bat
+launch_windows.bat
+```
+
+Do not use Program Files or run as Administrator. The installer creates a venv,
+installs constrained dependencies/wheels, applies patches and creates launch
+assets. See [the Windows guide](../docs/INSTALL_AND_LAUNCH_windows.md) for DLL,
+Spotiflow, ncolor, solver and CUDA repairs. Legacy root/setup installer stubs
+forward to the platform scripts; use the paths above for new instructions.
+
+## Verify and update
+
+Activate this project's environment before diagnostic/CLI commands:
+
+```bash
+source venv/bin/activate
+python main.py --version
+python main.py --smoke-test
+```
+
+Windows equivalents are `venv\Scripts\activate` or direct
+`venv\Scripts\python.exe main.py --smoke-test`. Version 2.9.5 is the upstream
+package version; record `git rev-parse HEAD` to identify custom code.
+
+With a clean checkout already on the active branch:
+
+```bash
+git status
+git pull --ff-only
+```
+
+Preserve local edits before updating. If dependencies change, reinstall with the
+platform installer. For a source ZIP update, extract a fresh folder and build its
+venv there; keep experiment results separate from source replacement.
+
+Manual fallback for a suitable existing Python 3.11 environment:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -e .
+python setup/apply_all_patches.py
+python main.py --smoke-test
+```
+
+On Windows, prefer the installer because it also applies platform constraints and
+repairs. Do not upgrade scientific/backend dependencies indiscriminately.
+
+## Helper map
+
+| Location | Role |
+| --- | --- |
+| `setup/macos/` | Installer, real launcher, fresh venv, Qt repair and GPU helpers |
+| `setup/windows/` | Installer, launcher templates, constraints and dependency repairs |
+| `setup/apply_all_patches.py` | Shared Omnipose/Cellpose compatibility patches |
+| `setup/dev/` | Optional developer diagnostics |
+| `build/` | Native app/bundle packaging; not required for source launch |
+
+After installation follow [the acceptance guide](../GUIDE_TEST_BACTOMATE_EN.md).
+The [user manual](../docs/BACTOMATE_USER_MANUAL.md) covers the complete workflow.

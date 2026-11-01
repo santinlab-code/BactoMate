@@ -1,243 +1,113 @@
-# BactoMate — Install and launch on Windows
+# Install and launch the custom branch on Windows
 
-## Recommended: ready-to-run Windows download
+Current branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+[Setup overview](../setup/README.md) · [Acceptance tests](../GUIDE_TEST_BACTOMATE_EN.md)
 
-1. Download **BactoMate-win64.zip** from [GitHub Releases](https://github.com/Molinfect/BactoMate/releases/latest).
-2. Extract the entire ZIP with **7-Zip** into a folder you can write to, such as your Downloads folder. Open the extracted folder.
-3. Double-click **BactoMate.bat**. The first launch can take a couple of minutes; wait for the main window to appear.
+## Install from this branch
 
-Python and the required packages are included. You do not need to install or uninstall Python, run `install_windows.bat`, or run as Administrator. Keep the extracted folder together; do not move `BactoMate.bat` out of it.
+An upstream `BactoMate-win64.zip` release may not contain the custom functions.
+Use this branch's source ZIP/clone, or a portable build explicitly produced from
+it. The automatic GitHub source archive is code, not a bundled Python application.
 
-### Older download: "Failed to configure bundled virtual environment"
+Requirements: Windows 10/11 x64, plain **Python 3.11 x64** from python.org with
+its `py` launcher, and the [Microsoft VC++ Redistributable x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+Use a writable folder such as `C:\Users\<you>\BactoMate_custom`; avoid Program
+Files and do not run as Administrator, which can interfere with drag-and-drop.
+Conda/Store interpreters and other Python versions are not installer substitutes.
 
-This can be caused by a launcher path-quoting bug, even when all folders were extracted correctly. Installing Python or extracting to a different folder does not fix that bug. Replace `BactoMate.bat` with the corrected launcher supplied by the maintainer, then double-click it again.
-
-## Source installation (advanced)
-
-The remaining instructions are for a Git clone or source ZIP, rather than the ready-to-run Windows download.
-
-For a portable folder built from source (maintainers), see **Windows bundle** below.
-
-Windows-specific scripts live in **`setup\windows\`**. See [setup/README.md](../setup/README.md). Packaging scripts are in [build/README.md](../build/README.md) (maintainers only).
-
-## Prerequisites
-
-- **Windows 10 or 11 (64-bit)**
-- **Python 3.11 (64-bit)** from [python.org](https://www.python.org/downloads/) — **not** Conda, **not** Microsoft Store Python
-  - Enable **Add python.exe to PATH** during install
-  - Use the `py` launcher: `py -3.11` (installer verifies this automatically)
-- **Git** (optional) or download the repo as a ZIP from GitHub
-- **Microsoft Visual C++ Redistributable (x64)** — runtime DLLs for PyTorch and scientific wheels  
-  [Download from Microsoft](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
-
-You do **not** need **Microsoft C++ Build Tools** for a normal install. BactoMate pins `dbscan==0.0.10` on Windows (prebuilt wheel) so Omnipose does not compile native code from source.
-
-**Install location:** extract or clone to a **user-writable** folder, e.g. `C:\Users\<you>\BactoMate` or `D:\LabTools\BactoMate`. Do **not** install under `Program Files` — the venv, logs, and outputs need write access. **Never** run BactoMate as Administrator (breaks drag-and-drop).
-
-Extracting the GitHub ZIP to **Downloads** is fine, but Windows may **block** scripts until unblocked — the installer now runs `Unblock-File` automatically. If double-click still does nothing, right-click the ZIP → **Properties** → **Unblock**, then extract again.
-
-Optional for GPU:
-
-- NVIDIA driver + CUDA-compatible GPU
-
-## One-shot install
-
-Open **Command Prompt** or **PowerShell**, `cd` to the project root (folder containing `main.py`), then:
-
-```bat
-install_windows.bat
-```
-
-or:
+Clone/extract the entire active branch. In Command Prompt at the folder containing
+`main.py`, run:
 
 ```bat
 setup\windows\install.bat
-```
-
-(`setup\install_windows.bat` is a stub to the same script.)
-
-The script will:
-
-1. Verify **Python 3.11, 64-bit, non-Conda** (`setup\windows\verify_python.py`)
-2. Create `venv\` using only that interpreter
-3. Install all packages via `venv\Scripts\python.exe` (ignores system/Homebrew/Conda Python on PATH)
-4. Pre-install `dbscan==0.0.10` (Windows wheel) before Omnipose
-5. Install `requirements.txt` with `setup\windows\constraints.txt`
-6. Run `pip install -e .`, optional CUDA PyTorch, patches, and smoke test
-7. Create strict `launch_windows.bat` (no `activate`; absolute venv Python only)
-
-## Launch
-
-Double-click **`launch_windows.bat`** or **`BactoMate.lnk`**, or from a terminal:
-
-```bat
 launch_windows.bat
 ```
 
-The launcher clears `PYTHONHOME` / `PYTHONPATH`, sets `PYTHONNOUSERSITE=1`, and runs:
+If Windows blocks scripts, unblock the downloaded ZIP in Properties and extract
+again. Run the installer from an existing Command Prompt to retain failure output.
+The installer verifies Python, creates `venv`, installs constrained requirements
+and the editable package, applies patches/Spotiflow repairs, checks the result
+and creates launcher assets. A prebuilt dbscan wheel avoids the normal need for
+C++ Build Tools. Internet access is needed for packages/models not yet installed.
 
-```bat
-venv\Scripts\python.exe -m bactomate
-```
-
-## Verify install (any time)
+## Verify and start later
 
 ```bat
 venv\Scripts\python.exe main.py --version
 venv\Scripts\python.exe main.py --smoke-test
+launch_windows.bat
 ```
 
-You should see `BactoMate 2.9.5` and `Smoke test OK`.
-
-## Logs
-
-- **Default:** `Logs\bactomate_gui_*.log` in the project folder (when writable).
-- **Protected install path** (e.g. `Program Files`): logs go to **`%APPDATA%\BactoMate\Logs`** automatically.
-
-## Windows bundle (portable folder)
-
-After a successful source install on a **Windows** build PC:
-
-```bat
-build\windows\build_windows_bundle.bat
-build\windows\create_windows_zip.bat
-```
-
-(`build\build_windows_bundle.bat` stubs forward to the same scripts.)
-
-This creates `dist\BactoMate\` with project files, `venv\`, and a copied **Python 3.11 runtime** (`runtime\Python311\`). Copy the folder or zip to lab PCs; launch with **`BactoMate.bat`** or **`launch_windows.bat`** inside the bundle. No separate Python install required on target machines.
-
-**Note:** `build\macos\` is for macOS `.app` / DMG only — it does not run on Windows.
-
-Rebuild the bundle after upgrading dependencies or BactoMate version.
+Alternatively activate `venv\Scripts\activate` and run `bactomate`. The version
+can remain 2.9.5; use the Git commit/branch to identify the custom build. Keep the
+project in its final location. Recreate its venv after a move or new ZIP extraction;
+a copied venv can still point to the old code.
 
 ## Troubleshooting
 
-### Installer window closes immediately / nothing happens
+| Symptom | Check or repair |
+| --- | --- |
+| No installer window / immediate close | Run from Command Prompt, confirm extracted source root and Python 3.11 x64 |
+| DLL load failed / c10.dll / torch import failure | Install VC++ x64 runtime; confirm 64-bit Python; rebuild with the installer |
+| dbscan wheel/build error | Use platform installer/constraints with Python 3.11 x64 rather than compiling an unpinned version |
+| Drag-and-drop fails | Run normally, without Administrator privileges |
+| CUDA unavailable | Check NVIDIA driver/device and installed PyTorch build; CPU remains supported |
+| ILP tracking import failure | Reinstall constrained requirements in this venv; the solver API must match Trackastra |
 
-1. Run from Command Prompt so output stays visible:
-   ```bat
-   cd C:\path\to\BactoMate
-   install_windows.bat
-   ```
-2. Check `Logs\install_last.log` in the project folder for the resolved path and errors.
-3. Do not install under `Program Files` or a read-only network share.
-4. Unblock the ZIP (Properties → Unblock) before extracting, especially from Downloads.
-
-### Drag-and-drop does nothing / UI feels broken
-
-You are likely running **as Administrator**. Uncheck **Run as administrator** on the shortcut (`BactoMate.lnk` → Properties → Compatibility) and relaunch normally.
-
-### `Microsoft Visual C++ 14.0 or greater is required` / `Failed building wheel for dbscan`
-
-You are on an old installer or `dbscan` was upgraded to 1.0.0 (source-only on Windows).
-
-```bat
-rmdir /s /q venv
-setup\windows\install.bat
-```
-
-Or manually:
-
-```bat
-venv\Scripts\python.exe -m pip install "dbscan==0.0.10" --only-binary dbscan --force-reinstall
-```
-
-### `DLL load failed` / `c10.dll` / `torch` import errors
-
-1. Install **Visual C++ Redistributable x64** (link above) and reboot if prompted
-2. Confirm **64-bit Python 3.11**: `py -3.11 -c "import struct; print(struct.calcsize('P')*8)"` → `64`
-3. Recreate the venv:
-   ```bat
-   rmdir /s /q venv
-   setup\windows\install.bat
-   ```
-
-### Conda / wrong Python version
-
-The installer **rejects** Conda and non-3.11 interpreters. Install plain Python 3.11 from python.org and run `setup\windows\install.bat` again.
-
-### `pip install` resolution errors
-
-The installer uses `--use-deprecated=legacy-resolver` and `setup\windows\constraints.txt`. If it still fails:
-
-```bat
-venv\Scripts\python.exe -m pip install --use-deprecated=legacy-resolver -r requirements.txt -c setup\windows\constraints.txt
-venv\Scripts\python.exe -m pip install -e .
-```
-
-### Segmentation: `pretrained_model` / Cellpose errors
-
-Re-apply patches:
+For incompatible Cellpose/Omnipose checkpoint loading:
 
 ```bat
 venv\Scripts\python.exe setup\apply_all_patches.py
+venv\Scripts\python.exe main.py --smoke-test
 ```
 
-### Preview: `cannot import name 'unique_nonzero' from 'ncolor'`
-
-omnipose 1.1.4 imports `unique_nonzero` from `ncolor` and only requires `ncolor>=1.4.3`. ncolor 2.x removed that name, so a fresh install can pull ncolor 2.3.0 and Segmentation preview fails even though `cellpose-omni` is installed. `pip install cellpose-omni` does not fix it.
-
-`requirements.txt` pins `ncolor>=1.4.3,<2`. Repair an existing venv with:
+For `cannot import name 'unique_nonzero' from 'ncolor'`, Omnipose expects the 1.x
+API; installing Cellpose again is not the remedy:
 
 ```bat
 venv\Scripts\python.exe -m pip install "ncolor>=1.4.3,<2"
 ```
 
-### Spotiflow foci: `cannot import name 'Imports' from 'wandb.proto...'`
-
-Spotiflow loads `wandb` at import time. An older `wandb` with a newer `protobuf` (often after unrelated `pip install -U` on the lab PC) breaks Analyze Masks → Spotiflow with no peaks and a log line like:
-
-```text
-ImportError: cannot import name 'Imports' from 'wandb.proto.wandb_telemetry_pb2'
-```
-
-Do **not** install the latest wandb/protobuf unbounded — that pulls `protobuf` 5–7 and breaks TensorFlow / U-Net (`tensorflow-intel` needs `protobuf<5` and `tensorboard<2.17`).
-
-Repair (does not require a full reinstall):
+For Spotiflow `wandb.proto` errors or TensorFlow protobuf/tensorboard conflicts:
 
 ```bat
 venv\Scripts\python.exe setup\windows\ensure_spotiflow_deps.py
 venv\Scripts\python.exe main.py --smoke-test
 ```
 
-Or manually (TF-safe band):
+The maintained constraints use a TensorFlow-safe dependency range. Avoid a blanket
+upgrade to latest wandb/protobuf. If required, the existing repair range is:
 
 ```bat
 venv\Scripts\python.exe -m pip install "wandb>=0.22.0,!=0.23.1,<0.28.0" "protobuf>=4.25.0,<5.0.0" "tensorboard>=2.12.0,<2.17.0"
 ```
 
-Fresh installs pin these via `requirements.txt` and `setup\windows\constraints.txt`; the installer also runs `ensure_spotiflow_deps.py` before the smoke test.
+Inspect `Logs` in the project; a non-writable project can fall back to
+`%APPDATA%\BactoMate\Logs`. Preserve the relevant install/GUI log and exact steps.
 
-### TensorFlow: `protobuf` / `tensorboard` conflict after upgrading wandb
+## Manual recovery
 
-If pip warns that `tensorflow-intel` wants `protobuf<5` / `tensorboard<2.17` but you have protobuf 5–7 or tensorboard 2.17+, run the same repair command above. U-Net Segment will fail until those are downgraded.
-
-### CUDA / GPU not detected
-
-CPU mode works for most workflows. To add GPU later:
+Prefer the installer, which also handles platform-specific steps. In an explicitly
+created Python 3.11 x64 environment, the core fallback is:
 
 ```bat
-venv\Scripts\python.exe -m pip uninstall torch torchvision torchaudio -y
-venv\Scripts\python.exe -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-```
-
-Use the CUDA index that matches your driver (`cu121`, `cu124`, `cu128`, etc.).
-
-### GUI does not start (no window)
-
-Check `Logs\bactomate_gui_*.log` in the project folder, or `%APPDATA%\BactoMate\Logs` if the project folder is not writable. Ensure PyQt6 imported during smoke test.
-
-## Manual install (if the batch script fails)
-
-```bat
-py -3.11 setup\windows\verify_python.py
 py -3.11 -m venv venv
-venv\Scripts\python.exe -m pip install "pip>=24.2,<26"
-venv\Scripts\python.exe -m pip install "dbscan==0.0.10" --only-binary dbscan
-venv\Scripts\python.exe -m pip install --use-deprecated=legacy-resolver -r requirements.txt -c setup\windows\constraints.txt
+venv\Scripts\python.exe -m pip install -r requirements.txt -c setup\windows\constraints.txt
 venv\Scripts\python.exe -m pip install -e .
 venv\Scripts\python.exe setup\apply_all_patches.py
 venv\Scripts\python.exe setup\windows\ensure_spotiflow_deps.py
 venv\Scripts\python.exe main.py --smoke-test
+venv\Scripts\python.exe main.py
 ```
+
+Do not create over an environment you need to preserve. For source updates use
+a clean Git pull on the active branch or a new ZIP folder and its new venv.
+
+## Custom portable bundles
+
+Maintainers can build a Windows portable folder/ZIP from this branch on Windows;
+see [packaging](../build/README.md). A delivered portable build includes its own
+runtime. Extract the whole folder and launch its `BactoMate.bat`, keeping the
+contents together. Do not run the source installer inside a portable distribution.
+Test that its recorded commit matches the intended custom revision; a generic
+upstream release filename is not evidence of that match.

@@ -1,92 +1,63 @@
-# BactoMate packaging (maintainers only)
+# Package BactoMate Custom
 
-> **End users:** you do not need this folder. Install from source via [`setup/`](../setup/README.md), or download **BactoMate.dmg** / **BactoMate-win64.zip** from [GitHub Releases](https://github.com/Molinfect/BactoMate/releases/latest).
+Maintainer guide for **BactoMate_Custom_New-Analyses**, reviewed 1 November 2026.
+End users can [install from source](../setup/README.md); no build step is needed.
+A generic upstream release app may not contain this branch's custom features.
 
-Packaging helpers for **distributable builds** after a normal source install. Scripts are split by platform — there is no single cross-platform build.
+## Build the intended code
 
-Tagged releases (`v*`) build these assets automatically in GitHub Actions and attach them to the release. To build locally, use the commands below.
+Check the branch and commit, keep a clean source tree and install the platform
+requirements first. Do not use the removed V1/Analyses branches or merge this
+work to another branch as a prerequisite. The inherited package version remains
+2.9.5, so record the custom commit in the distributed build's accompanying notes.
+Do not publish a release/tag or upload experiment data merely to create a local
+build. Packaging is separate from updating this branch's source/docs on GitHub.
 
-## Quick reference
+## Native outputs
 
-| Platform | What you get | Build (from project root) |
-|----------|--------------|---------------------------|
-| **macOS** | `BactoMate.app` + optional `.dmg` | `./build/macos/build_app_bundle.sh` then `./build/macos/create_dmg.sh` |
-| **Windows** | Portable folder `dist\BactoMate\` + optional zip | `build\windows\build_windows_bundle.bat` then `build\windows\create_windows_zip.bat` |
+| Platform | Commands from the project root | Output |
+| --- | --- | --- |
+| macOS | `./build/macos/build_app_bundle.sh`, then `./build/macos/create_dmg.sh` | dist/BactoMate.app and dist/BactoMate.dmg |
+| Windows | `build\windows\build_windows_bundle.bat`, then `build\windows\create_windows_zip.bat` | dist\BactoMate\ and dist\BactoMate-win64.zip |
 
-**Prerequisite:** run the platform install script first (`setup/macos/install.sh` or `setup\windows\install.bat`).
+Run these on their target operating system after its setup installer. The macOS
+scripts build the native launcher/icons and app payload. The Windows scripts
+include a Python runtime and portable launcher. Keep all files of a portable
+folder together. Inspect build logs and test on a clean target machine; building
+successfully on the developer computer is not portability proof.
 
-## Layout
+Inherited public-packaging rules omit developer/internal artifacts and provide an
+empty Logs directory. Check the actual packaged manifest before distributing;
+never include local microscopy experiments, tokens, work folders or an unintended
+old venv. The repository's optional upstream release workflows do not guarantee
+that this custom branch is built or uploaded automatically.
 
-```
-build/
-  README.md           # This file
-  macos/              # macOS .app and DMG (run on a Mac only)
-  windows/            # Windows portable bundle + zip (run on Windows only)
-```
+## Distribution checks
 
-### `build/macos/` — macOS only
+Launch, quit and reopen the packaged app. Check the recorded commit, smoke test,
+conversion, a small segmentation/filtering run and automatic Analysis handoff.
+On macOS, test focus/close dialogs on native windows; on Windows, test paths with
+spaces and runtime imports. Use the [acceptance guide](../GUIDE_TEST_BACTOMATE_EN.md).
 
-| File | Purpose |
-|------|---------|
-| `build_app_bundle.sh` | Build `BactoMate.app` from source + venv |
-| `create_dmg.sh` | Create `dist/BactoMate.dmg` |
-| `create_icons.sh` | Generate `BactoMate.icns` for the app |
-| `macos_launcher.c` | Native launcher binary for the `.app` |
+Unsigned/ad-hoc-signed macOS builds can require the normal Finder Open / Privacy &
+Security approval for apps from outside the App Store. Follow the build's supplied
+launcher instructions; managed computers may require administrator/IT policy
+support. Do not assume another build's upstream DMG resolves custom-code issues.
 
-These scripts **cannot** run on Windows or Linux.
+## Documentation PDF
 
-### `build/windows/` — Windows only
-
-| File | Purpose |
-|------|---------|
-| `build_windows_bundle.bat` | Entry point: builds `dist\BactoMate\` |
-| `build_windows_bundle.py` | Copies project, venv, and Python 3.11 runtime |
-| `create_windows_zip.bat` | Zips the bundle for distribution |
-
-The portable bundle includes its own Python runtime — target PCs do **not** need a separate Python install.
-
-These scripts **cannot** run on macOS.
-
-## Typical workflows
-
-### macOS (on a Mac)
+The current manual is docs/BACTOMATE_USER_MANUAL.md, with PDF at docs/BactoMate.pdf.
+To rebuild from the docs directory with Pandoc, XeLaTeX and DejaVu Sans installed:
 
 ```bash
-./setup/macos/install.sh
-./build/macos/build_app_bundle.sh
-./build/macos/create_dmg.sh
+cd docs
+pandoc BACTOMATE_USER_MANUAL.md -o BactoMate.pdf \
+  --pdf-engine=xelatex --toc -V mainfont="DejaVu Sans" \
+  -V monofont="DejaVu Sans Mono" -V geometry:margin=20mm \
+  -V fontsize=10pt -V colorlinks=true
 ```
 
-Output: `dist/BactoMate.dmg` (Finder tag `v<version>` from `bactomate.__version__`)
-
-### Windows (on a Windows PC)
-
-```bat
-setup\windows\install.bat
-build\windows\build_windows_bundle.bat
-build\windows\create_windows_zip.bat
-```
-
-Output: `dist\BactoMate-win64.zip`
-
-Copy the zip to lab machines; launch with `BactoMate.bat` inside the extracted folder.
-
-## Release checklist
-
-Before uploading a manual release (if not using CI):
-
-1. On `dev`, finish features and tests.
-2. Run `./build/strip_dev_tree_for_main.sh`, commit, and merge into `main` (or run the script on `main` after merge).
-3. Tag on `main` (`v*`).
-4. Build DMG (macOS) and/or Windows zip on the target OS.
-5. Attach `dist/BactoMate.dmg` and `dist/BactoMate-win64.zip` to the GitHub release.
-6. Smoke-test: open the app, run `--version` and `--smoke-test` from the bundle.
-
-### dev vs main
-
-- **`dev`** — full tree, including `docs/internal/` (plans, join contracts, pipeline diagrams).
-- **`main`** — public-facing clone; run `build/strip_dev_tree_for_main.sh` so internal docs and draft manuscripts are not published.
-
-Bundles (DMG / zip) always exclude `docs/internal/` and include an empty `Logs/` directory regardless of branch.
-
-Step-by-step release (version bump, merge, strip, tag): **`docs/internal/RELEASE_WORKFLOW.md`** on the `dev` branch.
+Build after editing the source and inspect page breaks, tables, links and text
+extraction. This manual PDF is separate from the legacy marketing brochure
+created by bactomate.scripts.generate_bactomate_pdf. Documentation screenshots
+under docs/images are illustrative assets, not automatic pipeline PNG output.

@@ -1,125 +1,208 @@
-# Testing the BactoMate development version
+# BactoMate Custom — installation and acceptance tests
 
-## Which version should I install?
+Reviewed: **1 November 2026**, code **`811d5b6`**, branch
+**BactoMate_Custom_New-Analyses**. [French edition](GUIDE_TEST_BACTOMATE_FR.md)
+· [Consolidated changes](MODIFICATIONS_BACTOMATE_EN.md)
 
-The `test/bactomate-optimisations` branch contains the current code and the
-changes described in `MODIFICATIONS_BACTOMATE_EN.md`. It is source code with
-installation scripts, not a pre-built Windows or macOS application. Applications
-from the official release do not contain these changes.
+Use a copy of a small dataset in a separate test folder. A useful dataset has
+several XYs, phase, GFP and mCherry; add a tracked time-lapse for kymographs.
+Record commit, OS, calibration, input files and expected channel names. These
+checks validate behavior; biological detection accuracy needs separate review.
 
-Download the branch as a ZIP and extract it into a new folder, such as
-`BactoMate-test` in Documents. Do not replace your regular installation. The
-archive does not contain the reference ND2 file or the test results generated here.
+## 1. Install the correct branch
 
-## Windows
+[Clone or download the active branch](README.md#install-this-custom-version).
+Upstream release apps do not guarantee these customizations. The former V1 and
+Analyses branches have been removed. Use Python 3.11 and create a venv at the
+final project path. Recreate it rather than copying an old folder's venv.
 
-Project requirements: 64-bit Windows 10/11, 64-bit Python **3.11** from
-python.org (avoid Conda and Microsoft Store Python), and the 64-bit Microsoft
-Visual C++ Redistributable. When installing Python, select the option to add it
-to PATH.
-
-1. Fully extract the archive into Documents.
-2. Open the extracted folder containing `main.py` and `requirements.txt`.
-3. Double-click `install_windows.bat` and let the installation finish.
-4. Double-click `launch_windows.bat` to start this version.
-
-If Windows blocks the downloaded archive, open its Properties and use Unblock,
-if that option is shown, then extract it again. The detailed project guide is
-`docs/INSTALL_AND_LAUNCH_windows.md`.
-
-## macOS
-
-Project requirements: macOS 10.15 or later and Python **3.11**. Installing from
-source requires a few Terminal commands. Open Terminal (Applications → Utilities).
-Type `cd` followed by a space, drag the extracted folder containing `main.py`
-into the Terminal window, and press Return. Then run these two lines one at a time:
+macOS, Terminal in the folder containing `main.py`:
 
 ```bash
 chmod +x setup/macos/*.sh launch_gui.sh
 ./setup/macos/install.sh
-```
-
-The installer downloads the required libraries; the first installation may take
-several minutes. If an error occurs, share the displayed message before trying to
-change Python. This archive was verified in our Linux environment; installation
-and interface behavior on your Mac still need to be confirmed by this test.
-
-To launch BactoMate later, run this from the same folder:
-
-```bash
+source venv/bin/activate
+python main.py --version
+python main.py --smoke-test
 ./launch_gui.sh
 ```
 
-## Linux
+Windows, Command Prompt in the project folder:
 
-The cloud test environment runs Linux with Python 3.11. The project's user-facing
-procedures mainly cover Windows and macOS. For a local Linux installation, specify
-the distribution so that the graphical dependencies and installation can be adapted.
+```bat
+setup\windows\install.bat
+venv\Scripts\python.exe main.py --version
+venv\Scripts\python.exe main.py --smoke-test
+launch_windows.bat
+```
 
-## Test workflow using the reference file
+The package version can remain **2.9.5**. With Git, `git rev-parse HEAD` identifies
+the custom revision. See [setup](setup/README.md) for repairs and updates.
 
-Use a copy of the ND2 file and a new results folder for these tests.
+## 2. Home and session reset
 
-### A. Conversion
+Open a project/workspace folder. Confirm Analysis is a separate navigation module.
+Set a few paths, then use **Clear current session** on the home page. Expect empty
+paths/caches, closed previews/figures and a return home. Saved files and saved
+condition/replicate assignments must remain on disk. Reset must not interrupt
+active work silently; finish/cancel it first.
 
-1. Select the ND2 file in File Conversion.
-2. Assign the Phase role to the PH3 channel.
-3. Select both Fluorescence and Foci for GFP and mCherry.
-4. Convert all three positions and all three channels.
-5. Confirm that nine TIFF files are produced, containing XY001, XY002, and XY003.
+## 3. Convert a multiposition ND2
 
-### B. Segmentation
+Select the ND2 in File conversion. Check reported positions/channels and channel
+roles. For the first comparison, disable crop/corrections and save channels
+separately. Run conversion; for three XYs × three channels expect nine TIFFs in
+`Tif_files`. Check XY/channel identity, frame count, bit depth and pixel size in
+BactoMate or Fiji. Preview is the first XY, not a composite of all positions.
+A single-time reference dataset cannot validate time-lapse export.
 
-1. Segment the phase images with the model normally used by the team.
-2. Open the preview and confirm that the outlines leave the cells visible.
-3. Change the color with Outline color… and check the result.
+## 4. Segment and detach the image
 
-### C. Filtering and curation
+Select phase and an appropriate backend/model. Preview segmentation, inspect
+boundaries, hide/show outlines and change colour. Source labels must not change
+when only the display colour changes. Save/process a small test before a batch.
 
-The image opens separately: move it to a second screen if desired. Choose Cells
-or Foci in that window, click an object, and check the yellow box and selected
-table row. Press Delete or Backspace to exclude it, then restore it with Keep
-selected objects. Closing the image window reattaches it; Detach image detaches
-it again.
+Detach the image. Expect compact controls at the top of the main interface, LUTs
+open on the right of the detached image, gentle wheel zoom, left-drag pan,
+recenter/fit and both position sliders. Adjust each available channel's LUT,
+switch away/back and confirm the separate ranges remain. Escape keeps the image
+open. Attach restores the layout and values.
 
-1. Open Preview filters and the Cell table / Manual selection / History panel.
-2. Record the initial cell count, then apply an area filter.
-3. Check the new count and the criteria recorded in the history.
-4. Select a cell in the table and use Exclude selected objects.
-5. Add it back with Keep selected objects.
-6. Use Use filters for selected objects to return to the automatic decision.
-7. Export with Filter File/Folder and inspect the filtered mask.
+Test the close cross: Cancel leaves it open; Save opens a TIFF/JPEG dialog;
+cancelling that dialog leaves it open; successful Save or Discard reattaches it.
+The saved view is rendered RGB, not a new scientific label mask.
 
-### D. Independent channel settings and reusable parameters
+## 5. Filter cells and foci on each XY
 
-1. Under View, select GFP and enter a recognizable filtering threshold.
-2. Switch to mCherry and enter a different threshold.
-3. Return to GFP and confirm that its value and checkboxes were retained.
-4. Export and locate the cell JSON and the two foci JSON files.
-5. Change the GFP settings, then import only the GFP JSON file.
-6. Confirm that GFP is restored without changing mCherry or the cell settings.
+Open Filtering and choose **Mask / XY position**. Expect fixed cell/foci controls,
+tables/history with room for ten rows and no large empty detached-image area.
+New recipes have border-cell exclusion and **Exclude fully outside** enabled.
+Previously saved choices can override defaults.
 
-Foci selection tests require the CSV files produced by foci detection. If foci
-have not yet been detected, run detection before this test.
+Confirm area is µm², length/width µm and X/Y pixels. Change calibration on a test
+XY: physical dimensions should update; the source mask should remain unchanged.
+Length/width are equivalent-ellipse axes. Apply filters while viewing GFP: View
+must stay on GFP. Switch GFP↔mCherry quickly after changing each LUT; neither
+contrast range should reset.
 
-### E. Colocalization preview
+| Action | Expected result |
+| --- | --- |
+| Left-click cell in Cells mode | Matching cell row selected |
+| Left-click focus in its foci channel | Focus row selected, not its host cell |
+| Shift-click two distant objects | Only clicked objects selected |
+| Double-click cell row | Image centers on that cell |
+| Delete/Backspace | Selected objects excluded reversibly |
+| Keep selected objects | Manual inclusion overrides the filters |
+| Use filters for selected objects | Manual decision removed |
+| Right-click | Menu opens; no immediate inclusion |
 
-1. Under Analyze → Foci analysis, confirm Max distance = 3 px and Threshold =
-   2 px, unless a saved session has loaded other values.
-2. Open Preview distances… and click a cell.
-3. Select GFP and mCherry for A and B, then choose the phase or fluorescence background.
-4. Check the grid and the 1 px marker in the zoomed view.
-5. On a cell containing detected foci, change both distances and observe the displayed
-   circles and pairs.
-6. Confirm that the Foci analysis values follow changes made in the preview.
+Only retained cells have thin contours. Choose their colour. Kept foci are green,
+rejected/excluded foci red; markers must refer to detections/manual annotations.
+Exclude a focus and confirm its cell is still retained. Reject all cells and
+confirm no residual cell contours remain.
 
-## Reporting a problem
+Create a test focus at an empty clicked location in a foci channel. In Cells
+mode, create a polygon, finish with Enter/double-click, then try Escape to cancel
+a second polygon. Confirm manual objects reach tables/filtered exports, manual
+foci carry `manual`, and original image/mask files are unchanged.
 
-State which section you used, what you did, what you expected, and what happened.
-Include the file name, XY position, channel, and frame concerned, as well as the
-exact error message or a screenshot. If installation fails, share `Logs/install.log`
-on macOS or `Logs/install_last.log` on Windows, if that file was created.
+## 6. Independent settings, persistence and batch export
 
-The window may still display the base version number **2.9.5**, because no new
-official release number has been assigned. The Preview distances… button and the
-Filtering import/export buttons identify this test version.
+On XY1 choose distinct cell/GFP/mCherry filters and calibration. Visit a new XY2:
+it inherits these as a starting recipe. Change XY2; return to XY1 and confirm its
+original recipe. Reopen the preview and check saved curation/recipes. Confirm
+GFP and mCherry thresholds remain independent even without Apply before switching.
+
+Save cells and channel presets. Import GFP alone; mCherry/cells must not change.
+Object-specific choices are in `.curation.json`, not transferable presets.
+
+After visiting individual XYs, run **Filter File/Folder**. Expect the full mask
+selection list with result status. Export multiple XYs; compare their distinct
+recipes, filtered masks/foci and portable settings files. Raw/filtered versions
+should represent one source entry when paired. History counts concern the frame
+being viewed, and selecting history is not an undo operation.
+
+## 7. Foci distance preview
+
+With two detected channels, open **Preview distances…**. Check defaults 3 px
+Max distance / 2 px Threshold on a fresh session; use (?) help. Choose XY, frame
+and cell. Previous/next buttons and arrow keys must change the selected cell.
+Check multiple background channels, edit each histogram LUT and confirm others
+are preserved. Drag to pan; wheel zoom should be gentle in both views.
+
+Inspect cyan/magenta centers, yellow search radius, green threshold radius and
+green/orange pair links. The cell title must update **Colocalized / Not
+Colocalized** with valid pairs and threshold changes. No detected CSV means an
+information message, not artificial foci. Previewing must not write result tables.
+
+## 8. Run Analyze and verify automatic loading
+
+Finish Analyze with the desired FI/foci/colocalization choices. Wait for final
+measurements and channel merging. BactoMate should load the results then open
+**Analysis** automatically, for one file or several output subdirectories.
+Cells, foci, profiles/tracking and summaries must remain distinct data families.
+Refresh results should pick up modifications and report unreadable files.
+Known workbook/CSV and aggregate copies should not double the observation count.
+
+## 9. Conditions, replicates and a violin plot
+
+In **Conditions & replicates…**, assign X/Y and R1/R2/R3 per source file. Give
+multiple XYs from the same biological replicate the same replicate name. Save,
+reopen and verify persistence in `analysis_groups.json`. In simple mode select
+Cells → Violin plot → Cell area (µm²), Compare conditions, Show replicate means
+and a frame. Expect cell distributions and one coloured mean per replicate and
+condition, not one replicate per XY. Check the exported Replicates sheet/CSV.
+
+## 10. Figure guide, spatial plots and kymographs
+
+Follow Question → Population → Appearance → Review/draw. Draw a demograph for
+one channel/condition/frame. Check retained population, length sorting and 0–1
+relative length. Default sampling is 24 longitudinal segments. Compare raw,
+per-cell max and min–max intensity; direct missing bins must not masquerade as
+zero fluorescence. Native sampling should also export `native_profiles.csv`.
+
+Draw a maxima map first with brightest pixel, then with kept detected foci.
+Confirm the source distinction and normalized axes; density is relative point
+density, not fluorescence. Draw Foci count from a per-cell count column and verify
+cells with zero foci are included.
+
+For a time-lapse, choose one XY/channel, a tracked mask and one verified ID.
+Confirm continuity, choose a time interval if available and draw a kymograph.
+Expect at least two time points, longitudinal axis 0–1, and minutes or frames on
+the temporal axis. Unrelated cell labels must not be silently linked.
+
+## 11. Figure windows, options, exports and closing
+
+Generate several figures: each should appear in front in its own movable window.
+Resize/export one; other windows and their figures should stay independent. The
+live canvas fills its window; the default exported page is square.
+
+Use Figure options: change category order/labels/colour, box/violin spacing/width,
+limits, fonts, legend/grid, colour bounds and cm/pixel export size. Verify an
+exported page's dimensions. Edit a length figure with Figure guide, choose width
+and redraw: Y label must change to width. Re-edit an older window to ensure its
+own choices, not the latest other figure, are restored.
+
+Export figure/data/code. Expect PDF/SVG, CSV/XLSX, metadata/manifest and scripts;
+no automatic PNG. Test Cancel, Discard and Save on a new unsaved figure's close
+cross. Cancelling folder selection keeps it open. A figure already exported and
+unchanged can close without asking again. Escape keeps it visible.
+
+## 12. Output audit and reproducibility
+
+Run **File → Inspect generated files…**. Review raw vs filtered roles, identical
+files and CSV/XLSX copies; optionally save the report. It must not delete files.
+New pipeline runs must not add PNG previews; existing PNGs are not bulk-deleted.
+Manually requesting a PNG is still possible with figure save tools.
+
+Run the bundle's `reproduce.py` from its directory with Python, NumPy, pandas and
+Matplotlib installed. Open the R/MATLAB scripts in those tools if used locally.
+Compare geometry, labels and colours, allowing font/renderer differences. The
+scripts redraw saved primitives; they do not repeat segmentation or reanalysis.
+
+## Test record
+
+Record pass/fail, input/XY/frame/channel, steps, expected/observed result and log
+path. Preserve sources, curation, filter presets and a failing figure bundle.
+The last full code suite recorded 614 passed / 5 skipped, followed by 11 targeted
+passes. Those prior checks do not replace these local tests or biological review.

@@ -1,41 +1,45 @@
-# Paper raw data
+# Upstream paper data and attribution
 
-Raw microscopy files for the BactoMate paper are published on a **separate Git branch** so they stay public for journals and reviewers without bloating the software repository, CI, or release downloads.
+This custom software branch is **BactoMate_Custom_New-Analyses** in
+[santinlab-code/BactoMate](https://github.com/santinlab-code/BactoMate/tree/BactoMate_Custom_New-Analyses).
+Its private/local test images are not automatically public research data. The
+custom V1/Analyses branches were removed; this page does not ask users to recreate
+them. Reviewed 1 November 2026.
 
-| | Code (`main`) | Raw data (`paper-data`) |
-|---|---|---|
-| GitHub branch | `main` | [`paper-data`](https://github.com/Molinfect/BactoMate/tree/paper-data) |
-| In app bundles / release zips | yes (software only) | **no** |
-| In default `git clone` | yes | **no** (opt-in branch) |
+## Upstream BactoMate resources
 
-## Download (reviewers / journal)
+The upstream project provides its publication/citation and tutorials at
+[Molinfect/BactoMate](https://github.com/Molinfect/BactoMate). The inherited paper
+reference is Hallenga et al. (2026), *BactoMate: an integrated platform for
+reproducible bacterial microscopy analysis*;
+[preprint](https://www.biorxiv.org/content/10.64898/2026.08.06.743177v1).
+Use the current upstream citation metadata when preparing a manuscript, and record
+the custom branch/commit plus analysis parameters for work using this fork.
 
-- **Browse:** https://github.com/Molinfect/BactoMate/tree/paper-data  
-- **ZIP:** https://github.com/Molinfect/BactoMate/archive/refs/heads/paper-data.zip  
-- **Clone data only:**
-  ```bash
-  git clone --branch paper-data --depth 1 https://github.com/Molinfect/BactoMate.git BactoMate-paper-data
-  ```
+The upstream raw-data branch is separate from this fork's custom development:
 
-## Why not `main` + `.gitignore`?
-
-Adding a folder to GitHub and then listing it in `.gitignore` does **not** remove it from history or from clones that already fetched it. Keeping raw TIFFs off `main` / `dev` avoids:
-
-- multi‑GB clones for normal BactoMate users  
-- GitHub’s 100 MB per-file limit (use Zenodo or Git LFS for very large single files)  
-- accidental inclusion in packaging scripts  
-
-Local staging uses `paper_data/` at the repo root (gitignored). Maintainers publish with:
+- [Browse upstream paper-data](https://github.com/Molinfect/BactoMate/tree/paper-data)
+- [Download upstream data ZIP](https://github.com/Molinfect/BactoMate/archive/refs/heads/paper-data.zip)
 
 ```bash
-./build/publish_paper_data_branch.sh
+git clone --branch paper-data --depth 1 \
+  https://github.com/Molinfect/BactoMate.git BactoMate-paper-data
 ```
 
-## Zenodo (recommended for final publication)
+These links describe the upstream publication resources, not an assurance that
+the upstream service/files were revalidated during this documentation update.
+They do not contain the user's full laboratory dataset or validate the custom
+foci/colocalization results.
 
-Many journals prefer a **DOI** on a dedicated archive (Zenodo, Figshare, institutional repository). Typical workflow:
+## Store and share your own results
 
-1. Upload the same files to [Zenodo](https://zenodo.org/) and link the DOI in the paper.  
-2. Keep the `paper-data` branch (or a Zenodo mirror) as a secondary mirror.  
+Keep raw images, calibration, original masks, curation sidecars, filtered outputs,
+analysis workbooks, group assignments and figure bundles with the experiment.
+A figure bundle includes selected data/code but is not the entire raw experiment.
+Keep large microscopy data outside the software source checkout where possible.
+Adding .gitignore later does not remove files already committed to Git history.
 
-Link the DOI from the BactoMate README once it is minted.
+For a publication dataset, use an appropriate archive such as Zenodo, Figshare or
+an institutional repository and link its DOI. Publish only data you intend to
+share. A software source push is not a raw-data deposition. See
+[Analysis exports](ANALYSIS.md#export-bundle) for figure-level provenance.

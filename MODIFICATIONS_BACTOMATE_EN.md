@@ -1,173 +1,242 @@
-# BactoMate — summary of changes
+# BactoMate Custom — consolidated changes
 
-Development version prepared for team testing on October 27, 2026.
+Reviewed: **1 November 2026**. Code reference: **`811d5b6`**.
+Baseline: upstream BactoMate **2.9.5**, commit **`2dfd181`** in this repository.
+Active branch: **BactoMate_Custom_New-Analyses**.
+[French edition](MODIFICATIONS_BACTOMATE_FR.md) · [Testing guide](GUIDE_TEST_BACTOMATE_EN.md)
 
-Comparison baseline: BactoMate 2.9.5, commit `2dfd181` from
-`santinlab-code/BactoMate`. The changes below are available in the GitHub branch
-`test/bactomate-optimisations`.
+This document describes the final cumulative behavior. It replaces the earlier
+append-only notes, whose intermediate choices could contradict later fixes.
+The former V1 and Analyses branches have been deleted from GitHub at the user's
+request. Development and these docs use the active New-Analyses branch.
 
-## 1. File Conversion: ND2 files with multiple XY positions
+## 1. Multiposition conversion
 
-**Before:** conversion did not correctly extract every position from one ND2 file.
+ND2 conversion exports every XY independently, with separate channels or one
+multichannel TIFF per XY. Names include `XY001`, `XY002`, etc. for multiposition
+data. The selected time range remains in each stack. Channel roles, calibration,
+Z selection/projection, cropping and correction options are preserved. Nikon
+`PH3` phase recognition is corrected. The conversion preview shows the first XY,
+so review the exported positions as well.
 
-**Now:** every XY position is exported separately with its channels. File names
-contain `XY001`, `XY002`, and so on. Existing conversion options for time, Z,
-channel selection, cropping, and corrections are preserved. Calibration is retained,
-and Nikon PH3 phase-channel recognition has been corrected.
+## 2. Segmentation and shared image controls
 
-For the reference file, **3 positions × 3 channels = 9 TIFF files**. The channels
-are GFP, mCherry, and phase. Pixel comparison against the ND2 confirmed that the
-exports match their sources.
+Cell previews use outlines rather than opaque cell fills. Outline colour is
+selectable and remembered; changing it does not rerun detection or change labels.
+New overlay TIFFs use the selected outline style; old files are not rewritten.
 
-For time-lapse data, time is retained in each position/channel TIFF stack. This was
-verified with synthetic data. The reference ND2 has only one time point, so it does
-not by itself validate real time-lapse ND2 files.
+Segmentation and Filtering image canvases can be detached and attached. LUTs
+follow the image, remain open on its right and retain separate channel contrast
+settings during navigation. Filtering additionally keys LUT state by mask/XY.
+This is viewing state, not a promise of contrast persistence after restarting.
+Mouse-wheel zoom is gentle and pointer-centered; left-drag pans. Recenter/fit and
+horizontal/vertical position sliders help navigation. Escape keeps the detached
+window open, except that it can cancel an active manual polygon drawing.
 
-## 2. Segmentation: cell outlines
+Detaching compacts the main controls at the top; attaching restores their layout.
+The close cross offers Save / Discard / Cancel. Saving a detached image writes a
+rendered TIFF/JPEG, not a scientific mask or raw fluorescence file. Cancelling
+saving keeps the window open. Closing successfully reattaches the canvas.
 
-**Before:** multicolor fills could obscure cell details.
+## 3. Filtering layout and calibrated tables
 
-**Now:** the preview displays outlines in a user-selected color. The color is saved
-and used by newly exported outline images. Changing the color does not rerun
-segmentation or alter masks or measurements.
+Cell filtering and Foci filtering are fixed control panels rather than one long
+scrolling form. Cell/Foci tables and histories are organized with room for ten
+rows. Duplicate Import/Save controls were removed from the left interface;
+**Import filter settings…** and **Save filter settings…** remain above the filters.
+The manual Keep/Exclude/Use filters actions follow the detached image with its LUTs.
 
-Display behavior was checked on all three reference positions. This validates the
-display function, not the biological accuracy of every segmented cell.
+The cell table reports area in µm², length/width in µm and X/Y centers in pixels.
+Length and width are the major/minor axes of the equivalent ellipse, not skeleton
+length. Calibration changes update physical dimensions. Invalid calibration does
+not fabricate physical values. Counts and history refer to the current frame.
+History records steps, parameters and before/after counts; it is not an undo stack.
 
-## 3. Filtering: manual curation
+## 4. Filtering selection, display and manual annotations
 
-The image opens in a separate window by default and can be moved to a second
-screen. **Attach image** returns it to the panel; **Detach image** detaches it
-again. Closing the image window reattaches it without closing the settings.
+In a foci channel, clicking selects that channel's focus and its table row, rather
+than its host cell. Cells mode selects cells. Table/image selection corresponds;
+double-clicking a cell row centers the view. Shift-click adds only clicked objects,
+without selecting intermediate table rows. Delete/Backspace excludes the current
+selection reversibly. Applying filters keeps the current View channel.
 
-Choose **Cells** or **Foci — current channel**, then click an object in the image
-to select its table row. A yellow box marks the selection, including objects
-selected in a table. Clicking without an object clears the selection.
-**Delete** or **Backspace** excludes the active selection when the image or a table
-has keyboard focus. This exclusion is reversible.
+Retained cells have thin contours, white by default, with a colour picker. Rejected
+cells have no contour but remain available in the table. Detected or manually
+annotated foci are green when kept and red when rejected/excluded. A yellow marker
+indicates the current object selection; it does not override its biological status.
 
-Users can select already detected cells or foci and:
+Right-click opens a menu rather than immediately adding an object:
+**Add / keep object**, **Remove / exclude object**, **Create new object here…**.
+A new focus is placed at the click in the current foci channel. In Cells mode,
+click polygon vertices, then Enter/double-click to finish. Escape cancels the
+polygon. It needs at least three pixels and cannot overlap an existing cell.
+Manual objects are annotations, not new automatic detections. They enter tables
+and filtered exports; manual foci are marked `manual` in the saved CSV.
+Source images and original segmentation masks are not overwritten by these edits.
 
-- keep them even when automatic filters reject them;
-- exclude them from the selection;
-- clear the manual decision and return to the filter result.
+Keep overrides automatic rejection; Exclude overrides automatic acceptance;
+Use filters removes the manual override. Decisions are scoped to frame, mask and,
+for foci, channel. Curation and recipes are saved in the mask's `.curation.json`.
+Changed source masks do not silently reuse old object decisions on new labels.
 
-These decisions affect the preview and exported filtered results. They do not draw
-new objects or delete the original masks. Decisions apply to the current frame;
-foci decisions also apply only to the relevant channel.
+## 5. Independent XY/channel settings and batch filtering
 
-Decisions are stored in a `.curation.json` file beside the mask. Keep this file
-with the mask to restore decisions later. If new segmentation changes the mask,
-old decisions are not automatically applied to new cell identifiers.
+**Mask / XY position** above the tables switches the active mask, image, foci,
+curation and tables. Each visited mask retains its own cell filters, calibration
+and per-channel foci filters. A new mask inherits the last settings as a starting
+point; subsequent changes are independent. Channel switching saves/restores its
+own thresholds and checkboxes without requiring Apply first.
 
-## 4. Filtering: cell table
+New Filtering recipes enable **Exclude cells at borders** and **Exclude fully
+outside** by default. Previously saved explicit values remain respected. These
+Filtering defaults do not imply that all independent Analyze/CLI controls share
+them; verify the selected stage's settings.
 
-A table lists cell identifiers, selection status, area in square pixels, and
-position. Multiple rows can be selected, and cells can also be selected in the
-image. Double-clicking a table row centers the image on that cell. The existing
-foci table selects foci from the active channel.
+**Filter File/Folder** restores the selectable mask/result list even after preview
+navigation to a single XY. Raw/filtered forms of one mask are grouped, with the
+raw source preferred when available so exclusions can be reversed. Each selected
+mask exports using its own saved recipe, without replacing the active XY's recipe.
 
-## 5. Filtering: counts and history
+Portable filter JSONs are separate from object curation: one cells file and one
+file per named foci channel, also exported beside filtered masks. Importing a GFP
+file leaves mCherry and cell settings intact. Legacy combined presets are accepted;
+invalid/incompatible presets do not replace current settings.
 
-The **Cell table / Manual selection / History** panel displays selected cells versus
-the total count. The history records filtering steps, before/after counts, count
-changes, parameters, and associated manual decisions. Per-channel foci counts are
-recorded when data are available.
+## 6. Foci distance and colocalization preview
 
-Displayed counts apply to the current frame, not the entire movie. The history
-documents the steps; it is not a restore button for an earlier state.
+New defaults are **Max distance = 3 px** and **Threshold = 2 px**. Max distance
+limits candidate partners; one-to-one assignment selects pairs, and Threshold
+classifies matched pairs by center distance. Same cell only is respected. Help
+icons explain both parameters. Existing sessions may retain other values.
 
-## 6. Filtering: independent per-channel settings
+The preview selects mask/XY, frame, cells and channels. Visible checkboxes permit
+several background channels at once; the separate LUT-channel selector controls
+which histogram is edited. Each image retains its LUT. Drag pans, wheel zooms
+by about 5% per event and previous/next-cell buttons or arrow keys change cells.
+Unused Home/Pan icons were removed. The selected cell title reads **Colocalized**
+or **Not Colocalized** according to valid pairs involving that cell.
 
-**Fix:** switching channels could leave the same values in the controls and save
-them for the wrong channel.
+Foci centers are cyan/magenta; distance circles mark search/threshold radii;
+green/orange links distinguish valid/above-threshold pairs. Pixel grid, 1 px
+reference and available calibration aid interpretation. The preview uses the
+analysis matching logic and updates its settings; it does not redetect foci or
+write analysis results. Missing detection data is reported rather than invented.
 
-**Now:** GFP and mCherry each retain their own thresholds and checkbox states.
-Changing the channel under **View** stores values for the channel being left and
-loads values for the selected channel, even before Apply is clicked. Analysis uses
-the settings assigned to each channel.
+## 7. Session and automatic Analysis handoff
 
-## 7. Filtering: reusable parameter files
+**Clear current session** on the dashboard/File menu closes previews/figures,
+clears paths, data caches and in-memory group assignments, then returns home.
+Finish or cancel running work first. Disk files, saved project data and saved
+`analysis_groups.json` are retained.
 
-**Save filter settings…** creates separate JSON files. **Import filter settings…**
-loads them individually for a future analysis. **Filter File/Folder** also creates
-them automatically beside exported filtered masks.
+After successful **Analyze**, final measured/merged results are loaded and the
+separate **Analysis** module opens automatically. Discovery supports multiple
+output subdirectories and finding a neighboring `_analysis` folder from a mask
+inside segmentation/filtered-mask folders. Refresh results rescans changes.
+Unreadable files are reported. Known CSV/XLSX copies, figure bundles and redundant
+aggregate workbooks are avoided by the catalogue rules; this is not universal
+content-based deduplication of arbitrary renamed inputs.
 
-Example suffixes for the reference file:
+## 8. A simpler English Analysis interface
 
-| File | Contents |
-| --- | --- |
-| `.filter_settings.cells.json` | Phase cell filters, including calibration |
-| `.filter_settings.foci_01_CT_16bits_GFP.json` | GFP foci filters |
-| `.filter_settings.foci_02_CT_16bits_mcherry.json` | mCherry foci filters |
+The independent Analysis module is entirely in English. Simple controls select
+population, figure, metric and frame. **Conditions & replicates…** stays at the
+top in simple and advanced modes. A per-file table assigns conditions and biological
+replicates, with batch edits saved in `analysis_groups.json`. Files/XYs from one
+replicate may share a name. No biological replicate is guessed from an XY name.
 
-The prefix depends on the exported mask name, and the numbers depend on channel
-order. The channel name is also stored inside the file.
+Cell distributions and coloured replicate means are separate concepts; exports
+include replicate counts/means/SD. First-frame defaults avoid implicitly pooling
+a film. All frames is explicitly repeated observations. No implicit significance
+tests or hierarchical model are added.
 
-Importing a GFP file does not change mCherry or cell settings. Keep channel names
-consistent between analyses. Older JSON files containing all settings remain
-importable. Incompatible files are rejected without replacing current settings.
+**Figure guide…** gives four steps: question, population, appearance, review/draw.
+**Advanced / MicrobeJ-style controls** retains manual imports, axes, groups and
+filters. It is a BactoMate interface inspired by MicrobeJ, not the Fiji plugin.
+Cells, foci, tracking, profiles and summaries are kept as distinct populations.
 
-The files contain thresholds and filter activation states, not manual decisions
-for individual objects. Manual decisions stay in the curation files associated
-with the original images.
+## 9. Figure types and spatial measurements
 
-## 8. Foci analysis: initial colocalization values
+There are **13 figure types**: Histogram, Scatter, Mean curve, Box plot, Violin
+plot, ECDF, Correlation, Demograph, Kymograph, Normalized cell heatmap, Heatmap,
+Maxima map and Foci count. All compatible numeric metrics remain accessible.
 
-The new defaults are:
+Spatial figures match project masks/channels automatically, preferring filtered
+masks and reporting unfiltered inputs. Calibration comes from image metadata or
+an explicit fallback. Principal-axis projection suits straight rods; medial-axis
+pixel skeletons follow curved rods and reject ambiguous axes. Raw coordinates
+and metrics remain exportable. Geometric orientation does not determine pole age;
+explicit brighter-pole alignment places the brighter pole at left/top.
 
-| Parameter | Before | Now |
-| --- | --- | --- |
-| Max distance | 8 px | **3 px** |
-| Threshold | 4 px | **2 px** |
+Demographs use one row per cell observation, sort by length and display relative
+length 0–1. **24 longitudinal segments** are the default, not a change to neural
+cell segmentation parameters. Optional **Native resolution → 24 positions**
+measures at approximately one-pixel spacing, then linearly resamples onto the
+common grid, holding the first/last measured means at the edges. Native values
+are exported separately in `native_profiles.csv`. Interpolation adds no resolution.
 
-Max distance is the radius used to search for a partner in the other channel.
-Pairing is one-to-one. Threshold then determines whether a matched pair is counted
-as colocalized based on the distance between foci centers. A saved session may
-retain its own values.
+Raw, per-cell maximum and per-cell min–max intensity choices are explicit. Direct
+empty bins remain missing rather than zero; min–max maps constant profiles to 0.
+A normalized maxima map distinguishes brightest raw pixel per cell from saved
+kept foci; its relative point density and schematic capsule are not fluorescence
+intensity or a measured average cell contour. Foci-count percentages use per-cell
+counts including zeros, not a foci-only denominator.
 
-## 9. Foci analysis: distance preview
+Kymographs require one XY/channel, at least two frames and a verified cell/track
+identity. The guide discovers tracked masks; ordinary segmentation labels require
+explicit continuity verification. Time is minutes when an interval is known,
+otherwise frames. No implicit tracking or biological pole assignment is performed.
 
-**Preview distances…** opens an overview and a zoomed view of one cell. Users can
-select the cell, frame, two channels, and an available background image (phase or
-fluorescence).
+## 10. Figure windows, styling and export
 
-- Foci centers: cyan for A and magenta for B.
-- Dashed yellow circle: Max distance radius; green circle: Threshold.
-- Green line: colocalized pair; orange line: matched pair above Threshold.
+Every figure opens in its own movable window, raised in front of BactoMate, with
+independent data/options/export. The live canvas fills the window. Export renders
+an off-screen copy and does not resize or overlap the live figures. The default
+page is square, **15.24 × 15.24 cm**. Export dimensions use **cm or pixels** with
+DPI conversion. The normalized capsule uses an appropriate internal aspect ratio.
 
-In the zoomed view, the grid corresponds to one image pixel and a white square
-represents 1 px. Calibration in µm is shown when available. The circles represent
-distances, not foci diameters.
+Figure options controls category order, labels/colours, box/violin X spacing and
+width, axes/limits, X-label rotation, fonts, markers/opacity, lines, outliers,
+legend/grid/title, colour scale and export dimensions/DPI. Edit with Figure guide
+restores that window's recipe and options. Changing metrics clears stale axis
+label overrides, so width no longer keeps the previous length label.
 
-Parameters changed in this preview update Foci analysis. The preview uses the same
-pairing calculation and Same cell only option as the analysis, without rerunning
-detection or writing analysis results.
+Escape keeps figures open. Closing an unsaved/changed figure offers Save / Discard /
+Cancel; successful prior export allows closing directly. Cancelling export keeps
+it open. Session reset/cleanup closes windows internally without individual prompts.
 
-Without detection CSV data, images and cells remain visible and an information
-message is shown. No artificial foci are added.
+Default figure bundles contain PDF/SVG, CSV/XLSX source/plotted data, metadata,
+SHA-256 manifest and reproduction scripts for Python, R and MATLAB. Optional
+replicate/native-profile tables are included when relevant. Scripts redraw saved
+geometry, not segmentation, and allow renderer/font differences. Python execution
+is covered by tests; native R/MATLAB execution remains to be checked locally.
 
-## Verification and test limitations
+## 11. Output cleanup and inspection
 
-The latest complete automated run produced **544 passing tests and 5 skipped
-tests**. A focused preview check also passed after the final adjustments.
+Automatic pipeline PNG previews are disabled, including redundant filter preview
+writes. New figure bundles and reproduction scripts default to PDF/SVG, without
+PNG. Explicit manual PNG export remains available through figure save tools/API.
+Existing PNGs are not removed in bulk; masks, TIFF visualizations and tables remain.
 
-The reference file is `2025-10-02-Snaps-AP-GL2430-GA178-Cd16.nd2`. Real-data tests
-covered export of the nine TIFF files, outlines for all three positions, curation
-and export on the first position, and display of the distance preview and calibration.
+**File → Inspect generated files…** performs a read-only content/role audit,
+reports identical files and CSV/XLSX table copies, and can save JSON. It deletes
+nothing. Raw/filtered masks and aggregated/individual workbooks have distinct
+roles. **Also save CSV** is off by default; enabling it intentionally duplicates
+spreadsheet tables in an open text format.
 
-Foci filtering, independent settings, and colocalization pairing behavior were
-tested with controlled data. Foci detection, biological colocalization, and
-fluorescence measurements on the real file still need evaluation by the team.
-This document does not certify their scientific quality.
+## 12. Validation and practical limits
 
-## Additional documentation
+The latest full code test run recorded **614 passed, 5 skipped**, followed by
+**11 passing targeted checks** after final window/activation refinements, including
+real TIFF saving and colocalization-state updates. These are code checks, not
+scientific validation of arbitrary microscopy data. This documentation rewrite
+does not claim a new full application test run.
 
-- `GUIDE_TEST_BACTOMATE_EN.md`: installation and test workflow.
-- `GUIDE_TEST_BACTOMATE_FR.md`: French version of the test guide.
-- `MODIFICATIONS_BACTOMATE_FR.md`: French version of this summary.
-- `docs/ND2_MULTIPOINTS_FR.md`
-- `docs/SEGMENTATION_CONTOURS_FR.md`
-- `docs/FILTERING_CURATION_FR.md`
-- `docs/FILTERING_PRESETS_FR.md`
-- `docs/FOCI_DISTANCE_PREVIEW_FR.md`
+Earlier real-image checks covered a three-XY, three-channel, one-frame ND2: nine
+16-bit TIFFs matched source pixels and calibration. Contours were reviewed for
+all XYs; curation/export and a 144-cell GFP demograph were exercised on XY001.
+Real ND2 time-lapse behavior, biological foci/colocalization accuracy, native macOS
+window behavior and native R/MATLAB execution require local assessment.
+
+See the [manual](docs/BACTOMATE_USER_MANUAL.md), [figure guide](docs/FIGURE_GUIDE.md)
+and [test checklist](GUIDE_TEST_BACTOMATE_EN.md) for reproducible user workflows.

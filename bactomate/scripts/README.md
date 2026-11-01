@@ -1,63 +1,81 @@
-# BactoMate scripts
+# BactoMate command-line and backend scripts
 
-Python backends invoked from the GUI (subprocess workers) or run manually from the CLI.
-
-Run from the project root with the project venv active:
+This reference accompanies **BactoMate_Custom_New-Analyses**, reviewed 1 November
+2026. Run at the source root using its `venv`. Most researchers can use the GUI;
+these scripts support automation and diagnostics. The GUI additionally provides
+curation, local recipes, automatic result discovery and guided figure windows.
+A standalone CLI call does not imply that every GUI setting/sidecar is applied.
 
 ```bash
-python -m bactomate.scripts.<module> [args]
+source venv/bin/activate
+python -m bactomate.scripts.<module> --help
 ```
 
----
+On Windows use `venv\Scripts\python.exe -m bactomate.scripts.<module> --help`.
+Use actual paths in place of the angle-bracket examples. Inspect each --help
+before scripting: available switches are script-specific.
 
-## GUI pipeline (automatic)
+## Processing entry points
 
-These are launched by the GUI; you normally do not run them by hand.
+| Module | Purpose |
+| --- | --- |
+| convert_nd2_to_tif | Convert supported microscopy input; includes ND2 XY/channel handling |
+| batch_process_tiff_sequence | Segment one TIFF/stack with the Omnipose/Cellpose pathway |
+| batch_process_folder | Segment/analyze TIFF files in a folder, optionally recursively |
+| analyze_cell_areas | Quantify labelled masks, optional FI/foci, workbooks/CSV and visualizations |
+| assign_persistent_ids | Assign IDs across a mask stack; continuity still needs scientific review |
+| unet_predict_patches / unet_predict_impl | U-Net inference backend |
+| unet_train_patches / unet_train_impl | U-Net training backend |
 
-| Script | Module | When it runs |
-|--------|--------|--------------|
-| `convert_nd2_to_tif.py` | File conversion | ND2/LIF/CZI → TIFF |
-| `batch_process_tiff_sequence.py` | Segmentation | Omnipose / Cellpose on a mask TIFF stack |
-| `analyze_cell_areas.py` | Analyze masks | Morphology, FI, foci, Excel/CSV output |
-| `unet_predict_patches.py` / `unet_predict_impl.py` | U-Net segmentation | Patch inference |
-| `unet_train_patches.py` / `unet_train_impl.py` | U-Net training | Training loop |
+Examples:
 
----
+```bash
+python -m bactomate.scripts.batch_process_tiff_sequence input.tif \
+  --model bact_phase_omni --diameter 30
+python -m bactomate.scripts.batch_process_folder /path/to/tiffs \
+  --model bact_phase_omni --pixel-size 0.108 --detailed
+python -m bactomate.scripts.analyze_cell_areas masks.tif \
+  --pixel-size 0.108 --detailed --visualization
+python -m bactomate.scripts.assign_persistent_ids masks.tif -o masks_cellids.tif
+```
 
-## CLI utilities (manual)
+The calibration value above is an example, not a default valid for every microscope.
+Analyze can add FI/foci using switches such as --fi-image and --run-foci; read
+--help for detection-mode/threshold/output controls. Source masks, raw images,
+rendered overlays and filtered masks have different roles. Automatic pipeline PNG
+previews are disabled; TIFF visualizations and requested measurement exports remain.
+GUI Filtering defaults should not be assumed to replace CLI defaults.
 
-| Script | Purpose | Example |
-|--------|---------|---------|
-| `batch_process_folder.py` | Segment + analyze every TIFF in a folder | `python -m bactomate.scripts.batch_process_folder /path/to/folder --model bact_phase_omni` |
-| `assign_persistent_ids.py` | Assign persistent CellIDs across frames (raw mask stack) | `python -m bactomate.scripts.assign_persistent_ids masks.tif -o masks_cellids.tif` |
-| `check_tiff_format.py` | Inspect or reshape TIFF stack layout | `python -m bactomate.scripts.check_tiff_format stack.tif` |
-| `generate_bactomate_pdf.py` | Build user-manual PDF from markdown | `python -m bactomate.scripts.generate_bactomate_pdf` |
-| `check_environment.py` | Dependency / GPU smoke report | `python -m bactomate.scripts.check_environment` |
+## Diagnostics
 
----
+| Module | Use |
+| --- | --- |
+| check_tiff_format | Inspect/reshape TIFF layout; read help before any rewrite |
+| check_environment | Dependency/backend/device report |
+| check_omnipose_pipeline | Model/loader/pipeline readiness, including checkpoint comparison |
+| diagnose_flat_model | Investigate flat/incorrect model output |
+| inspect_omnipose_checkpoint | Check checkpoint structure and metadata |
+| fix_user_model_metadata | Model metadata repair; keep original weights |
+| convert_checkpoint_to_plain | Produce compatible state-dict form when appropriate |
+| verify_affinity_model | Check affinity model loading |
+| patch_omnipose_omni_models | Registry patch helper used in setup workflows |
 
-## Omnipose / model diagnostics
+The launchers run compatibility patches from `setup/apply_all_patches.py`.
+Use `python main.py --smoke-test` for the source installation smoke check.
+Use `python main.py --version` plus `git rev-parse HEAD` to record custom provenance.
 
-Used from the Segmentation tab (“Check pipeline”) or for manual troubleshooting.
+## Documentation and figure reproduction
 
-| Script | Purpose |
-|--------|---------|
-| `check_omnipose_pipeline.py` | End-to-end Omnipose readiness check |
-| `diagnose_flat_model.py` | Debug flat/wrong segmentation output |
-| `inspect_omnipose_checkpoint.py` | Inspect checkpoint metadata |
-| `fix_user_model_metadata.py` | Repair user model sidecar files |
-| `convert_checkpoint_to_plain.py` | Convert checkpoint to plain state_dict |
-| `verify_affinity_model.py` | Verify affinity model load |
-| `patch_omnipose_omni_models.py` | Patch Omnipose model registry (setup) |
+`generate_bactomate_pdf` is the legacy GUI brochure generator; it does **not**
+compile the current Markdown manual. It is not the source for docs/BactoMate.pdf.
+The current PDF edition is generated from docs/BACTOMATE_USER_MANUAL.md; the exact
+Pandoc command is in [packaging](../../build/README.md#documentation-pdf).
 
----
+Analysis figure bundles include standalone reproduce.py, reproduce.R and reproduce.m.
+Run these from the bundle directory with their listed dependencies. They redraw
+saved plot geometry; they are not CLI re-executions of the original segmentation.
+PDF/SVG are the defaults; PNG requires an explicit request. See
+[Analysis methods](../../docs/ANALYSIS.md) for bundle contents and limitations.
 
-## Setup / patches (not under `bactomate/scripts/`)
-
-| Path | Purpose |
-|------|---------|
-| `setup/apply_all_patches.py` | Apply Omnipose/Cellpose site-package patches (run by launchers) |
-| `setup/macos/install.sh` / `setup/windows/install.bat` | Create venv and install dependencies |
-| `launch_gui.sh` / `launch_windows.bat` | Start the GUI |
-
-See [docs/README.md](../../docs/README.md) for install, launch, and bundle build instructions.
+For the complete pipeline, use [the manual](../../docs/BACTOMATE_USER_MANUAL.md).
+For install/repair scripts, use [setup](../../setup/README.md).

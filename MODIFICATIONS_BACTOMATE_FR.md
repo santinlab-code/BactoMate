@@ -1,480 +1,235 @@
-# BactoMate — résumé des modifications
-
-Version BactoMate_custom préparée pour les essais de l’équipe, le 28 octobre 2026.
-
-Base de comparaison : BactoMate 2.9.5, commit `2dfd181` du dépôt
-`santinlab-code/BactoMate`. Les changements décrits ici sont regroupés dans la branche
-`test/bactomate-optimisations` de GitHub, pour les essais.
-
-## 1. File Conversion : fichiers ND2 avec plusieurs positions XY
-
-**Avant :** la conversion ne permettait pas de récupérer correctement toutes
-les positions d’un même fichier ND2.
-
-**Maintenant :** chaque position XY est exportée séparément, avec ses canaux.
-Les noms comportent `XY001`, `XY002`, etc. Les réglages de conversion existants
-(temps, Z, sélection des canaux, recadrage et corrections) sont conservés.
-La calibration est conservée. La reconnaissance des canaux phase Nikon PH3
-a également été corrigée.
-
-Sur le fichier de référence : **3 positions × 3 canaux = 9 TIFF**.
-Les canaux sont GFP, mCherry et phase. La comparaison des pixels exportés
-avec le ND2 a confirmé leur correspondance.
-
-Le temps est conservé dans la pile TIFF de chaque position et canal pour les
-films. Ce comportement a été vérifié sur des données synthétiques ; le fichier
-de référence est une acquisition à un seul temps, donc il ne valide pas à lui
-seul les films ND2 réels.
-
-## 2. Segmentation : contours des cellules
-
-**Avant :** un remplissage multicolore pouvait masquer les détails des cellules.
-
-**Maintenant :** l’aperçu affiche des contours, avec une couleur au choix.
-La couleur est mémorisée et les nouvelles images de contours exportées
-utilisent ce réglage. Changer la couleur ne relance pas la segmentation et
-ne modifie ni les masques ni les mesures.
-
-L’affichage a été vérifié sur les trois positions du fichier de référence.
-Cela valide le fonctionnement de l’affichage, pas la justesse biologique de
-toutes les cellules segmentées.
-
-## 3. Filtering : curation manuelle
-
-L’image s’ouvre par défaut dans une fenêtre séparée, déplaçable sur un second
-écran. **Attach image** la réintègre ; **Detach image** la détache à nouveau.
-Fermer la fenêtre d’image la réintègre sans fermer les réglages.
-
-Choisir **Cells** ou **Foci — current channel**, puis cliquer sur un objet dans
-l’image sélectionne sa ligne de table. Un cadre jaune signale l’objet choisi,
-y compris lors d’une sélection dans la table. Un clic sans objet désélectionne.
-La touche **Supprimer** ou **Retour arrière** exclut la sélection active lorsque
-l’image ou une table a le focus clavier. Cette exclusion est réversible.
-
-Il est possible de sélectionner des cellules ou des foci déjà détectés pour :
-
-- les garder dans la sélection, même si les filtres automatiques les rejettent ;
-- les exclure de la sélection ;
-- annuler le choix manuel et revenir à la décision des filtres.
-
-Ces choix sont pris en compte dans l’aperçu et dans les résultats filtrés exportés.
-Ils ne dessinent pas de nouveaux objets et ne suppriment pas les masques d’origine.
-Les choix portent sur la frame courante ; pour les foci, ils sont également
-propres au canal concerné.
-
-Les décisions sont conservées dans un fichier `.curation.json` à côté du masque.
-Garder ce fichier avec le masque permet de retrouver les choix plus tard.
-Si une nouvelle segmentation change le masque, les anciens choix ne sont pas
-réappliqués automatiquement à de nouveaux identifiants de cellules.
-
-## 4. Filtering : table des cellules
-
-Une table présente les identifiants des cellules, leur statut de sélection,
-leur aire en µm², leur longueur et leur largeur en µm, ainsi que leur position.
-Les dimensions sont les grand et petit axes de l’ellipse équivalente au masque
-(même méthode que les mesures morphologiques), pas une longueur de squelette.
-On peut sélectionner plusieurs lignes ou cliquer sur une cellule dans l’image.
-Un double-clic dans la table centre l’image sur la cellule.
-La table des foci existante sert à sélectionner les foci du canal actif.
-
-## 5. Filtering : effectifs et historique
-
-Le panneau **Cell table / Manual selection / History** montre le nombre de
-cellules sélectionnées par rapport au total.
-L’historique garde les étapes de filtrage, les effectifs avant/après, leur
-variation, les paramètres et les choix manuels associés. Les effectifs des
-foci par canal sont renseignés lorsque les données sont disponibles.
-
-Les effectifs affichés concernent la frame courante, pas la somme de tout le film.
-L’historique documente les étapes ; il ne constitue pas un bouton de restauration
-d’un ancien état.
-
-## 6. Filtering : réglages indépendants par canal
-
-**Correction :** changer de canal pouvait laisser les mêmes valeurs dans les
-champs de réglage et les enregistrer pour le mauvais canal.
-
-**Maintenant :** GFP et mCherry gardent chacun leurs seuils et leurs cases cochées.
-Changer de canal dans **View** enregistre les valeurs du canal quitté et affiche
-celles du canal choisi, même avant de cliquer sur Apply.
-L’analyse utilise les réglages propres à chaque canal.
-
-## 7. Filtering : fichiers de paramètres réutilisables
-
-**Save filter settings…** enregistre des fichiers JSON séparés.
-**Import filter settings…** permet de les charger un par un pour une future analyse.
-L’export **Filter File/Folder** les produit aussi automatiquement à côté des
-masques filtrés.
-
-Exemples de suffixes sur le fichier de référence :
-
-| Fichier | Contenu |
-| --- | --- |
-| `.filter_settings.cells.json` | Filtres des cellules sur la phase, dont la calibration |
-| `.filter_settings.foci_01_CT_16bits_GFP.json` | Filtres des foci GFP |
-| `.filter_settings.foci_02_CT_16bits_mcherry.json` | Filtres des foci mCherry |
-
-Le préfixe dépend du nom du masque exporté et les numéros dépendent de l’ordre
-des canaux. Le nom du canal est aussi inscrit à l’intérieur du fichier.
-
-Importer un fichier GFP ne change pas les paramètres mCherry ni ceux des cellules.
-Conserver les mêmes noms de canaux lors des analyses futures. Les anciens JSON
-regroupant tous les réglages restent importables.
-Les fichiers incompatibles sont refusés sans remplacer les réglages courants.
-
-Les paramètres comprennent les seuils et l’activation des filtres, pas les
-décisions manuelles sur des objets précis. Ces dernières restent dans les fichiers
-de curation associés aux images d’origine.
-
-## 8. Foci analysis : valeurs initiales de colocalisation
-
-Les nouvelles valeurs par défaut sont :
-
-| Paramètre | Avant | Maintenant |
-| --- | --- | --- |
-| Max distance | 8 px | **3 px** |
-| Threshold | 4 px | **2 px** |
-
-Max distance est le rayon dans lequel chercher un partenaire dans l’autre canal.
-L’appariement est un-à-un. Threshold décide ensuite si une paire appariée est
-comptée comme colocalisée, selon la distance entre les centres des foci.
-Une session déjà enregistrée peut conserver ses propres valeurs.
-
-## 9. Foci analysis : aperçu des distances
-
-Le bouton **Preview distances…** ouvre une vue d’ensemble et un zoom sur une cellule.
-On peut choisir la cellule, la frame, les deux canaux et le fond d’image disponible
-(phase ou fluorescence).
-
-- Centres des foci : cyan pour A, magenta pour B.
-- Cercle jaune pointillé : rayon Max distance ; cercle vert : Threshold.
-- Ligne verte : paire colocalisée ; ligne orange : paire appariée au-dessus du seuil.
-
-Dans le zoom, la grille correspond à un pixel de l’image et un carré blanc
-représente 1 px. La calibration en µm est indiquée lorsqu’elle est disponible.
-Les cercles représentent des distances, pas le diamètre des foci.
-
-Les paramètres changés dans cet aperçu mettent à jour Foci analysis.
-L’aperçu utilise le même calcul d’appariement et l’option Same cell only que
-l’analyse, sans réexécuter la détection ni écrire de résultats d’analyse.
-
-Sans CSV de détection, les images et les cellules restent visibles avec un
-message d’information. Aucun focus artificiel n’est ajouté.
-
-## Vérifications et limites des essais
-
-La dernière exécution complète des tests automatisés donne **544 tests réussis,
-5 ignorés**. Une vérification ciblée de l’aperçu a également réussi après les
-derniers ajustements.
-
-Le fichier de référence est `2025-10-02-Snaps-AP-GL2430-GA178-Cd16.nd2`.
-Les essais réels ont porté sur l’export des neuf TIFF, les contours des trois
-positions, la curation et les exports sur la première position, ainsi que
-l’affichage de l’aperçu des distances et de la calibration.
-
-Les comportements des filtres des foci, des paramètres indépendants et des
-paires de colocalisation ont été testés avec des données contrôlées. La détection
-des foci, la colocalisation biologique et les mesures de fluorescence sur le
-fichier réel restent à évaluer avec l’équipe. Le présent document ne certifie
-pas leur qualité scientifique.
-
-## Documentation complémentaire
-
-- `GUIDE_TEST_BACTOMATE_FR.md` : installation et parcours d’essai.
-- `docs/ND2_MULTIPOINTS_FR.md`
-- `docs/SEGMENTATION_CONTOURS_FR.md`
-- `docs/FILTERING_CURATION_FR.md`
-- `docs/FILTERING_PRESETS_FR.md`
-- `docs/FOCI_DISTANCE_PREVIEW_FR.md`
-
-## Ajouts BactoMate_custom — 28 octobre 2026
-
-Le bouton Apply current filters conserve le canal choisi dans View. Le signal
-Qt du bouton est traité comme un clic, pas comme un identifiant de canal.
-La table des cellules ajoute Length (px) et Width (px) ; sa visibilité reste inchangée.
-
-Les boutons Import/Save en double ont été retirés du panneau de gauche ; ceux
-au-dessus de Cell filtering restent accessibles. Exclude cells at border est
-coché pour les nouveaux réglages (les choix enregistrés restent respectés).
-Les commandes manuelles Keep/Exclude/Use filters sont placées sous Cell filtering,
-hors du panneau repliable Cell table / History.
-
-L’aperçu des distances propose désormais un menu Images / channels à cocher
-pour superposer phase et fluorescence, des LUT Min/Max/couleur/Auto par image,
-un sélecteur de masque/position XY et des aides (?) sur les deux distances.
-Les boutons ← Cell / Cell → et les touches fléchées naviguent entre cellules.
-La molette zoome autour du pointeur dans les deux vues. Les LUT et la visibilité
-des images ne changent pas les résultats de colocalisation.
-
-## Ajustements après essais sur Mac — 28 octobre 2026
-
-- Segmentation (Omnipose et U-Net) : Detach image ouvre le même canevas dans une
-  fenêtre séparée. Attach image ou fermer cette fenêtre le réintègre. Les réglages
-  et la LUT restent dans le panneau principal.
-- Filtering : un clic gauche simple sélectionne l’objet et sa ligne de table,
-  même après zoom ou déplacement. Glisser conserve le déplacement de l’image.
-  Delete ou Backspace exclut la sélection ; Keep/Use filters permet de revenir
-  sur ce choix. La sélection reste signalée par un cadre jaune.
-- Cell table : aire en µm², longueur et largeur en µm, avec la calibration de
-  Filtering. Changer la calibration actualise les valeurs. Sans calibration valide,
-  les mesures physiques affichent un tiret. X/Y restent en pixels.
-- Preview distances : l’histogramme interactif LUT de BactoMate remplace les
-  champs numériques. LUT channel choisit le canal à ajuster ; chaque canal garde
-  son intervalle. Les lignes Min/Max se déplacent à la souris. Auto LUT reste
-  disponible. Le zoom à la molette est limité à environ 5 % par événement.
-
-Validation de ces ajustements : 44 tests ciblés réussis, dont un vrai clic souris
-sur une image zoomée/déplacée suivi de Delete, les dimensions calibrées et
-les interactions des LUT. Chargement et affichage vérifiés sur les trois XY
-réelles disponibles. Les essais natifs sur Mac restent à faire.
-
-## Commandes dans l’image détachée et navigation directe — 28 octobre 2026
-
-Les commandes Keep/Exclude/Use filters et le même histogramme LUT suivent
-maintenant l’image Filtering détachée. Les LUT suivent aussi l’image en
-Segmentation. Rattacher l’image restaure les widgets et leurs valeurs.
-Un clic droit sur un objet détecté le garde, ou garde toute la sélection si
-l’objet en fait déjà partie. Le fond n’ajoute aucun objet ; les foci restent
-propres au canal actif.
-Dans Preview distances, les icônes Maison et déplacement sont retirées :
-maintenir le clic gauche et glisser déplace l’image dans chacune des deux vues,
-sans changer la cellule. Un clic simple sélectionne toujours une cellule.
-Les boutons de cellule précédente/suivante restent disponibles.
-
-## Section Analysis — 31 octobre 2026
-
-Ajoutée uniquement à BactoMate_Custom_Analyses ; V1 n’est pas modifiée.
-Une section autonome permet de charger les tables CSV/TSV/Excel, choisir les
-métriques et groupes, filtrer et produire 11 types de figures. Les profils réels
-peuvent être extraits de masques et images de fluorescence par squelette médian
-ou projection droite. Démographes, kymographes avec identités vérifiées et cartes
-sur cellule normalisée sont disponibles. La normalisation des intensités est
-explicite et les valeurs brutes restent présentes.
-Chaque export contient PNG/PDF/SVG, un tableur XLSX, les CSV utilisés, les paramètres,
-les empreintes des fichiers et des scripts de reproduction Python/R/MATLAB.
-Les scripts redessinent les primitives calculées afin de garder les mêmes KDE,
-quartiles et couleurs, avec des différences de rendu possibles entre logiciels.
-Python est testé par exécution ; R et MATLAB restent à vérifier dans ces logiciels.
-Le guide complet et la référence MicrobeJ sont dans docs/ANALYSIS_FR.md.
-
-Validation du 31 octobre : 570 tests réussis, 5 ignorés. Les scripts Python
-sont exécutés pour chacun des 11 types de figure. Un démographe GFP a été
-extrait et exporté sur les 144 cellules réelles de XY001.
-
-## LUT par canal et fenêtres détachées — 31 octobre 2026
-
-La LUT partagée mémorise maintenant les contrastes par image/canal pendant la
-navigation dans un aperçu. Conversion, Filtering, contours FI et U-Net utilisent
-ce mécanisme ; Omnipose identifie aussi le fond/canal sélectionné. Les changements
-de frame ou les remises à zéro historiques de navigation ne remplacent plus la
-LUT d’un canal déjà réglé. Les montages et l’aperçu des distances avaient déjà
-leurs valeurs séparées. Il ne s’agit pas d’une sauvegarde sur disque après fermeture.
-
-Les fenêtres d’image détachées ne disparaissent plus sur Échap. La LUT est à
-droite, dans un panneau adapté en largeur. Recenter / fit image restaure la vue
-d’ensemble ; les glissières horizontale et verticale suivent le centre visible
-et permettent de le déplacer. Rattacher l’image restitue la disposition initiale.
-Dans Foci distances, les canaux à afficher sont des cases directement visibles.
-
-Validation : 574 tests réussis, 5 ignorés ; six tests ciblés ont ensuite
-revalidé la mémoire des LUT, Échap, le panneau latéral et les glissières après
-l’ajustement de disposition. Le rendu de la fenêtre détachée a été relu.
-
-## Filtering : panneau fixe et curation des foci — 31 octobre 2026
-
-Les cartes Cell filtering et Foci filtering restent fixes et côte à côte. Les
-tables et historiques disposent de deux onglets avec dix lignes de table visibles.
-Le détachement de l’image ne laisse plus de grands espaces avant les réglages.
-Les cellules sont dessinées en contours blancs fins sans remplissage.
-Dans un canal de foci, cliquer choisit le focus du canal actif, avec sa ligne de
-table. Delete l’exclut sans modifier sa cellule. Tous les marqueurs proviennent
-des détections CSV : vert pour conservé, rouge pour rejeté/exclu. Les CSV originaux
-sont prioritaires pour conserver les foci rejetés à l’écran et dans la table.
-
-Validation : 577 tests réussis, 5 ignorés. Après les derniers ajustements du
-clic droit et de l’historique partagé, 13 tests ciblés réussissent également.
-Le parcours réel de l’interface vérifie les couleurs, le clic gauche, Delete,
-le clic droit, la conservation de la cellule et la disposition détachée.
-
-## Filtering : couleur et contours des cellules retenues — 31 octobre 2026
-
-Le sélecteur de couleur est disponible près de Show cell contours et dans la
-fenêtre détachée. Filtering mémorise sa couleur, avec du blanc par défaut.
-Seules les cellules retenues après filtrage et curation ont un contour ; une
-sélection vide ne dessine aucun contour. Les objets rejetés restent disponibles
-dans la table pour être réintégrés. Le changement de couleur ne recalcule ni
-segmentation ni filtres, et ne change pas les mesures ou les masques sources.
-
-Validation : 579 tests réussis, 5 ignorés. Les tests couvrent la couleur
-mémorisée, l’annulation du dialogue, l’absence de recalcul, les cellules
-rejetées, la sélection vide et la réintégration manuelle.
-
-## Nouvelle interface Analysis — branche New-Analyses
-
-La branche BactoMate_Custom_New-Analyses est une copie de BactoMate_Custom_Analyses
-au commit 53ec722. Les branches précédentes restent inchangées.
-Les résultats du projet sont chargés automatiquement à l’entrée dans Analysis,
-avec cache des fichiers inchangés et signalement des fichiers non lus. Les tables
-cellulaires ne sont pas mélangées avec les résumés, les foci ou les trajectoires.
-L’interface simple propose données, figure, mesure et attribution conditions/
-réplicats. Les attributions, modifiables par lot, sont conservées dans
-analysis_groups.json. Les XY d’un même réplicat peuvent partager le même nom.
-Un violon représente les observations cellulaires ; les points colorés montrent
-les moyennes des réplicats par condition. L’export contient leur table dédiée.
-Un choix de frame évite de regrouper implicitement les observations d’un film.
-Les onze figures et les autres réglages restent disponibles en mode avancé.
-Le parcours complet est décrit dans docs/NEW_ANALYSIS_FR.md.
-
-Validation : 585 tests réussis, 5 ignorés. Les retouches des libellés et du
-mode avancé ont ensuite été vérifiées par 24 tests ciblés, puis les six tests
-du parcours guidé ont été rejoués avec succès après le contrôle du bouton
-d’export avancé. Le parcours automatique X/Y et R1/R2 a été relu dans la fenêtre
-principale. Le script Python exporté avec les réplicats est exécuté dans les tests.
-
-## Session, LUT et sélection XY — 31 octobre 2026
-
-L’accueil propose Clear current session. Ce bouton ferme les prévisualisations,
-vide les chemins et les données Analysis (figures, cache et attributions en
-mémoire), puis revient à l’accueil. Les fichiers et les attributions enregistrées
-sur disque restent présents. Une tâche doit être terminée ou annulée avant la
-remise à zéro.
-
-Dans les images détachées, les LUT sont ouvertes directement dans le panneau
-latéral, sans en-tête repliable. Le rattachement retrouve l’état du panneau intégré.
-La prévisualisation Foci distances affiche aussi ses LUT sans repli.
-
-Filtering propose Mask / XY position au-dessus des réglages et tables. Le choix
-recharge le masque, les foci, les tables et la curation de ce XY ; il met aussi
-à jour le chemin cible de Filter File/Folder. Les paramètres de filtrage sont
-conservés. Le changement est bloqué pendant un calcul de filtrage.
-
-À la fin d’Analyze, les résultats finaux sont chargés automatiquement, après les
-mesures complémentaires et la fusion des canaux. Une fois les données chargées,
-BactoMate ouvre Analysis. Cela fonctionne pour un fichier ou un lot de fichiers,
-y compris avec des sorties dans plusieurs sous-dossiers. La recherche à partir
-d’un masque remonte au dossier de l’échantillon pour trouver le dossier voisin
-_analysis, même depuis _segmentation*/filtered_masks.
-
-Validation : suite complète de 588 tests réussis, 5 ignorés ; puis six tests
-ciblés réussis, incluant le lot de classeurs fusionnés et le refus de remise à
-zéro pendant un calcul de prévisualisation. L’accueil, les tables Filtering avec
-le sélecteur XY et le panneau LUT détaché ont été contrôlés visuellement.
-
-## Analysis : guide de figures et rendu publication — 31 octobre 2026
-
-La section Analysis est en anglais. Conditions & replicates reste tout en haut,
-en mode simple comme avancé. Les attributions déjà enregistrées restent valides.
-Le bouton Figure guide propose quatre étapes : question, population, apparence,
-puis récapitulatif et tracé. Il couvre distributions, relations entre mesures,
-démographes, cartes des maxima et pourcentages de cellules par nombre de foci.
-Le mode Advanced / MicrobeJ-style controls conserve les réglages libres et les
-imports manuels ; ce nom ne désigne pas une intégration du plugin Fiji lui-même.
-
-Les vues spatiales retrouvent les masques et canaux du projet sans sélection
-manuelle de fichiers. Les masques filtrés sont prioritaires, et les masques non
-filtrés sont signalés au récapitulatif. Le calcul utilise les pixels réels et
-reste en tâche de fond. Une sélection de condition et de frame limite la population.
-Les démographes ont une ligne par cellule, un axe longitudinal 0–1 et un tri par
-longueur. La carte des maxima distingue explicitement le pixel le plus brillant
-par cellule des foci conservés dans les CSV de Filtering. Elle montre les points,
-une densité relative et un contour schématique. Les coordonnées sources restent
-exportées. L’alignement explicite du pôle le plus brillant place ce pôle à gauche/
-en haut ; il ne déduit pas l’âge des pôles.
-
-Les figures et exports sont carrés : 6 × 6 pouces, PNG 1800 × 1800 à 300 dpi,
-PDF et SVG. Les scripts exportés conservent aussi un canevas carré. Le guide
-anglais est décrit dans docs/FIGURE_GUIDE.md.
-
-Validation : 598 tests réussis, 5 ignorés dans la suite complète. Les retouches
-d’affichage et de reprise des choix ont ensuite été vérifiées par 33 tests
-ciblés, puis les sept tests du guide ont été rejoués avec succès. Le parcours
-utilise de vrais artefacts de test, sans dialogue d’import, et vérifie l’exclusion
-des cellules rejetées, le changement de projet pendant un calcul, les zéros des
-comptages et l’exécution du script Python exporté. Deux contrôles finaux valident
-la carte des maxima et la reprise des choix avec remise à zéro des anciens filtres.
-Des aperçus issus de données simulées figurent dans docs/FIGURE_GUIDE.md.
-
-## Filtering et figures : corrections après tests Mac — 1 novembre 2026
-
-Filtering mémorise les LUT par canal et masque, y compris lors de changements
-rapides et pour un contraste volontairement sombre. Exclude fully outside est
-coché par défaut. Le clic droit ouvre un menu ; il ne réintègre plus un objet
-immédiatement. Les créations de foci au point cliqué et de cellules par contour
-sont enregistrées comme annotations manuelles, reprises dans les tables et les
-exports filtrés, sans modifier les sources. Maj-clic choisit exactement les
-objets cliqués. Les recettes et calibrations sont indépendantes par XY ; un nouvel
-XY hérite des derniers paramètres. La liste du lot et l’état des résultats sont
-rétablis même après une navigation vers un fichier isolé. L’export utilise la
-recette de chaque masque et ne remplace pas les réglages de l’image active.
-
-L’affichage des figures ne force plus une taille en pouces différente du canevas
-Qt. Chaque figure possède sa propre fenêtre, ses données et son export. Exporter
-travaille sur une copie hors écran et ne redimensionne pas l’affichage. Figure
-options propose ordre/libellés/couleurs des catégories, espacement et largeur des
-boîtes/violons, limites d’axes, rotation des X, polices, points, traits, légende,
-grille, échelle de couleurs, dimensions et DPI. Edit with Figure guide reprend le
-bon graphe, dans la bonne fenêtre, y compris pour un box plot avancé. Les options
-de publication sont conservées lors de cette reprise.
-
-Le guide ajoute un kymographe pour un XY, un ID de cellule/piste et un intervalle
-temporel. Il retrouve les masques exportés par Tracking. L’identité doit être
-vérifiée ; les labels de segmentation ne sont pas considérés comme des pistes
-persistantes sans confirmation. Les axes utilisent le temps en minutes lorsque
-l’intervalle est connu, sinon les frames.
-
-File → Inspect generated files fournit un rapport des contenus identiques et des
-copies de tables CSV/XLSX, sans suppression. L’audit distingue les étapes brutes/
-filtrées, les aperçus PNG/TIFF et les classeurs agrégés. L’écriture redondante d’un
-même PNG dans l’étape Filtering a été évitée. Les parcours sont détaillés dans
-docs/FILTERING_REVIEW_FR.md et docs/FIGURE_GUIDE.md.
-
-Validation : 610 tests réussis, 5 ignorés dans la suite complète, suivis de
-27 tests ciblés réussis pour les derniers ajustements FI/foci, la création
-manuelle depuis une vue Phase et la propagation aux classeurs. Le test d’audit
-a aussi été rejoué. Les contrôles vérifient que les sources restent intactes,
-que les fenêtres de figures sont indépendantes, que l’export ne change pas le
-canevas affiché, et que les kymographes utilisent les masques suivis et le temps
-réel. Les fenêtres de figures, les options de catégories et le menu de curation
-ont été relus visuellement sur des données simulées. Le rendu natif sur Mac et
-l’exécution native des scripts R/MATLAB restent à valider localement.
-Quatre vérifications finales des fenêtres de figures, de l’édition guidée et du
-kymographe (graduations longitudinales 0 / 0,5 / 1 et export Python) réussissent
-également après la dernière retouche des axes.
-
-## Profils, PNG et fenêtres — 1 novembre 2026
-
-Les profils longitudinaux utilisent 24 segments par défaut. Figure guide et les
-réglages avancés proposent aussi Native resolution → 24 positions : les moyennes
-sont mesurées sur une grille d’environ un pixel le long de l’axe, puis interpolées
-linéairement sur la grille commune. Les extrémités utilisent la moyenne du premier/
-dernier segment mesuré. Les profils mesurés et rééchantillonnés sont distingués ;
-l’export ajoute native_profiles.csv pour garder les mesures natives.
-
-Les aperçus PNG automatiques du pipeline sont désactivés. Les nouveaux bundles de
-figures exportent PDF/SVG par défaut, ainsi que les données et scripts. Les scripts
-Python/R/MATLAB n’ajoutent pas de PNG par défaut. Les images PNG existantes ne font
-pas l’objet d’une suppression en masse ; le choix explicite d’un PNG reste possible
-avec les outils de sauvegarde manuelle.
-
-La fenêtre Segmentation détachée compacte les contrôles en haut et retrouve sa
-disposition initiale au rattachement. Foci distances affiche Colocalized ou Not
-Colocalized au-dessus de la cellule choisie, à partir des paires valides impliquant
-cette cellule et des seuils actifs.
-
-Les figures sont activées au premier plan après leur génération, sans réactiver
-une fenêtre déjà fermée ou voler le focus à un autre outil. La croix des fenêtres
-d’images détachées et de figures ouvre Save / Discard / Cancel ; une sauvegarde
-annulée laisse l’image ouverte. Échap garde son comportement précédent. Les
-fermetures internes de session ne déclenchent pas ces dialogues.
-
-Figure options utilise des centimètres ou pixels, avec conversion selon le DPI.
-L’unité interne nécessaire à Matplotlib reste masquée. Changer la mesure dans
-Figure guide réinitialise les anciennes surcharges des libellés d’axes : une
-figure de largeur ne conserve plus le libellé de longueur.
-
-Validation : 614 tests réussis, 5 ignorés dans la suite complète, avec contrôles
-ciblés des fermetures, des unités, des profils natifs, de l’absence de PNG et de
-l’état de colocalisation. Les callbacks différés de la fenêtre principale sont
-maintenant liés à sa durée de vie Qt pour éviter leur exécution après destruction.
-Après les dernières retouches de fermeture et d’activation, 11 contrôles ciblés
-réussissent, dont la sauvegarde TIFF réelle et la mise à jour de colocalisation.
+# BactoMate Custom — bilan consolidé des modifications
+
+Mise à jour : **1 novembre 2026**. Code de référence : **`811d5b6`**.
+Base : BactoMate **2.9.5**, commit **`2dfd181`**.
+Branche active : **BactoMate_Custom_New-Analyses**.
+[Version anglaise](MODIFICATIONS_BACTOMATE_EN.md) · [Guide de test](GUIDE_TEST_BACTOMATE_FR.md)
+
+Ce bilan remplace le journal cumulatif précédent et décrit le comportement final.
+Les branches V1 et Analyses ont été supprimées de GitHub à ta demande. Le travail
+se poursuit sur New-Analyses. Les guides thématiques sont désormais en anglais ;
+seuls ce bilan et le guide de test ont aussi une version française.
+
+## 1. Conversion des ND2 multipositions
+
+Toutes les positions XY sont exportées séparément, avec leurs canaux séparés ou
+un TIFF multicanal par XY. Les noms multipositions comportent XY001, XY002, etc.
+La série temporelle sélectionnée reste dans chaque pile. Calibration, rôles des
+canaux, sélection/projection Z, recadrage et corrections restent disponibles.
+La reconnaissance du canal phase Nikon PH3 est corrigée. L’aperçu montre le
+premier XY ; il faut aussi contrôler les autres positions exportées.
+
+## 2. Segmentation et images détachées
+
+Les cellules sont affichées par contours, de couleur réglable et mémorisée, sans
+remplissage masquant leur intérieur. Changer la couleur ne relance pas la détection
+et ne modifie pas les labels. Les nouveaux TIFF de contours utilisent ce style ;
+les anciens exports ne sont pas réécrits.
+
+L’image se détache en Segmentation et Filtering. Les LUTs la suivent et restent
+ouvertes à droite. Les contrastes sont propres aux canaux pendant la navigation ;
+Filtering les distingue aussi par masque/XY. Cela ne garantit pas leur conservation
+après fermeture complète de l’application. Les LUTs modifient l’affichage, jamais
+les pixels ni les mesures sources.
+
+Molette : zoom doux autour du pointeur. Clic gauche maintenu : déplacement.
+Recenter/fit et glissières horizontale/verticale : navigation dans l’image.
+Échap garde la fenêtre ouverte, sauf pour annuler un tracé manuel en cours.
+Le détachement compacte les contrôles en haut ; le rattachement restaure la mise
+en page. La croix propose Save / Discard / Cancel. Sauvegarder produit une vue
+TIFF/JPEG en RGB, pas un masque scientifique. Annuler la sauvegarde garde la
+fenêtre ouverte. Une fermeture réussie réintègre le canevas.
+
+## 3. Filtering : disposition et mesures
+
+Cell filtering et Foci filtering sont des panneaux fixes. Les tables/historiques
+laissent dix lignes visibles. Les commandes Import/Save en double à gauche ont
+été retirées ; celles au-dessus des filtres restent disponibles. Les commandes
+Keep/Exclude/Use filters suivent l’image détachée avec les LUTs.
+
+La table cellulaire indique aire en µm², longueur/largeur en µm et centre X/Y en
+pixels. Longueur/largeur sont les axes de l’ellipse équivalente, pas une longueur
+de squelette. Changer la calibration actualise ces mesures ; une calibration
+invalide ne produit pas de fausses valeurs physiques. Les effectifs concernent
+la frame courante. L’historique garde paramètres et variations d’effectif ; il
+ne restaure pas automatiquement un état ancien.
+
+## 4. Sélection et annotations manuelles
+
+Dans un canal de foci, le clic sélectionne le focus du canal et sa ligne, pas sa
+cellule hôte. Le mode Cells sélectionne les cellules. Un double-clic sur une ligne
+cellulaire recentre l’image. Maj-clic ajoute uniquement les objets cliqués.
+Delete/Retour arrière exclut la sélection de façon réversible. Apply garde le
+canal View courant.
+
+Seules les cellules retenues ont un contour fin, blanc par défaut, de couleur
+modifiable. Les cellules rejetées restent dans la table. Les foci détectés ou
+annotés sont verts si retenus, rouges si rejetés/exclus. Le marqueur jaune indique
+la sélection de travail et ne change pas leur statut.
+
+Le clic droit ouvre Add / keep object, Remove / exclude object et Create new
+object here… ; aucune réintégration immédiate. Un nouveau focus est placé au point
+cliqué dans le canal courant. En mode Cells, cliquer les sommets d’un polygone et
+terminer avec Entrée/double-clic ; Échap annule. Le polygone doit contenir au moins
+trois pixels et ne pas recouvrir une cellule existante.
+
+Ces créations sont des annotations, pas des détections automatiques. Elles passent
+dans les tables et exports filtrés ; les foci manuels portent `manual` dans le CSV.
+Les sources ne sont pas écrasées. Keep force la conservation, Exclude force le
+rejet, Use filters retire le choix manuel. Curation et recettes sont dans le
+`.curation.json` du masque, par frame et canal. Un masque source modifié ne reçoit
+pas silencieusement les anciens choix sur ses nouveaux labels.
+
+## 5. Réglages par XY/canal et filtrage de lot
+
+Mask / XY position recharge masque, images, tables, foci et curation. Chaque XY
+garde ses filtres cellulaires, sa calibration et les filtres propres à chaque
+canal. Un XY jamais visité reprend les derniers réglages comme point de départ ;
+ensuite ses changements sont indépendants. Changer de canal conserve ses valeurs,
+même sans Apply préalable.
+
+Les nouvelles recettes Filtering cochent Exclude cells at borders et Exclude
+fully outside. Les choix explicitement enregistrés restent respectés. Les contrôles
+Analyze/CLI indépendants peuvent avoir d’autres défauts : vérifier l’étape utilisée.
+
+Filter File/Folder retrouve la liste complète des masques et l’état des résultats,
+même après navigation vers un XY isolé. Les variantes brute/filtrée d’un masque
+sont regroupées ; la source brute est privilégiée lorsqu’elle existe pour permettre
+la réintégration. Chaque masque exporte sa propre recette.
+
+Save filter settings produit un JSON cellules et un JSON par canal nommé, aussi
+présents près des masques filtrés exportés. Importer GFP laisse mCherry/cellules
+inchangés. Les anciens presets groupés restent importables ; les fichiers invalides
+sont refusés. Les presets transportent les filtres, pas les décisions sur objets.
+
+## 6. Aperçu des distances et colocalisation
+
+Défauts : Max distance **3 px**, Threshold **2 px**. Max distance limite les
+partenaires candidats ; un appariement un-à-un choisit les paires ; Threshold
+classe leur distance centre-à-centre. Same cell only est pris en compte et les
+(?) expliquent les paramètres. Une ancienne session peut garder d’autres valeurs.
+
+L’aperçu choisit XY, frame, cellule et canaux. Des cases visibles permettent de
+superposer plusieurs fonds. LUT channel choisit l’histogramme à régler sans
+réinitialiser les autres. Glisser déplace ; la molette zoome d’environ 5 % par
+événement ; les boutons précédent/suivant et les flèches clavier changent de
+cellule. Les icônes Home/Pan inutiles ont été retirées.
+
+Le titre de cellule affiche Colocalized ou Not Colocalized selon les paires
+valides impliquant cette cellule. Centres cyan/magenta, rayons jaune/vert et
+liaisons vertes/orange montrent les décisions. Grille pixel, référence 1 px et
+calibration aident la lecture. L’aperçu utilise la logique d’Analyze, actualise
+ses paramètres et n’écrit pas de résultats. Sans CSV détecté, il affiche une
+information et n’invente pas de foci.
+
+## 7. Session et transfert automatique vers Analysis
+
+Clear current session à l’accueil/menu File ferme aperçus/figures, vide chemins,
+caches et attributions en mémoire et revient à l’accueil. Terminer/annuler les
+calculs d’abord. Les fichiers et `analysis_groups.json` enregistrés restent sur disque.
+
+Après Analyze réussi, les résultats finaux et fusionnés sont chargés, puis Analysis
+s’ouvre automatiquement, pour un fichier ou plusieurs sous-dossiers. La recherche
+retrouve `_analysis` depuis les masques segmentés/filtrés. Refresh results relit
+les changements et signale les fichiers illisibles. Les copies CSV/XLSX connues,
+agrégats redondants et bundles de figures sont évités par les règles du catalogue ;
+ce n’est pas une déduplication universelle de fichiers renommés arbitrairement.
+
+## 8. Analysis simplifié, entièrement en anglais
+
+Le mode simple choisit population, figure, mesure et frame. Conditions & replicates
+reste en haut dans les deux modes. Le tableau attribue condition et réplicat par
+fichier, permet des changements par lot et conserve les choix dans
+`analysis_groups.json`. Les XY d’un même réplicat partagent son nom ; le logiciel
+ne déduit pas un réplicat biologique du nom d’un XY.
+
+Les distributions cellulaires et moyennes colorées des réplicats sont distinctes.
+L’export donne effectif/moyenne/écart-type des réplicats. La première frame évite
+un mélange temporel implicite ; All frames signifie observations répétées.
+Aucun test statistique ou modèle hiérarchique n’est ajouté automatiquement.
+
+Figure guide : question, population, apparence, récapitulatif/tracé. Le mode
+Advanced / MicrobeJ-style controls conserve imports, axes, groupes et filtres
+libres. Il s’inspire de MicrobeJ mais n’exécute pas le plugin Fiji. Cellules, foci,
+profils, tracking et résumés restent des populations distinctes.
+
+## 9. Figures et profils spatiaux
+
+Treize types : Histogram, Scatter, Mean curve, Box plot, Violin plot, ECDF,
+Correlation, Demograph, Kymograph, Normalized cell heatmap, Heatmap, Maxima map,
+Foci count. Les métriques numériques compatibles restent accessibles.
+
+Les vues spatiales retrouvent masques/canaux du projet, préfèrent les masques
+filtrés et signalent les non filtrés. Calibration depuis les métadonnées ou valeur
+explicite. Principal axis convient aux bâtonnets droits ; Medial axis suit un
+squelette pixel de cellule courbe et refuse les axes ambigus. Coordonnées et
+métriques brutes restent exportables. L’orientation géométrique ne donne pas l’âge
+des pôles ; Bright pole place explicitement le plus lumineux à gauche/en haut.
+
+Démographe : une ligne par observation cellulaire, tri par longueur, axe 0–1.
+Défaut **24 segments longitudinaux**, sans changer les paramètres du réseau de
+segmentation cellulaire. Native resolution → 24 positions mesure à environ un
+pixel d’intervalle, puis interpole linéairement sur la grille commune ; les bords
+reprennent la première/dernière moyenne mesurée. `native_profiles.csv` conserve
+les mesures natives. L’interpolation n’augmente pas la résolution optique.
+
+Intensité brute, division par maximum cellulaire et min–max sont des choix explicites.
+Les bins directs vides restent manquants, pas zéro ; une cellule constante devient
+0 en min–max. Maxima map distingue pixel le plus brillant et foci conservés. Sa
+densité relative et sa capsule schématique ne mesurent pas l’intensité ni un contour
+moyen réel. Foci count utilise les cellules avec zéro focus dans le dénominateur.
+
+Kymographe : un XY/canal, au moins deux frames, une identité cellulaire suivie et
+vérifiée. Le guide retrouve les masques Tracking ; des labels ordinaires exigent
+une confirmation de continuité. Axe temporel en minutes si l’intervalle est connu,
+sinon en frames. Aucun tracking ou âge de pôle n’est inventé.
+
+## 10. Fenêtres, options et exports des figures
+
+Chaque figure a sa fenêtre libre, affichée devant BactoMate, ses données et ses
+options. Le canevas remplit la fenêtre ; l’export travaille hors écran sans changer
+les autres vues. Page carrée par défaut **15,24 × 15,24 cm** ; dimensions réglables
+en cm ou pixels, avec conversion DPI. La capsule garde un rapport interne adapté.
+
+Figure options : ordre/libellés/couleurs des catégories, espacement/largeur des
+boîtes/violons, axes/limites, rotation, polices, marqueurs/opacité, traits, outliers,
+légende/grille/titre, échelle couleur, dimensions/DPI. Edit with Figure guide reprend
+la recette de la bonne fenêtre. Changer de métrique retire les anciens libellés
+surchargés : largeur ne garde plus le libellé longueur.
+
+Échap laisse la figure ouverte. La croix demande Save / Discard / Cancel si la
+figure est nouvelle/modifiée ; une figure déjà exportée sans changement se ferme
+directement. Annuler l’export garde la fenêtre ouverte. Le reset interne ferme les
+figures sans dialogue individuel.
+
+Les bundles exportent PDF/SVG, CSV/XLSX des sources/valeurs tracées, métadonnées,
+manifest SHA-256 et scripts Python/R/MATLAB. Tables réplicats/profils natifs selon
+le cas. Les scripts redessinent la géométrie enregistrée, sans refaire la détection.
+Polices/rendu peuvent varier. Python est exécuté dans les tests ; R/MATLAB restent
+à contrôler dans leurs logiciels.
+
+## 11. Fichiers générés et audit
+
+Les PNG automatiques de résultats sont désactivés, y compris les écritures
+redondantes de Filtering. Figures/scripts produisent PDF/SVG par défaut. Un PNG
+explicitement demandé reste possible via les outils manuels/API. Les anciens PNG
+ne sont pas supprimés en masse. Masques, TIFF de contrôle et tables sont conservés.
+
+File → Inspect generated files fait un audit en lecture seule : rôles, contenus
+identiques, copies CSV/XLSX, rapport JSON enregistrable. Aucune suppression.
+Masques bruts/filtrés et classeurs individuels/agrégés ont des usages différents.
+Also save CSV est décoché par défaut ; le cocher crée volontairement une copie texte.
+
+## 12. Validation et limites
+
+Dernière suite complète enregistrée : **614 tests réussis, 5 ignorés**, puis
+**11 contrôles ciblés réussis** après les dernières retouches, dont sauvegarde
+TIFF réelle et statut de colocalisation. La réécriture des docs ne prétend pas
+constituer une nouvelle exécution complète de l’application.
+
+Les essais réels précédents ont vérifié neuf TIFF d’un ND2 à trois XY/trois canaux,
+un seul temps, avec égalité des pixels et calibration ; contours sur les trois XY ;
+curation/export et démographe GFP de 144 cellules sur XY001. Films ND2 réels,
+justesse biologique foci/colocalisation, comportement macOS natif et exécution
+native R/MATLAB restent à évaluer localement. Les tests de code ne certifient pas
+la validité scientifique de nouvelles données.
