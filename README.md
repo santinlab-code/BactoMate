@@ -8,7 +8,7 @@ This repository documents the laboratory customizations built on BactoMate 2.9.5
 The former `BactoMate_Custom_V1` and `BactoMate_Custom_Analyses` branches were
 removed from GitHub. Use this active branch for installation and further work.
 The package may still report version `2.9.5`; record the Git commit to identify
-this custom build. Documentation reviewed on **1 November 2026**, against `811d5b6`.
+this custom build. Documentation updated on **3 November 2026**; see the branch commit for the custom revision.
 
 ## Install this custom version
 
@@ -71,7 +71,9 @@ Detached image windows keep their LUT controls on the right, support mouse zoom
 and pan, and offer recentering and position sliders. Filtering supports object
 selection, reversible exclusion and manual annotation. Analysis opens each figure
 in its own window and exports PDF/SVG, tables and Python/R/MATLAB reproduction code.
-Automatic result PNG previews are disabled.
+Automatic result PNG previews are disabled. Omnipose previews and exports now use
+the same native-resolution tiled calculation; see the Mac/Windows comparison guide
+before comparing historical and newly processed masks.
 
 ## Documentation
 
@@ -82,6 +84,7 @@ Automatic result PNG previews are disabled.
 | [Testing guide — English](GUIDE_TEST_BACTOMATE_EN.md) / [French](GUIDE_TEST_BACTOMATE_FR.md) | Installation and acceptance checks |
 | [Custom changes — English](MODIFICATIONS_BACTOMATE_EN.md) / [French](MODIFICATIONS_BACTOMATE_FR.md) | Consolidated changes since the upstream baseline |
 | [Simple Analysis](docs/NEW_ANALYSIS.md) / [Figure guide](docs/FIGURE_GUIDE.md) | Conditions, replicates, demographs, maxima and kymographs |
+| [Mac/Windows comparison](docs/MAC_WINDOWS_REPRODUCIBILITY.md) | Shared versions, CPU reference and corrected segmentation failures |
 | [Release notes](docs/RELEASE_NOTES.md) | Custom development milestones and validation limits |
 
 ## Scientific interpretation and attribution

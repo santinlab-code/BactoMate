@@ -2,7 +2,7 @@
 
 Use **BactoMate_Custom_New-Analyses** from
 [santinlab-code/BactoMate](https://github.com/santinlab-code/BactoMate/tree/BactoMate_Custom_New-Analyses).
-Reviewed 1 November 2026. The earlier V1/Analyses branches are removed. Upstream
+Updated 3 November 2026. The earlier V1/Analyses branches are removed. Upstream
 release apps may not contain this custom code; install this branch's source or a
 bundle explicitly built from it.
 
@@ -59,9 +59,10 @@ setup\windows\install.bat
 launch_windows.bat
 ```
 
-Do not use Program Files or run as Administrator. The installer creates a venv,
-installs constrained dependencies/wheels, applies patches and creates launch
-assets. See [the Windows guide](../docs/INSTALL_AND_LAUNCH_windows.md) for DLL,
+Do not use Program Files or run as Administrator. The installer creates a fresh venv, preserving an existing environment as
+`venv.previous`, then installs constrained dependencies/wheels, applies patches
+and creates launch assets. A leftover backup stops another reinstall; keep or
+rename it before rerunning. Windows retains the backup after success. See [the Windows guide](../docs/INSTALL_AND_LAUNCH_windows.md) for DLL,
 Spotiflow, ncolor, solver and CUDA repairs. Legacy root/setup installer stubs
 forward to the platform scripts; use the paths above for new instructions.
 
@@ -114,3 +115,16 @@ repairs. Do not upgrade scientific/backend dependencies indiscriminately.
 
 After installation follow [the acceptance guide](../GUIDE_TEST_BACTOMATE_EN.md).
 The [user manual](../docs/BACTOMATE_USER_MANUAL.md) covers the complete workflow.
+
+## Common segmentation checks
+
+The Mac and Windows installers verify the same 16 pinned segmentation packages
+and run actual CPU inference at diameters 30 and 33 before success. CUDA helpers
+retain the pinned PyTorch release. See [Mac/Windows reproducibility](../docs/MAC_WINDOWS_REPRODUCIBILITY.md)
+for the baseline, update steps, new log fingerprints and CPU comparison. Updating
+only source files does not replace dependencies already installed in the venv.
+
+The optional shell CUDA helper uses the pinned cu128 build and checks driver
+capability (CUDA 12.8 or newer). With an older/missing NVIDIA driver it keeps
+the installed CPU/MPS stack; it does not downgrade PyTorch to obtain an older
+CUDA wheel. Native Mac operation uses MPS or CPU, without this NVIDIA helper.

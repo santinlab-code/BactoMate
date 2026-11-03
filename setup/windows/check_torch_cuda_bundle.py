@@ -1,8 +1,8 @@
 """
-Exit 0 when torch, torchvision, and torchaudio are mutually compatible.
+Exit 0 when the pinned torch/vision/audio releases and build tags are compatible.
 Exit 1 when a reinstall is needed (mixed CUDA builds, or torchvision ops fail to load).
 
-Used by setup/windows/install.bat step 6 before skipping the CUDA wheel install.
+Used by setup/windows/install.bat step 7; --require-cuda also checks GPU availability.
 """
 from __future__ import annotations
 
@@ -21,6 +21,11 @@ def bundle_ok() -> bool:
         import torchvision
         import torchaudio  # noqa: F401
     except (ImportError, RuntimeError, OSError):
+        return False
+
+    from importlib.metadata import version
+    expected = {"torch": "2.11.0", "torchvision": "0.26.0", "torchaudio": "2.11.0"}
+    if any(version(name).split("+", 1)[0] != wanted for name, wanted in expected.items()):
         return False
 
     tags = [
@@ -43,7 +48,11 @@ def bundle_ok() -> bool:
 
 
 def main() -> int:
-    return 0 if bundle_ok() else 1
+    ready = bundle_ok()
+    if ready and "--require-cuda" in sys.argv:
+        import torch
+        ready = torch.cuda.is_available()
+    return 0 if ready else 1
 
 
 if __name__ == "__main__":

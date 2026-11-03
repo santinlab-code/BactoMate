@@ -200,10 +200,7 @@ if [ -f "requirements.txt" ]; then
                 echo "Installing PyTorch with CUDA..."
                 bash "$SCRIPT_DIR/install_cuda_pytorch.sh"
             else
-                echo "Installing PyTorch with CUDA (default: cu118)..."
-                pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-                pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-                echo "✓ CUDA-enabled PyTorch installed"
+                echo "CUDA helper missing; keeping the pinned CPU/MPS stack."
             fi
         fi
     fi
@@ -296,7 +293,12 @@ REASON="smoke test failed (python main.py --smoke-test)"
 source "$PROJECT_ROOT/venv/bin/activate"
 python main.py --version
 python main.py --smoke-test
-echo "✓ Smoke test passed"
+REASON="segmentation packages differ from the shared baseline"
+python -m bactomate.scripts.check_environment --segmentation-only
+REASON="CPU segmentation smoke test failed"
+python -m bactomate.scripts.check_environment --segmentation-smoke-test
+python -m pip freeze
+echo "✓ Smoke test and common segmentation versions passed"
 INSTALL_OK=1
 
 # Smoke test passed: the previous environment is no longer needed.

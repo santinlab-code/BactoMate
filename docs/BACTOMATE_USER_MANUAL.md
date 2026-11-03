@@ -2,7 +2,7 @@
 
 **Branch:** BactoMate_Custom_New-Analyses
 
-**Reviewed:** 1 November 2026, against code commit `811d5b6`
+**Updated:** 3 November 2026; see the active branch for its current commit
 
 **Upstream baseline/package version:** BactoMate 2.9.5 (`2dfd181`)
 
@@ -113,6 +113,26 @@ Previews show cell outlines and preserve touching-cell boundaries. Show cell
 outlines toggles them; Outline color changes colour without recomputing masks.
 Newly exported contour TIFFs use that style. Equivalent-label masks, not these RGB
 TIFFs, are the inputs to filtering, measurements and tracking.
+
+### Shared Omnipose inference on Mac and Windows
+
+Previews and saved-file/batch processing now share native-resolution tiled
+inference with explicit normalization and parameters. Earlier exports used a
+different tiling choice, so newly processed masks may differ from historical
+exports. Use GPU is respected by the preview; uncheck it on both computers for
+the CPU reference calculation. New installers verify the same pinned segmentation
+libraries and run real CPU inference at diameters 30/33. MPS/CUDA numerical
+equality is not guaranteed.
+
+A one-pixel internal shape error is retried with native-grid resampling while
+retaining diameter and image extent. An unrecoverable error aborts without
+writing a new mask stack; it is not replaced with a successful empty mask.
+New logs record actual device, parameters, input-pixel/checkpoint hashes and
+versions. Bundled phase/fluorescence weights are validated before loading; a
+different file under the same built-in name is reported without deletion.
+Preview caches include these identities; Clear Cache clears disk
+entries too. Controls disconnect when destroyed. See
+[the Mac/Windows comparison guide](MAC_WINDOWS_REPRODUCIBILITY.md).
 
 ### Detached images and LUTs
 
@@ -459,8 +479,9 @@ log. Reduce batch size/use CPU when GPU memory is insufficient.
 
 ## 13. Evidence and limits
 
-The latest recorded full code suite passed 614 tests with 5 skipped; 11 targeted
-checks passed after the last refinements. Real checks covered a single-time,
+The earlier November 1 suite passed 614 tests with 5 skipped, followed by targeted
+checks. The November 3 harmonization adds dedicated regression and real-image
+CPU checks; see the comparison guide and release notes for current evidence. Real checks covered a single-time,
 three-XY/three-channel ND2 with pixel-identical converted TIFFs, contour review,
 XY001 curation/export and a 144-cell GFP demograph. Synthetic tests cover further
 interactions. These results do not certify biological foci detection/colocalization,

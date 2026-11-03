@@ -1,11 +1,30 @@
 # BactoMate Custom — release and development notes
 
-Documentation reviewed **1 November 2026** against code **`811d5b6`**.
+Documentation updated **3 November 2026**, extending the November 1
+code reference **`811d5b6`**.
 Active custom branch: **BactoMate_Custom_New-Analyses**.
 The package still reports upstream version 2.9.5; custom milestones below are Git
 commits, not newly assigned upstream release numbers. These notes consolidate
 the custom history; [the change summary](../MODIFICATIONS_BACTOMATE_EN.md) defines
 current behavior and [the manual](BACTOMATE_USER_MANUAL.md) describes its use.
+
+## 3 November 2026 — shared Mac/Windows segmentation
+
+A single native-resolution tiled inference path replaces differing preview/export
+settings. Use GPU now applies to the single-image preview, with CPU available as
+a reference on both platforms. A common pinned 16-package segmentation baseline
+and CUDA version pins are verified by the installers, which rebuild environments
+with backups and exercise actual CPU inference at diameters 30/33.
+
+Shape-error recovery preserves input extent and diameter using recorded native-grid
+resampling. Persistent failures abort rather than creating successful empty masks.
+Destroyed preview controls disconnect their listeners. Preview caches fingerprint
+pixels/weights/versions and clear disk entries. New environment/model/input/result
+provenance is included in logs/sessions without extra per-image sidecars.
+
+The retained real validation TIFF reproduces the one-pixel diameter-33 error and
+recovers successfully on local CPU. Native Mac/MPS and Windows/CUDA equivalence
+is not asserted. See [the comparison guide](MAC_WINDOWS_REPRODUCIBILITY.md).
 
 ## Current documentation revision
 
@@ -132,3 +151,7 @@ contours on all XYs, and curation/export plus a 144-cell GFP demograph on XY001.
 They do not establish biological foci/colocalization accuracy, all real time-lapse
 formats, native macOS focus/close behavior or native R/MATLAB execution. Use the
 [local test guide](../GUIDE_TEST_BACTOMATE_EN.md) and review scientific assumptions.
+
+Validation on 3 November: **626 passed, 5 skipped** in the full Linux suite,
+with two existing warnings; the actual CPU installer smoke test passed at both
+diameters. Native macOS/Windows validation remains pending.

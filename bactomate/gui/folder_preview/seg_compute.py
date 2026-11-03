@@ -77,9 +77,12 @@ def segment_plane_with_model(
     """Run Omnipose/Cellpose-SAM eval on one plane; return label mask at full plane shape."""
     from bactomate.gui.omnipose_utils import omnipose_eval_first_mask
 
-    (seg_frame, seg_scale, (orig_h, orig_w)) = downsample_for_preview_seg(
-        plane, max_size=PREVIEW_SEG_MAX_SIZE
-    )
+    if is_cellpose_sam:
+        (seg_frame, seg_scale, (orig_h, orig_w)) = downsample_for_preview_seg(
+            plane, max_size=PREVIEW_SEG_MAX_SIZE)
+    else:
+        seg_frame, seg_scale = np.asarray(plane, dtype=np.float32), 1.0
+        orig_h, orig_w = plane.shape[:2]
     effective = float(diameter) if diameter and float(diameter) > 0 else 30.0
     diameter_seg = max(1.0, effective * seg_scale)
 
@@ -98,28 +101,10 @@ def segment_plane_with_model(
         else:
             mask = np.asarray(batch_masks[0], dtype=np.uint16)
     else:
-        kwargs = dict(
-            channels=[0, 0],
-            diameter=diameter_seg,
-            flow_threshold=float(flow_threshold),
-            mask_threshold=float(mask_threshold),
-            cellprob_threshold=0.0,
-            do_3D=False,
-            omni=True,
-            affinity_seg=bool(affinity_seg),
-            cluster=bool(cluster),
-            net_avg=False,
-            resample=False,
-            verbose=False,
-        )
-        if is_frozen:
-            try:
-                mask = omnipose_eval_first_mask(model.eval(seg_frame, **kwargs))
-            except TypeError:
-                kwargs["diameter"] = 30.0
-                mask = omnipose_eval_first_mask(model.eval(seg_frame, **kwargs))
-        else:
-            mask = omnipose_eval_first_mask(model.eval(seg_frame, **kwargs))
+        from bactomate.modules.segmentation_runtime import evaluate_omnipose_plane
+        mask = evaluate_omnipose_plane(model, seg_frame, diameter=float(diameter or 0.),
+            flow_threshold=flow_threshold, mask_threshold=mask_threshold,
+            cluster=cluster, affinity_seg=affinity_seg)
 
     if seg_scale < 1.0 and mask is not None:
         mask = upsample_mask_to_shape(mask, orig_h, orig_w)

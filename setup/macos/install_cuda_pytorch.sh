@@ -9,51 +9,26 @@ echo "Installing PyTorch with CUDA Support"
 echo "=========================================="
 echo ""
 
-# Check if CUDA is available
+# PyTorch 2.11's shared CUDA baseline uses cu128, not older toolkit indexes.
+# Driver capability matters; an installed nvcc toolkit does not choose the wheel.
+CUDA_VERSION="cu128"
 if ! command -v nvidia-smi &> /dev/null; then
-    echo "WARNING: nvidia-smi not found. CUDA drivers may not be installed."
-    echo ""
-    echo "Please ensure:"
-    echo "1. NVIDIA GPU is installed"
-    echo "2. NVIDIA drivers are installed"
-    echo "3. CUDA toolkit is installed"
-    echo ""
-    read -p "Continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-    CUDA_VERSION="cu118"  # Default to CUDA 11.8
-else
-    # Get CUDA version from nvidia-smi
-    CUDA_DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)
-    echo "Detected NVIDIA driver version: $CUDA_DRIVER_VERSION"
-    
-    # Map driver version to CUDA version (simplified)
-    # For more accurate detection, check: nvcc --version
-    if command -v nvcc &> /dev/null; then
-        CUDA_TOOLKIT_VERSION=$(nvcc --version | grep "release" | sed 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/')
-        echo "Detected CUDA toolkit version: $CUDA_TOOLKIT_VERSION"
-        
-        # Convert to PyTorch format (e.g., 11.8 -> cu118)
-        CUDA_MAJOR=$(echo $CUDA_TOOLKIT_VERSION | cut -d. -f1)
-        CUDA_MINOR=$(echo $CUDA_TOOLKIT_VERSION | cut -d. -f2)
-        CUDA_VERSION="cu${CUDA_MAJOR}${CUDA_MINOR}"
-    else
-        echo "nvcc not found. Using default CUDA 11.8 (cu118)"
-        CUDA_VERSION="cu118"
-    fi
+    echo "No NVIDIA driver found. Keeping the installed CPU/MPS stack."
+    exit 0
+fi
+DRIVER_CUDA=$(nvidia-smi | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+if ! python3 -c 'import sys; v=tuple(map(int,sys.argv[1].split("."))); sys.exit(0 if v >= (12,8) else 1)' "$DRIVER_CUDA"; then
+    echo "CUDA 12.8 or newer driver capability is required by this helper."
+    echo "Keeping the installed stack; update the NVIDIA driver to enable this CUDA build."
+    exit 0
 fi
 
 echo ""
 echo "Installing PyTorch with CUDA ${CUDA_VERSION}..."
 echo ""
 
-# Uninstall CPU-only PyTorch if installed
-pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-
 # Install CUDA-enabled PyTorch
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/${CUDA_VERSION}
+python3 -m pip install --upgrade --force-reinstall --no-deps "torch==2.11.0" "torchvision==0.26.0" "torchaudio==2.11.0" --index-url https://download.pytorch.org/whl/${CUDA_VERSION}
 
 echo ""
 echo "Verifying CUDA installation..."

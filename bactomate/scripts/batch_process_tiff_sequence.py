@@ -345,10 +345,10 @@ def process_frames_with_omnipose(frame_paths, model_type='cyto2_omni', pretraine
         try:
             import torch
             if use_gpu and torch.cuda.is_available():
-                # Enable cuDNN benchmarking for faster inference (finds optimal algorithms)
-                torch.backends.cudnn.benchmark = True
-                # Use deterministic algorithms for reproducibility (slower) - disabled for speed
-                torch.backends.cudnn.deterministic = False
+                # Keep preview and export on the same stable kernel policy
+                torch.backends.cudnn.benchmark = False
+                # Prefer deterministic kernels over hardware-dependent benchmarking
+                torch.backends.cudnn.deterministic = True
                 
                 # Memory pooling optimizations
                 # Enable memory pool allocator for better memory reuse
@@ -358,18 +358,19 @@ def process_frames_with_omnipose(frame_paths, model_type='cyto2_omni', pretraine
                 # Set memory fraction to allow better memory management (optional)
                 # torch.cuda.set_per_process_memory_fraction(0.9)  # Use 90% of GPU memory
                 
-                print("GPU optimizations enabled (cuDNN benchmarking, memory pooling)")
+                print("Stable GPU kernels requested (cuDNN benchmark off, deterministic on)")
         except:
             pass  # If torch not available or other error, continue without optimizations
         
         # Verify architecture is correct (for C2_BD models: nchan=2, nclasses=4); skip for user models
-        if not pretrained_model and hasattr(model.cp, 'nchan') and hasattr(model.cp, 'nclasses'):
+        core_model = getattr(model, 'cp', model)
+        if not pretrained_model and hasattr(core_model, 'nchan') and hasattr(core_model, 'nclasses'):
             expected_nchan = 2 if model_type in ['bact_phase_omni', 'cyto2_omni', 'bact_fluor_omni'] else 1
             expected_nclasses = 4 if model_type in ['bact_phase_omni', 'cyto2_omni', 'bact_fluor_omni'] else 3
-            if model.cp.nchan != expected_nchan or model.cp.nclasses != expected_nclasses:
+            if core_model.nchan != expected_nchan or core_model.nclasses != expected_nclasses:
                 print(f"WARNING: Architecture mismatch detected!")
                 print(f"  Expected: nchan={expected_nchan}, nclasses={expected_nclasses}")
-                print(f"  Got: nchan={model.cp.nchan}, nclasses={model.cp.nclasses}")
+                print(f"  Got: nchan={core_model.nchan}, nclasses={core_model.nclasses}")
                 print(f"  This may cause errors. Trying to fix...")
                 # Try to fix by recreating with correct parameters
                 raise RuntimeError("Architecture mismatch - need to recreate model")
@@ -426,17 +427,8 @@ def process_frames_with_omnipose(frame_paths, model_type='cyto2_omni', pretraine
     # stream frames per batch and add adaptive batch-size backoff for OOM-like failures.
 
     def _device_label() -> str:
-        if not use_gpu:
-            return "cpu(--no-gpu)"
-        try:
-            import torch
-            if torch.cuda.is_available():
-                return "cuda"
-            if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-                return "mps"
-        except Exception:
-            pass
-        return "cpu"
+        from bactomate.modules.segmentation_runtime import model_device
+        return model_device(model)
 
     def _is_oom_error(exc: BaseException) -> bool:
         s = str(exc).lower()
@@ -498,25 +490,14 @@ def process_frames_with_omnipose(frame_paths, model_type='cyto2_omni', pretraine
                 t_load0 = None
 
             batch_images = []
-            first_shape = None
             for p in batch_paths:
                 try:
                     img = imread(p)
                     if img.ndim == 3 and img.shape[0] < 10:
                         img = img.transpose(1, 2, 0)  # (Y, X, C) when channels-first
-                    if first_shape is None:
-                        first_shape = getattr(img, "shape", None)
                     batch_images.append(img)
                 except Exception as e:
-                    print(f"[load] ERROR path={p!r} err={type(e).__name__}: {e}")
-                    if first_shape is None:
-                        try:
-                            dummy = imread(batch_paths[0])
-                            first_shape = dummy.shape
-                        except Exception:
-                            first_shape = (512, 512)
-                    empty = np.zeros(first_shape[:2], dtype=np.uint8)
-                    batch_images.append(empty)
+                    raise RuntimeError(f'Cannot read segmentation input {p!r}; no new mask stack was written.') from e
 
             load_s = None
             if t_load0 is not None:
@@ -538,20 +519,12 @@ def process_frames_with_omnipose(frame_paths, model_type='cyto2_omni', pretraine
                 except Exception:
                     t_eval0 = None
 
-                result = model.eval(
-                    batch_images,
-                    channels=channels,
-                    diameter=diameter,
-                    flow_threshold=flow_threshold,
-                    mask_threshold=mask_threshold,
-                    omni=omni,
-                    affinity_seg=affinity_seg,
-                    cluster=cluster,
-                    net_avg=False,
-                    resample=False,
-                    tile=False,
-                    verbose=verbose,
-                )
+                from bactomate.modules.segmentation_runtime import evaluate_omnipose_plane
+                out_masks = [evaluate_omnipose_plane(model, image, channels=channels,
+                    diameter=diameter, flow_threshold=flow_threshold,
+                    mask_threshold=mask_threshold, omni=omni,
+                    affinity_seg=affinity_seg, cluster=cluster, verbose=verbose)
+                    for image in batch_images]
 
                 eval_s = None
                 if t_eval0 is not None:
@@ -560,35 +533,6 @@ def process_frames_with_omnipose(frame_paths, model_type='cyto2_omni', pretraine
                         eval_s = _time_mod.time() - t_eval0
                     except Exception:
                         eval_s = None
-
-                batch_masks = result[0] if isinstance(result, tuple) else result
-
-                out_masks = []
-                if isinstance(batch_masks, list):
-                    out_masks = batch_masks
-                elif isinstance(batch_masks, np.ndarray):
-                    if batch_masks.ndim == 2:
-                        out_masks = [batch_masks]
-                    elif batch_masks.ndim == 3:
-                        out_masks = [batch_masks[i] for i in range(min(batch_masks.shape[0], len(batch_images)))]
-                    else:
-                        out_masks = [batch_masks]
-                else:
-                    try:
-                        out_masks = list(batch_masks)
-                    except Exception:
-                        out_masks = [batch_masks]
-
-                # Ensure we produce exactly one mask per input frame in the batch.
-                if len(out_masks) != len(batch_images):
-                    print(f"[warn] mask_count_mismatch batch={batch_idx} got={len(out_masks)} expected={len(batch_images)}; padding/truncating")
-                    if len(out_masks) > len(batch_images):
-                        out_masks = out_masks[: len(batch_images)]
-                    else:
-                        # Pad with empty masks.
-                        ref = out_masks[0] if out_masks else np.zeros(batch_images[0].shape[:2], dtype=np.uint16)
-                        while len(out_masks) < len(batch_images):
-                            out_masks.append(np.zeros_like(ref))
 
                 masks.extend(out_masks)
 
@@ -633,38 +577,11 @@ def process_frames_with_omnipose(frame_paths, model_type='cyto2_omni', pretraine
                     attempt_bs = new_bs
                     continue
 
-                # Non-OOM (or OOM at bs=1): fall back to per-frame processing for this batch.
-                print(f"[batch] falling_back mode=per_frame idx={batch_idx} n={len(batch_images)}")
-                for i, image in enumerate(batch_images):
-                    try:
-                        result = model.eval(
-                            image,
-                            channels=channels,
-                            diameter=diameter,
-                            flow_threshold=flow_threshold,
-                            mask_threshold=mask_threshold,
-                            omni=omni,
-                            affinity_seg=affinity_seg,
-                            cluster=cluster,
-                            net_avg=False,
-                            resample=False,
-                            verbose=verbose,
-                        )
-                        mask = result[0] if isinstance(result, tuple) else result
-                        masks.append(mask)
-                    except Exception as e2:
-                        print(f"[frame] ERROR idx={frame_idx + i + 1}/{num_frames_total} err={type(e2).__name__}: {e2}")
-                        # Full traceback so we can see where (e.g., omnipose.compute_masks) the error originated.
-                        print("[frame] traceback:")
-                        traceback.print_exc()
-                        ref_shape = (masks[0].shape if masks else image.shape[:2])
-                        masks.append(np.zeros(ref_shape, dtype=np.uint16))
+                raise RuntimeError(
+                    f'Segmentation failed for frames {batch_start_1}-{batch_end_1}: {e}. '
+                    'No new mask stack was written; an empty mask is not a successful result.'
+                ) from e
 
-                del batch_images
-                _clear_accelerator_cache()
-                frame_idx += len(batch_paths)
-                break
-    
     # Final memory cleanup
     try:
         import torch

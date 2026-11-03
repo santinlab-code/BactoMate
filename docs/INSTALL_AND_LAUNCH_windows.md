@@ -1,6 +1,6 @@
 # Install and launch the custom branch on Windows
 
-Current branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+Current branch: **BactoMate_Custom_New-Analyses**. Updated 3 November 2026.
 [Setup overview](../setup/README.md) · [Acceptance tests](../GUIDE_TEST_BACTOMATE_EN.md)
 
 ## Install from this branch
@@ -25,9 +25,10 @@ launch_windows.bat
 
 If Windows blocks scripts, unblock the downloaded ZIP in Properties and extract
 again. Run the installer from an existing Command Prompt to retain failure output.
-The installer verifies Python, creates `venv`, installs constrained requirements
+The installer verifies Python, creates a fresh `venv` (keeping an existing one
+as `venv.previous`), installs constrained requirements
 and the editable package, applies patches/Spotiflow repairs, checks the result
-and creates launcher assets. A prebuilt dbscan wheel avoids the normal need for
+and creates launcher assets. The common DBSCAN 0.0.12 wheel avoids the normal need for
 C++ Build Tools. Internet access is needed for packages/models not yet installed.
 
 ## Verify and start later
@@ -111,3 +112,13 @@ runtime. Extract the whole folder and launch its `BactoMate.bat`, keeping the
 contents together. Do not run the source installer inside a portable distribution.
 Test that its recorded commit matches the intended custom revision; a generic
 upstream release filename is not evidence of that match.
+
+## Segmentation update of 3 November 2026
+
+Rerun the installer after updating source to apply the common pinned segmentation
+baseline. An existing venv is backed up rather than reused. Keep/rename a leftover
+venv.previous before another reinstall. CUDA installation no longer chooses an
+unpinned latest torch release. The installer validates the baseline and runs
+actual CPU segmentation at diameters 30/33, recording results and pip freeze in
+Logs/install_last.log. For comparison, uncheck Use GPU on both machines, then
+Re-detect. See [the comparison guide](MAC_WINDOWS_REPRODUCIBILITY.md).

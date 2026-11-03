@@ -1,6 +1,6 @@
 # BactoMate Custom — installation and acceptance tests
 
-Reviewed: **1 November 2026**, code **`811d5b6`**, branch
+Updated: **3 November 2026**, branch
 **BactoMate_Custom_New-Analyses**. [French edition](GUIDE_TEST_BACTOMATE_FR.md)
 · [Consolidated changes](MODIFICATIONS_BACTOMATE_EN.md)
 
@@ -204,5 +204,23 @@ scripts redraw saved primitives; they do not repeat segmentation or reanalysis.
 
 Record pass/fail, input/XY/frame/channel, steps, expected/observed result and log
 path. Preserve sources, curation, filter presets and a failing figure bundle.
-The last full code suite recorded 614 passed / 5 skipped, followed by 11 targeted
-passes. Those prior checks do not replace these local tests or biological review.
+The 3 November Linux suite recorded **626 passed / 5 skipped** (two existing
+warnings). The actual CPU installer inference also passed at diameters 30 and 33.
+These checks do not replace native Mac/Windows testing or biological review.
+
+## 13. Mac/Windows reference comparison — 3 November 2026
+
+Update source and rerun the platform installer so the shared dependency versions
+are applied. Preserve/archive an existing venv.previous before another reinstall.
+Confirm baseline and real CPU segmentation checks pass. Use the same phase TIFF,
+model and parameters, uncheck Use GPU on both machines and Re-detect before
+comparing preview/export. Check pixel/weight hashes, effective device, versions,
+parameters and recovery mode in the new logs, not only the displayed model name.
+
+Test diameter 33: any shape recovery must preserve dimensions/diameter and be
+recorded. An unrecoverable error must fail the run without writing a new empty
+mask stack or reporting success. Close/reopen the preview and change controls;
+no deleted-QDoubleSpinBox error should occur. Clear Cache must invalidate disk
+previews. Expect historical file-export counts to change when old non-tiled
+exports are replaced by the common tiled computation. See
+[the full comparison procedure](docs/MAC_WINDOWS_REPRODUCIBILITY.md).

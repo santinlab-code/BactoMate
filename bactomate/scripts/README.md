@@ -79,3 +79,11 @@ PDF/SVG are the defaults; PNG requires an explicit request. See
 
 For the complete pipeline, use [the manual](../../docs/BACTOMATE_USER_MANUAL.md).
 For install/repair scripts, use [setup](../../setup/README.md).
+
+## Shared segmentation validation
+
+`python -m bactomate.scripts.check_environment --segmentation-only` reports and
+validates the 16-package common baseline. `--segmentation-smoke-test` loads the
+actual phase model on CPU and checks inference at diameters 30 and 33 without
+writing result images. Installers run both. See
+[Mac/Windows reproducibility](../../docs/MAC_WINDOWS_REPRODUCIBILITY.md).

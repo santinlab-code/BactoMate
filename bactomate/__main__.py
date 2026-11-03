@@ -118,6 +118,11 @@ def run() -> None:
         log = get_logger()
         _mark(log, "logging_ready")
         log.info("Starting BactoMate")
+        from bactomate.modules.segmentation_runtime import environment_snapshot, baseline_issues
+        import json
+        log.info('[segmentation environment] ' + json.dumps(environment_snapshot(), sort_keys=True))
+        for issue in baseline_issues():
+            log.warning('Segmentation baseline differs: ' + issue)
         log.info("Loading GUI (PyQt6 and tabs; can take 1–2 min on first launch from app bundle)...")
         _mark(log, "before_import_main_window")
         from bactomate.gui.main_window import main

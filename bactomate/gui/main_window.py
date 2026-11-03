@@ -638,6 +638,9 @@ class MainWindow(QMainWindow):
             path = Path(getattr(self, '_session_log_path', None) or _new_session_log_path(LOGS_DIR, now))
             self._session_log_path = path
             data = {'schema_version': 2, 'timestamp': ts_display, 'created_at': started_display, 'updated_at': ts_display, 'kind': 'analysis_recipe_session', 'tabs': self.gather_session_params()}
+            from bactomate.modules.segmentation_runtime import environment_snapshot, last_segmentation_result
+            data['environment'] = environment_snapshot()
+            data['last_preview_segmentation'] = last_segmentation_result()
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
             _prune_old_session_logs(LOGS_DIR, MAX_SESSION_LOGS)
@@ -1006,6 +1009,8 @@ class MainWindow(QMainWindow):
             return
         self._open_analysis_when_loaded = False
         self.figure_analysis_tab.clear_session()
+        from bactomate.modules.segmentation_runtime import clear_last_segmentation_result
+        clear_last_segmentation_result()
         distance_preview=getattr(self.analyze_tab,'_distance_preview',None)
         if distance_preview is not None:
             distance_preview.close()

@@ -315,6 +315,9 @@ class OmniposeSegTab(QWidget):
         preview_cb.setChecked(main_cb.isChecked())
 
         def _pv(checked: bool) -> None:
+            from PyQt6 import sip
+            if sip.isdeleted(main_cb):
+                return
             main_cb.blockSignals(True)
             try:
                 main_cb.setChecked(bool(checked))
@@ -322,6 +325,9 @@ class OmniposeSegTab(QWidget):
                 main_cb.blockSignals(False)
 
         def _mv(checked: bool) -> None:
+            from PyQt6 import sip
+            if sip.isdeleted(preview_cb):
+                return
             preview_cb.blockSignals(True)
             try:
                 preview_cb.setChecked(bool(checked))
@@ -329,6 +335,12 @@ class OmniposeSegTab(QWidget):
                 preview_cb.blockSignals(False)
         preview_cb.toggled.connect(_pv)
         main_cb.toggled.connect(_mv)
+        def disconnect(*_):
+            try:
+                main_cb.toggled.disconnect(_mv)
+            except (TypeError, RuntimeError):
+                pass
+        preview_cb.destroyed.connect(disconnect)
 
     @staticmethod
     def _link_spinboxes(preview_spin: QDoubleSpinBox, main_spin: QDoubleSpinBox, *, fixed_width: int=80) -> None:
@@ -346,6 +358,9 @@ class OmniposeSegTab(QWidget):
             main_spin.blockSignals(False)
 
         def _preview_changed(v: float) -> None:
+            from PyQt6 import sip
+            if sip.isdeleted(main_spin):
+                return
             main_spin.blockSignals(True)
             try:
                 main_spin.setValue(v)
@@ -353,6 +368,9 @@ class OmniposeSegTab(QWidget):
                 main_spin.blockSignals(False)
 
         def _main_changed(v: float) -> None:
+            from PyQt6 import sip
+            if sip.isdeleted(preview_spin):
+                return
             preview_spin.blockSignals(True)
             try:
                 preview_spin.setValue(v)
@@ -360,6 +378,12 @@ class OmniposeSegTab(QWidget):
                 preview_spin.blockSignals(False)
         preview_spin.valueChanged.connect(_preview_changed)
         main_spin.valueChanged.connect(_main_changed)
+        def disconnect(*_):
+            try:
+                main_spin.valueChanged.disconnect(_main_changed)
+            except (TypeError, RuntimeError):
+                pass
+        preview_spin.destroyed.connect(disconnect)
 
     def _build_embedded_cell_model_params_scroll(self, parent: QWidget, *, preview_dialog: Optional[Any]=None) -> tuple[QWidget, QPushButton]:
         """Omnipose / Cellpose-SAM cell parameters card + Reset button (not embedded in the card).
@@ -380,6 +404,9 @@ class OmniposeSegTab(QWidget):
         flex_control(pv_mask, 74, combo_style=False, max_width=96)
         pv_cluster = QCheckBox('DBSCAN')
         pv_cluster.setToolTip('Use DBSCAN clustering for thin/elongated cells.')
+        pv_gpu = QCheckBox('Use GPU')
+        pv_gpu.setToolTip(self.use_gpu.toolTip())
+        self._link_checkboxes(pv_gpu, self.use_gpu)
         self._link_checkboxes(pv_cluster, self.cluster)
         reset_btn = QPushButton('Reset')
         reset_btn.setToolTip(
@@ -408,6 +435,7 @@ class OmniposeSegTab(QWidget):
             setting_field('Flow', pv_flow, min_width=74, max_width=96),
             setting_field('Mask', pv_mask, min_width=74, max_width=96),
             setting_cell(pv_cluster),
+            setting_cell(pv_gpu),
         ]
         card = build_settings_card(
             'Cell segmentation',
@@ -1440,6 +1468,7 @@ class OmniposeSegTab(QWidget):
         self._seg_tuning_layout_index = main_layout.indexOf(self._seg_tuning_widget)
         self.use_gpu = QCheckBox('Use GPU')
         self.use_gpu.setChecked(True)
+        self.use_gpu.setToolTip('Uncheck on both computers for the common CPU reference calculation. GPU results can differ between Apple MPS and NVIDIA CUDA.')
         self.create_overlay = QCheckBox('Create overlay visualization')
         self.create_overlay.setChecked(True)
         self.create_overlay.setVisible(False)
@@ -1487,7 +1516,7 @@ class OmniposeSegTab(QWidget):
                 _w.valueChanged.connect(self._mark_folder_preview_stale_if_needed)
             except Exception:
                 pass
-        for _w in (self.cluster, self.detect_foci):
+        for _w in (self.cluster, self.detect_foci, self.use_gpu):
             try:
                 _w.toggled.connect(self._mark_folder_preview_stale_if_needed)
             except Exception:
@@ -3298,20 +3327,17 @@ class OmniposeSegTab(QWidget):
 
                 def set_loaded_status():
                     """Set status label to show whether GPU is actually in use (CUDA / MPS / CPU)."""
-                    import torch
                     if not current_use_gpu:
                         status_label.setText('Model loaded (CPU – Use GPU unchecked)')
                         return
-                    if torch.cuda.is_available():
-                        try:
-                            name = torch.cuda.get_device_name(0) or 'CUDA'
-                        except Exception:
-                            name = 'CUDA'
-                        status_label.setText(f'Model loaded (GPU: {name})')
-                    elif getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available():
+                    from bactomate.modules.segmentation_runtime import model_device
+                    device = model_device(preview_dialog.model)
+                    if device.startswith('cuda'):
+                        status_label.setText(f'Model loaded (GPU: {device})')
+                    elif device.startswith('mps'):
                         status_label.setText('Model loaded (GPU: Apple MPS)')
                     else:
-                        status_label.setText('Model loaded (CPU – GPU requested but not available)')
+                        status_label.setText(f'Model loaded ({device} — GPU requested but not active)')
                 if needs_reload:
                     try:
                         import os
@@ -3522,26 +3548,7 @@ class OmniposeSegTab(QWidget):
                 return True
 
             def get_current_parameters():
-                """Get current parameters from main window (works because dialog is non-modal)."""
-                self._commit_segmentation_parameter_spins()
-                import sys
-                is_frozen = getattr(sys, 'frozen', False) or hasattr(sys, '__compiled__')
-                diameter_value = self._get_effective_diameter_pixels()
-                display = self.model_combo.currentText()
-                (model_type, pretrained_path) = self._resolve_model_selection(display)
-                if diameter_value == 0 and is_frozen and (not pretrained_path):
-                    default_diameters = {'bact_phase_omni': 30.0, 'bact_omni': 30.0, 'bact_fluor_omni': 30.0}
-                    diameter_value = default_diameters.get(model_type or display, 30.0)
-                try:
-                    flow_val = float(self.flow_threshold.value())
-                except RuntimeError:
-                    flow_val = 0.4
-                try:
-                    cluster_on = bool(self.cluster.isChecked())
-                except RuntimeError:
-                    cluster_on = False
-                use_gpu = True
-                return {'diameter': diameter_value if diameter_value and diameter_value > 0 else 0, 'flow_threshold': flow_val, 'mask_threshold': self._get_effective_mask_threshold(), 'cluster': cluster_on, 'model_type': model_type, 'pretrained_model': str(pretrained_path) if pretrained_path else None, 'use_gpu': use_gpu}
+                return self._folder_preview_seg_params()
             preview_dialog.segmentation_cache = {}
             preview_dialog.display_cache_key = None
             preview_dialog._seg_request_id = 0
@@ -3681,7 +3688,12 @@ class OmniposeSegTab(QWidget):
                     frame_shape_token = tuple(int(x) for x in np.asarray(images[frame_idx]).shape[-2:])
                 except Exception:
                     frame_shape_token = ()
-                return (frame_idx, diameter, flow_threshold, mask_threshold, bool(params.get('cluster', False)), str(params.get('model_type') or params.get('pretrained_model') or 'bact_phase_omni'), bool(params.get('use_gpu', True)), _source_token(source_key), frame_shape_token)
+                from bactomate.modules.segmentation_runtime import preview_signature
+                from bactomate.scripts.check_omnipose_pipeline import get_checkable_model_path
+                checkpoint = get_checkable_model_path(params.get('model_type'),
+                    Path(params['pretrained_model']) if params.get('pretrained_model') else None)
+                signature = preview_signature(images[frame_idx], checkpoint)
+                return (frame_idx, diameter, flow_threshold, mask_threshold, bool(params.get('cluster', False)), str(params.get('model_type') or params.get('pretrained_model') or 'bact_phase_omni'), bool(params.get('use_gpu', True)), _source_token(source_key), frame_shape_token, signature)
 
             def _seg_disk_cache_path(cache_key):
                 """Return the on-disk preview-cache path for an exact segmentation key."""
@@ -3689,7 +3701,8 @@ class OmniposeSegTab(QWidget):
                 import tempfile
                 cache_dir = Path(tempfile.gettempdir()) / 'bactomate_preview_cache'
                 disk_key = hashlib.sha256(f'{file_path}|{cache_key}'.encode()).hexdigest()[:24]
-                return cache_dir / f'{disk_key}.npy'
+                source_prefix = hashlib.sha256(str(Path(file_path).resolve()).encode()).hexdigest()[:12]
+                return cache_dir / f'{source_prefix}_{disk_key}.npy'
 
             def _cached_mask_for_key(cache_key):
                 """Load an already-computed mask from memory/disk without running segmentation."""
@@ -3737,39 +3750,12 @@ class OmniposeSegTab(QWidget):
                     self._is_cellpose_sam = is_cellpose_sam
                     self._affinity_seg = bool(affinity_seg)
 
-                def _omni_eval_kwargs(self, *, diameter):
-                    return dict(channels=[0, 0], diameter=diameter, flow_threshold=self._flow_threshold, mask_threshold=self._mask_threshold, cellprob_threshold=0.0, do_3D=False, omni=True, affinity_seg=self._affinity_seg, cluster=self._cluster, net_avg=False, resample=False, verbose=False)
-
                 def _eval_omni(self, seg_frame):
-                    """Run cellpose_omni eval on the given seg_frame. Returns mask (no upsample)."""
-                    if self._is_frozen:
-                        max_retries = 3
-                        for attempt in range(max_retries):
-                            try:
-                                diameter = self._diameter_seg if self._diameter_seg and self._diameter_seg > 0 else 30.0
-                                return omnipose_eval_first_mask(self._model.eval(seg_frame, **self._omni_eval_kwargs(diameter=diameter)))
-                            except TypeError as e:
-                                if ("'>' not supported" in str(e) or "'<' not supported" in str(e)) and attempt < max_retries - 1:
-                                    d = 30.0 + attempt * 5.0
-                                    self._diameter_seg = d * self._seg_scale if self._seg_scale < 1.0 else d
-                                    continue
-                                raise
-                    return omnipose_eval_first_mask(self._model.eval(seg_frame, **self._omni_eval_kwargs(diameter=self._diameter_seg)))
-
-                def _crop_to_multiple_of(self, arr, divisor: int):
-                    """Crop bottom/right rows so each side is a multiple of `divisor` (no resize, label-safe)."""
-                    (h, w) = arr.shape[:2]
-                    new_h = max(divisor, h // divisor * divisor)
-                    new_w = max(divisor, w // divisor * divisor)
-                    if new_h == h and new_w == w:
-                        return arr
-                    if arr.ndim == 2:
-                        return np.ascontiguousarray(arr[:new_h, :new_w])
-                    return np.ascontiguousarray(arr[:new_h, :new_w, ...])
-
-                def _is_broadcast_shape_error(self, exc: BaseException) -> bool:
-                    s = str(exc)
-                    return 'could not broadcast' in s and 'shape' in s or 'operands could not be broadcast' in s
+                    from bactomate.modules.segmentation_runtime import evaluate_omnipose_plane
+                    return evaluate_omnipose_plane(
+                        self._model, seg_frame, diameter=self._diameter_seg,
+                        flow_threshold=self._flow_threshold, mask_threshold=self._mask_threshold,
+                        cluster=self._cluster, affinity_seg=self._affinity_seg)
 
                 def run(self):
                     (mask, error_str) = (None, '')
@@ -3794,24 +3780,7 @@ class OmniposeSegTab(QWidget):
                             if self._seg_scale < 1.0 and mask is not None:
                                 mask = upsample_mask_to_shape(mask, self._orig_h, self._orig_w)
                         else:
-                            try:
-                                mask = self._eval_omni(self._seg_frame)
-                            except ValueError as e:
-                                if not self._is_broadcast_shape_error(e):
-                                    raise
-                                (seg_h, seg_w) = self._seg_frame.shape[:2]
-                                cropped = self._crop_to_multiple_of(self._seg_frame, 16)
-                                if cropped.shape[:2] == (seg_h, seg_w):
-                                    nh = max(16, seg_h - 16)
-                                    nw = max(16, seg_w - 16)
-                                    cropped = np.ascontiguousarray(self._seg_frame[:nh, :nw]) if self._seg_frame.ndim == 2 else np.ascontiguousarray(self._seg_frame[:nh, :nw, ...])
-                                print(f'[preview] broadcast error on shape={self._seg_frame.shape} -> retry with cropped shape={cropped.shape} ({e})')
-                                mask = self._eval_omni(cropped)
-                                if mask is not None and mask.shape[:2] != (seg_h, seg_w):
-                                    padded = np.zeros((seg_h, seg_w), dtype=mask.dtype)
-                                    (mh, mw) = mask.shape[:2]
-                                    padded[:mh, :mw] = mask
-                                    mask = padded
+                            mask = self._eval_omni(self._seg_frame)
                         if self._seg_scale < 1.0 and mask is not None:
                             mask = upsample_mask_to_shape(mask, self._orig_h, self._orig_w)
                     except Exception as e:
@@ -3866,7 +3835,11 @@ class OmniposeSegTab(QWidget):
                     return (None, 'Selected image source is not a 2D frame')
                 if frame.dtype != np.float32:
                     frame = frame.astype(np.float32)
-                (seg_frame, seg_scale, (orig_h, orig_w)) = downsample_for_preview_seg(frame, max_size=PREVIEW_SEG_MAX_SIZE)
+                if params.get('model_type') == CELLPOSE_SAM_MODEL:
+                    (seg_frame, seg_scale, (orig_h, orig_w)) = downsample_for_preview_seg(frame, max_size=PREVIEW_SEG_MAX_SIZE)
+                else:
+                    seg_frame, seg_scale = frame, 1.0
+                    orig_h, orig_w = frame.shape[:2]
                 if seg_scale < 1.0:
                     get_logger().info('Preview: downsampled frame for speed: %s -> %s (scale=%.3f)', (orig_h, orig_w), getattr(seg_frame, 'shape', None), seg_scale)
                 diameter = params['diameter']
@@ -3876,7 +3849,9 @@ class OmniposeSegTab(QWidget):
                 default_diameters_preview = {'bact_phase_omni': 30.0, 'bact_omni': 30.0, 'bact_fluor_omni': 30.0, CELLPOSE_SAM_MODEL: 30.0}
                 effective_diameter = diameter if diameter is not None and diameter > 0 else default_diameters_preview.get(params.get('model_type') or '', 30.0)
                 diameter_seg = effective_diameter * seg_scale
-                if diameter_seg < 1:
+                if params.get('model_type') != CELLPOSE_SAM_MODEL:
+                    diameter_seg = float(diameter or 0.)
+                elif diameter_seg < 1:
                     diameter_seg = max(1.0, diameter_seg)
                 existing = getattr(preview_dialog, '_seg_worker', None)
                 if existing is not None and existing.isRunning():
@@ -4195,6 +4170,14 @@ class OmniposeSegTab(QWidget):
                     show_cached_run(key)
 
             def on_clear_cache():
+                import hashlib, tempfile
+                source_prefix = hashlib.sha256(str(Path(file_path).resolve()).encode()).hexdigest()[:12]
+                cache_dir = Path(tempfile.gettempdir()) / 'bactomate_preview_cache'
+                for cached in cache_dir.glob(f'{source_prefix}_*.npy'):
+                    try:
+                        cached.unlink()
+                    except OSError:
+                        get_logger().warning('Could not remove preview cache %s', cached)
                 preview_dialog.segmentation_cache.clear()
                 preview_dialog.display_cache_key = None
                 if not embed_seg:
@@ -4283,8 +4266,17 @@ class OmniposeSegTab(QWidget):
                     pass
             try:
                 self.cluster.toggled.connect(_on_preview_cell_params_changed)
+                self.use_gpu.toggled.connect(_on_preview_cell_params_changed)
             except Exception:
                 pass
+            def _disconnect_preview_params(*_):
+                for signal in (self.diameter.valueChanged, self.flow_threshold.valueChanged,
+                               self.mask_threshold.valueChanged, self.cluster.toggled, self.use_gpu.toggled):
+                    try:
+                        signal.disconnect(_on_preview_cell_params_changed)
+                    except (TypeError, RuntimeError):
+                        pass
+            preview_dialog.destroyed.connect(_disconnect_preview_params)
             nav_layout = QVBoxLayout()
             nav_layout.setContentsMargins(10, 10, 10, 2)
             nav_layout.setSpacing(6)

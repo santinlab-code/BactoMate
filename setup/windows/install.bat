@@ -101,9 +101,21 @@ echo.
 echo [Step 2/8] Creating virtual environment...
 set "PYEXE=%ROOT%\venv\Scripts\python.exe"
 set "PIPEXE=%ROOT%\venv\Scripts\pip.exe"
-if exist "%PYEXE%" (
-    echo   venv already exists; skipping create.
-) else (
+if exist "%ROOT%\venv.previous" (
+    echo [BREAK] venv.previous already exists. Keep or rename that backup before reinstalling.
+    pause
+    exit /b 1
+)
+if exist "%ROOT%\venv" (
+    move "%ROOT%\venv" "%ROOT%\venv.previous" >nul
+    if errorlevel 1 (
+        echo [BREAK] Cannot back up the old environment. Close BactoMate and try again.
+        pause
+        exit /b 1
+    )
+    echo   Previous environment saved as venv.previous.
+)
+if not exist "%PYEXE%" (
     "!HOST_PY!" -m venv "%ROOT%\venv"
     if errorlevel 1 (
         echo [BREAK] Failed to create venv.
@@ -131,8 +143,8 @@ if errorlevel 1 (
 echo.
 
 :: Step 4: dbscan prebuilt wheel (omnipose dep; 1.0.0 is sdist-only on Windows)
-echo [Step 4/8] Installing dbscan 0.0.10 ^(prebuilt Windows wheel^)...
-"%PYEXE%" -m pip install "dbscan==0.0.10" --only-binary dbscan
+echo [Step 4/8] Installing dbscan 0.0.12 ^(prebuilt Windows wheel^)...
+"%PYEXE%" -m pip install "dbscan==0.0.12" --only-binary dbscan
 if errorlevel 1 (
     echo [BREAK] dbscan prebuilt wheel install failed.
     echo   See docs/INSTALL_AND_LAUNCH_windows.md - Troubleshooting: Microsoft Visual C++ 14 / Failed building wheel for dbscan
@@ -167,15 +179,6 @@ echo.
 :: Step 7: PyTorch CUDA (optional)
 echo [Step 7/8] Detecting NVIDIA GPU for PyTorch CUDA wheel...
 
-:: 7a) Skip only when torch, torchvision, and torchaudio are a matched bundle.
-"%PYEXE%" "%WIN_DIR%check_torch_cuda_bundle.py" >nul 2>&1
-if not errorlevel 1 (
-    echo   Matched torch/torchvision/torchaudio; skipping PyTorch reinstall.
-    goto :step7_done
-)
-echo   Realigning PyTorch ^(version mismatch detected^)...
-set "TORCH_REALIGN=1"
-
 :: 7b) Detect CUDA wheel index
 set "CU_INDEX="
 set "CU_TMP=%TEMP%\bactomate_cuda_%RANDOM%.txt"
@@ -183,6 +186,13 @@ del /q "%CU_TMP%" >nul 2>&1
 "%PYEXE%" "%WIN_DIR%get_cuda_wheel_index.py" > "%CU_TMP%" 2>nul
 if exist "%CU_TMP%" for /f "usebackq delims=" %%I in ("%CU_TMP%") do set "CU_INDEX=%%I"
 if exist "%CU_TMP%" del /q "%CU_TMP%" >nul 2>&1
+set "CHECK_GPU_ARG="
+if defined CU_INDEX set "CHECK_GPU_ARG=--require-cuda"
+"%PYEXE%" "%WIN_DIR%check_torch_cuda_bundle.py" !CHECK_GPU_ARG! >nul 2>&1
+if not errorlevel 1 (
+    echo   Common pinned PyTorch stack is ready; skipping reinstall.
+    goto :step7_done
+)
 if not defined CU_INDEX (
     echo   No NVIDIA GPU detected; installing matched CPU PyTorch wheels...
     "%PYEXE%" -m pip install --force-reinstall --no-deps "torch==2.11.0" "torchvision==0.26.0" "torchaudio==2.11.0"
@@ -207,7 +217,7 @@ set "CU_USED="
 for %%I in (!CU_INDEX! cu128 cu126 cu124 cu121 cu118) do (
     if not defined CU_INSTALLED (
         echo   Trying wheel index %%I ...
-        "%PYEXE%" -m pip install --upgrade --force-reinstall --no-deps torch torchvision torchaudio --index-url https://download.pytorch.org/whl/%%I
+        "%PYEXE%" -m pip install --upgrade --force-reinstall --no-deps "torch==2.11.0" "torchvision==0.26.0" "torchaudio==2.11.0" --index-url https://download.pytorch.org/whl/%%I
         if not errorlevel 1 (
             "%PYEXE%" "%WIN_DIR%torch_cuda_available.py" >nul 2>&1
             if not errorlevel 1 (
@@ -221,21 +231,16 @@ if defined CU_INSTALLED (
     echo   PyTorch + !CU_USED! installed.
 ) else (
     echo [WARNING] PyTorch CUDA install failed. You can retry later with:
-    echo   "%PYEXE%" -m pip install --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/!CU_INDEX!
+    echo   "%PYEXE%" -m pip install --force-reinstall "torch==2.11.0" "torchvision==0.26.0" "torchaudio==2.11.0" --index-url https://download.pytorch.org/whl/!CU_INDEX!
     echo   Or install VC++ Redistributable ^(64-bit^) from Microsoft, then retry.
     goto :step7_done
 )
 "%PYEXE%" "%WIN_DIR%check_torch_cuda_bundle.py" >nul 2>&1
 if errorlevel 1 (
     echo [WARNING] torch/torchvision/torchaudio still incompatible after CUDA install.
-    echo   Run: "%PYEXE%" -m pip install --force-reinstall --no-deps torch torchvision torchaudio --index-url https://download.pytorch.org/whl/!CU_USED!
+    echo   Run: "%PYEXE%" -m pip install --force-reinstall --no-deps "torch==2.11.0" "torchvision==0.26.0" "torchaudio==2.11.0" --index-url https://download.pytorch.org/whl/!CU_USED!
 )
 :step7_done
-if defined TORCH_REALIGN (
-    echo   Restoring numpy/tensorflow-compatible pins after PyTorch reinstall...
-    "%PYEXE%" -m pip install "numpy>=1.26.0,<2.0.0" -q
-    set "TORCH_REALIGN="
-)
 echo.
 
 :: Step 7.5: Apply BactoMate compatibility patches
@@ -272,6 +277,21 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+"%PYEXE%" -m bactomate.scripts.check_environment --segmentation-only >> "%INSTALL_LOG%" 2>&1
+if errorlevel 1 (
+    type "%INSTALL_LOG%"
+    echo [BREAK] Segmentation versions differ from the common baseline. Previous venv is preserved.
+    pause
+    exit /b 1
+)
+"%PYEXE%" -m bactomate.scripts.check_environment --segmentation-smoke-test >> "%INSTALL_LOG%" 2>&1
+if errorlevel 1 (
+    type "%INSTALL_LOG%"
+    echo [BREAK] Actual CPU segmentation failed. Previous venv is preserved.
+    pause
+    exit /b 1
+)
+"%PYEXE%" -m pip freeze >> "%INSTALL_LOG%" 2>&1
 echo   Smoke test OK.
 echo.
 

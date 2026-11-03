@@ -17,6 +17,24 @@ from urllib.error import HTTPError
 
 from bactomate.gui.paths import get_omnipose_pretrained_cache_dir
 
+# Checkpoints shipped with this custom branch. Never silently accept another
+# file under the same built-in name, or replace a user's different weights.
+BUILTIN_SHA256 = {
+    'bact_phase_omni': 'a34cf4b379f207b5f450377833ed8d95927a45ddcd436aabcb7189f2ef25d07c',
+    'bact_fluor_omni': '49c849779b205c00193ab29905da8f2b999245467dbf174a9c9dcb5302188c6b',
+}
+
+
+def validate_builtin_checkpoint(path: Path, model_type: str, model_index: int = 0) -> Path:
+    from bactomate.modules.segmentation_runtime import file_fingerprint
+    expected = BUILTIN_SHA256.get(model_type) if model_index == 0 else None
+    if expected and file_fingerprint(path)['sha256'] != expected:
+        raise RuntimeError(
+            f'{model_type}: checkpoint differs from the shared Mac/Windows baseline. '
+            f'Keep a copy of {path} and restore the checkpoint shipped with this branch. '
+            'Different weights must be loaded explicitly as a user model.')
+    return path.resolve()
+
 
 def builtin_checkpoint_basename(model_type: str, model_index: int = 0, use_torch: bool = True) -> str:
     """Same naming convention as cellpose_omni (e.g. bact_phase_omnitorch_0)."""
@@ -82,9 +100,10 @@ def ensure_builtin_in_bactomate_cache(model_type: str, model_index: int = 0, use
 
     dest = bactomate_builtin_checkpoint_path(model_type, model_index, use_torch)
     if dest.is_file() and dest.stat().st_size > 0:
-        return dest.resolve()
+        return validate_builtin_checkpoint(dest, model_type, model_index)
 
     upstream = _upstream_builtin_path_after_download(model_type, model_index)
+    validate_builtin_checkpoint(upstream, model_type, model_index)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -96,7 +115,7 @@ def ensure_builtin_in_bactomate_cache(model_type: str, model_index: int = 0, use
 
     if not dest.is_file() or dest.stat().st_size == 0:
         return upstream
-    return dest.resolve()
+    return validate_builtin_checkpoint(dest, model_type, model_index)
 
 
 def clear_bactomate_builtin_cache_entry(model_type: str, model_index: int = 0, use_torch: bool = True) -> None:

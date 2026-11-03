@@ -44,3 +44,14 @@ change contrast/channel, attach and confirm the view/settings stay coherent.
 Test all close-dialog choices before a long session. Contours were reviewed on
 three real XYs and interactions are tested with controlled data; native macOS
 window behavior and biological segmentation quality still need local review.
+
+## Shared inference and CPU comparison — 3 November 2026
+
+Single/folder previews and file exports share native-resolution tiled Omnipose
+inference. Use GPU now applies to the single-image preview as well as export and
+is visible in embedded controls. Uncheck it on both computers for a CPU reference.
+Native-grid resampling can recover the fractional-diameter shape error without
+cropping or changing diameter. Failed inference stops the run; it no longer writes
+an empty mask as a successful result. Cache keys include pixels, weights and
+versions, and Clear Cache clears disk entries for the current input. See
+[Mac/Windows reproducibility](MAC_WINDOWS_REPRODUCIBILITY.md).

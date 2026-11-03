@@ -1,6 +1,7 @@
 # BactoMate Custom — consolidated changes
 
-Reviewed: **1 November 2026**. Code reference: **`811d5b6`**.
+Updated: **3 November 2026**. The November 1 code reference was **`811d5b6`**;
+section 13 describes the subsequent harmonization.
 Baseline: upstream BactoMate **2.9.5**, commit **`2dfd181`** in this repository.
 Active branch: **BactoMate_Custom_New-Analyses**.
 [French edition](MODIFICATIONS_BACTOMATE_FR.md) · [Testing guide](GUIDE_TEST_BACTOMATE_EN.md)
@@ -240,3 +241,35 @@ window behavior and native R/MATLAB execution require local assessment.
 
 See the [manual](docs/BACTOMATE_USER_MANUAL.md), [figure guide](docs/FIGURE_GUIDE.md)
 and [test checklist](GUIDE_TEST_BACTOMATE_EN.md) for reproducible user workflows.
+
+## 13. Mac/Windows harmonization — 3 November 2026
+
+The core segmentation/reader versions are pinned identically on both platforms,
+including DBSCAN 0.0.12. CUDA helpers preserve torch/vision/audio pins. Windows
+now rebuilds its venv with a protected backup; both installers validate versions
+and run actual CPU inference at diameters 30/33 before success.
+
+Single-image/folder previews and saved Omnipose files use one native-resolution
+tiled inference path. The preview's hardcoded GPU request is removed; Use GPU
+is respected and visible in embedded controls. CPU is the comparison reference;
+GPU kernels request stable cuDNN settings with benchmarking/TF32 disabled.
+Fractional-diameter shape errors recover via recorded native-grid resampling,
+without cropping or changing diameter. Unrecoverable read/inference errors stop
+the run instead of saving an empty mask and reporting success. Preview control
+connections are disconnected on destruction. Cache identities include pixels,
+weights, package/engine versions; Clear Cache also clears disk entries.
+
+Logs/session JSONs gain environment data and actual preview/inference fingerprints.
+No extra per-image diagnostic sidecars/PNGs are added. New tiling alignment can
+change historical export counts; this does not force the old 464-cell count.
+The earlier real laboratory TIFF completed at diameters 30 and 33 on local CPU;
+the latter reproduced and recovered the exact one-pixel error. Native Mac/Windows
+verification remains required. See [the comparison guide](docs/MAC_WINDOWS_REPRODUCIBILITY.md).
+
+The bundled phase/fluorescence checkpoint hashes are checked before built-in
+loading. A mismatched file is reported without deleting it; restore the checkpoint
+shipped with this branch or load different weights explicitly as a user model.
+
+Validation on 3 November: **626 passed, 5 skipped** in the full Linux suite,
+with two existing warnings; the actual CPU installer smoke test passed at both
+diameters. Native macOS/Windows validation remains pending.

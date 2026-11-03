@@ -11,6 +11,7 @@ the result applies to those features.
 from __future__ import annotations
 
 import sys
+import json
 
 
 def _running_from_app_bundle() -> bool:
@@ -26,6 +27,11 @@ def _running_from_app_bundle() -> bool:
 def check_environment() -> str:
     """Check imports in this process and return a multi-line report (OK or missing/error per component)."""
     lines = ["BactoMate environment check", "=" * 40]
+    from bactomate.modules.segmentation_runtime import environment_snapshot, baseline_issues
+    lines.append(json.dumps(environment_snapshot(), indent=2))
+    issues = baseline_issues()
+    lines.append('Segmentation baseline: ' + ('matches' if not issues else '; '.join(issues)))
+    lines.append('For a Mac/Windows reference comparison, uncheck Use GPU on both computers.')
     lines.append("(Checking this process — the one running the GUI.)")
     lines.append("")
     all_ok = True
@@ -94,7 +100,41 @@ def check_environment() -> str:
     return "\n".join(lines)
 
 
+def segmentation_smoke_test() -> None:
+    """Exercise the actual CPU model, including fractional rescaling, without files."""
+    from bactomate.modules.segmentation_runtime import evaluate_omnipose_plane, baseline_issues
+    issues = baseline_issues()
+    if issues:
+        raise RuntimeError('; '.join(issues))
+    from bactomate.gui.omnipose_pretrained_cache import ensure_builtin_in_bactomate_cache
+    from bactomate.gui.omnipose_utils import load_cellpose_segmentation_model
+    import numpy as np
+    checkpoint = ensure_builtin_in_bactomate_cache('bact_phase_omni')
+    model = load_cellpose_segmentation_model(gpu=False, loader_path=checkpoint, model_type='bact_phase_omni')
+    y, x = np.indices((96, 96))
+    image = (2000 - 700 * np.exp(-((x-45)**2/16 + (y-48)**2/250))).astype(np.float32)
+    for diameter in (30., 33.):
+        mask = evaluate_omnipose_plane(model, image, diameter=diameter)
+        if mask.shape != image.shape:
+            raise RuntimeError('Segmentation smoke test changed the image dimensions.')
+    print('Segmentation smoke test OK (CPU, native shape, diameters 30 and 33).')
+
+
 def main() -> int:
+    if '--segmentation-smoke-test' in sys.argv:
+        try:
+            segmentation_smoke_test()
+            return 0
+        except Exception as exc:
+            print(f'Segmentation smoke test FAILED: {exc}', file=sys.stderr)
+            return 1
+    if '--segmentation-only' in sys.argv:
+        from bactomate.modules.segmentation_runtime import environment_snapshot, baseline_issues
+        print(json.dumps(environment_snapshot(), indent=2))
+        issues = baseline_issues()
+        for issue in issues:
+            print(issue)
+        return 1 if issues else 0
     report = check_environment()
     print(report)
     return 0 if "All required" in report else 1

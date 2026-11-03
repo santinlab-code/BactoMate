@@ -1,6 +1,6 @@
 # BactoMate Custom — installation et parcours de test
 
-Mise à jour : **1 novembre 2026**, code **`811d5b6`**, branche
+Mise à jour : **3 novembre 2026**, branche
 **BactoMate_Custom_New-Analyses**.
 [Version anglaise](GUIDE_TEST_BACTOMATE_EN.md) · [Bilan des changements](MODIFICATIONS_BACTOMATE_FR.md)
 
@@ -188,5 +188,22 @@ avec différences de polices possibles. Les scripts ne refont pas la segmentatio
 
 Noter réussite/échec, entrées/XY/frame/canal, étapes, attendu/observé et logs. Garder
 sources, curation, presets et bundle fautif. Dernière suite de code enregistrée :
-614 réussis / 5 ignorés, puis 11 ciblés réussis ; cela ne remplace pas ces tests
-locaux ni l’évaluation biologique.
+**626 réussis / 5 ignorés** sous Linux le 3 novembre (deux avertissements
+existants). L’inférence CPU de l’installateur réussit aux diamètres 30 et 33.
+Cela ne remplace pas les tests natifs Mac/Windows ni l’évaluation biologique.
+
+## 13. Comparaison de référence Mac/Windows — 3 novembre 2026
+
+Mettre à jour les sources puis relancer l’installateur pour appliquer les versions
+communes. Garder/renommer un éventuel venv.previous avant une nouvelle installation.
+Vérifier le contrôle des versions et les vraies inférences CPU de l’installation.
+Sur le même TIFF phase, modèle et paramètres, décocher Use GPU des deux côtés et
+faire Re-detect. Comparer empreintes pixels/poids, versions, moteur effectif,
+paramètres et éventuelle reprise avant les comptes aperçu/export.
+
+Tester le diamètre 33 : une reprise doit conserver dimensions/diamètre et être
+enregistrée. Un échec persistant doit arrêter sans nouveau masque vide ni fausse
+réussite. Fermer/rouvrir l’aperçu puis changer les champs : aucune erreur de
+QDoubleSpinBox détruit. Clear Cache doit invalider les aperçus disque. Les comptes
+historiques d’exports sans tuilage peuvent changer avec le nouveau calcul commun.
+Voir [la procédure détaillée en anglais](docs/MAC_WINDOWS_REPRODUCIBILITY.md).

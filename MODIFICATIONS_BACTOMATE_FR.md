@@ -1,6 +1,7 @@
 # BactoMate Custom — bilan consolidé des modifications
 
-Mise à jour : **1 novembre 2026**. Code de référence : **`811d5b6`**.
+Mise à jour : **3 novembre 2026**. Le code de référence du 1 novembre était
+**`811d5b6`** ; la section 13 décrit l’harmonisation suivante.
 Base : BactoMate **2.9.5**, commit **`2dfd181`**.
 Branche active : **BactoMate_Custom_New-Analyses**.
 [Version anglaise](MODIFICATIONS_BACTOMATE_EN.md) · [Guide de test](GUIDE_TEST_BACTOMATE_FR.md)
@@ -233,3 +234,36 @@ curation/export et démographe GFP de 144 cellules sur XY001. Films ND2 réels,
 justesse biologique foci/colocalisation, comportement macOS natif et exécution
 native R/MATLAB restent à évaluer localement. Les tests de code ne certifient pas
 la validité scientifique de nouvelles données.
+
+## 13. Harmonisation Mac/Windows — 3 novembre 2026
+
+Les versions du socle de segmentation/lecture sont fixées à l’identique, dont
+DBSCAN 0.0.12. Les outils CUDA conservent les versions imposées de torch/vision/audio.
+Windows recrée le venv en protégeant l’ancien ; les deux installateurs vérifient
+les versions et font une vraie inférence CPU aux diamètres 30/33 avant réussite.
+
+Aperçus simples/dossier et exports Omnipose utilisent le même calcul natif avec
+tuilage. L’aperçu ne force plus le GPU : Use GPU est respecté et visible dans les
+contrôles intégrés. Le CPU sert de référence de comparaison ; les réglages cuDNN
+privilégient la stabilité, sans benchmarking/TF32. L’erreur de taille au diamètre
+33 est reprise avec rééchantillonnage sur grille native, sans recadrer l’image
+ni changer le diamètre, et ce choix est enregistré. Un échec persistant interrompt
+le run au lieu d’enregistrer un masque vide et d’annoncer une réussite. Les
+contrôles d’aperçu se déconnectent à leur destruction. Les caches incluent pixels,
+poids et versions ; Clear Cache retire aussi les entrées disque du fichier courant.
+
+Logs/sessions enregistrent environnement, moteur réel, paramètres et empreintes
+des pixels/poids/résultats, sans nouveaux fichiers de diagnostic par image ni PNG.
+L’alignement du tuilage peut changer les anciens comptes des exports : il ne force
+pas le résultat historique de 464 cellules. Le TIFF réel de validation antérieur
+a été traité localement sur CPU aux diamètres 30 et 33 ; l’erreur exacte d’un pixel
+a été reproduite puis reprise. Les essais natifs Mac/Windows restent nécessaires.
+Voir [le guide anglais de comparaison](docs/MAC_WINDOWS_REPRODUCIBILITY.md).
+
+Les empreintes des modèles phase/fluorescence intégrés sont vérifiées au chargement.
+Une copie différente est signalée sans suppression ; restaurer celle livrée avec
+la branche, ou charger les autres poids explicitement comme modèle utilisateur.
+
+Validation du 3 novembre : **626 tests réussis, 5 ignorés** dans la suite complète
+sous Linux, avec deux avertissements existants ; l’inférence CPU de l’installateur
+réussit aux deux diamètres. Les essais natifs macOS/Windows restent à faire.

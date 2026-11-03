@@ -1,7 +1,7 @@
 # Documentation index
 
-These guides describe **BactoMate_Custom_New-Analyses**, reviewed on 1 November
-2026 against code commit `811d5b6`. The package version remains 2.9.5; the branch
+These guides describe **BactoMate_Custom_New-Analyses**, updated on 3 November
+2026. The November 3 segmentation changes extend the earlier `811d5b6` baseline. The package version remains 2.9.5; the branch
 and Git commit identify the custom build. All topic guides are in English.
 Only the testing guide and consolidated change summary also have French editions.
 
@@ -20,6 +20,7 @@ Only the testing guide and consolidated change summary also have French editions
 | --- | --- |
 | [User manual](BACTOMATE_USER_MANUAL.md) / [PDF edition](BactoMate.pdf) | Full pipeline, project/session state and shared controls |
 | [Multiposition ND2](ND2_MULTIPOINTS.md) | XY/channel export, metadata and file naming |
+| [Mac/Windows reproducibility](MAC_WINDOWS_REPRODUCIBILITY.md) | Shared dependencies, CPU reference, inference protocol and failure handling |
 | [Segmentation previews](SEGMENTATION_CONTOURS.md) | Contours, colour, detached image and LUTs |
 | [Filtering curation](FILTERING_CURATION.md) | Cells/foci, tables, selection, exclusion and manual objects |
 | [Filtering settings](FILTERING_PRESETS.md) | Independent XY/channel recipes and portable JSON files |
