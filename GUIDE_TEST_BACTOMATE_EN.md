@@ -1,6 +1,6 @@
 # BactoMate Custom — installation and acceptance tests
 
-Updated: **3 November 2026**, branch
+Updated: **4 November 2026**, branch
 **BactoMate_Custom_New-Analyses**. [French edition](GUIDE_TEST_BACTOMATE_FR.md)
 · [Consolidated changes](MODIFICATIONS_BACTOMATE_EN.md)
 
@@ -204,8 +204,9 @@ scripts redraw saved primitives; they do not repeat segmentation or reanalysis.
 
 Record pass/fail, input/XY/frame/channel, steps, expected/observed result and log
 path. Preserve sources, curation, filter presets and a failing figure bundle.
-The 3 November Linux suite recorded **626 passed / 5 skipped** (two existing
-warnings). The actual CPU installer inference also passed at diameters 30 and 33.
+The 4 November Linux suite recorded **636 passed / 5 skipped** (two existing
+warnings), including reopening a replaced mask and simulated Windows write locks.
+The actual CPU installer inference passed at diameters 30 and 33 on 3 November.
 These checks do not replace native Mac/Windows testing or biological review.
 
 ## 13. Mac/Windows reference comparison — 3 November 2026
@@ -224,3 +225,17 @@ no deleted-QDoubleSpinBox error should occur. Clear Cache must invalidate disk
 previews. Expect historical file-export counts to change when old non-tiled
 exports are replaced by the common tiled computation. See
 [the full comparison procedure](docs/MAC_WINDOWS_REPRODUCIBILITY.md).
+
+## 14. Segmentation to Filtering after rerun — 4 November 2026
+
+Rerun segmentation over an already curated mask, then open Filtering. It must
+load the new labels without “Cannot restore mask state”. The previous JSON is
+preserved under `curation_archive/`; per-mask cell/foci filter parameters remain,
+while old object overrides, manual geometry and history are not applied to new
+labels. Rewriting identical label pixels with new TIFF metadata/storage must
+preserve decisions for new-format records. Older records with a changed TIFF
+are conservatively archived once. Mask TIFF contents must remain untouched by
+this restoration. Expected `.curation.json` stores state; `.tmp` is temporary.
+Windows sharing locks are retried and failed saves clean their scratch while
+keeping the last valid JSON. Only owned scratch older than 24 hours is cleaned
+on open. See [the curation guide](docs/FILTERING_CURATION.md).

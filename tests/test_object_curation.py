@@ -40,8 +40,12 @@ def test_history_retains_filter_values_and_segmentation_guard(tmp_path):
     restored=ObjectCuration(path)
     assert restored.data['history'][1]['settings']['min_area_um2']==2.0
     tifffile.imwrite(path,np.ones((16,16),np.uint16))
-    with pytest.raises(ValueError,match='Segmentation changed'):
-        ObjectCuration(path)
+    restored = ObjectCuration(path)
+    assert restored.data['history'] == []
+    assert restored.archived_path.is_file()
+    import json
+    archived = json.loads(restored.archived_path.read_text())
+    assert archived['history'][-1]['selected'] == 325
 
 
 def test_preview_manual_edit_reaches_worker_and_survives_reset(tmp_path, qapp):

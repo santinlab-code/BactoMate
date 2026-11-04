@@ -1,6 +1,6 @@
 # BactoMate Custom — consolidated changes
 
-Updated: **3 November 2026**. The November 1 code reference was **`811d5b6`**;
+Updated: **4 November 2026**. The November 1 code reference was **`811d5b6`**;
 section 13 describes the subsequent harmonization.
 Baseline: upstream BactoMate **2.9.5**, commit **`2dfd181`** in this repository.
 Active branch: **BactoMate_Custom_New-Analyses**.
@@ -273,3 +273,22 @@ shipped with this branch or load different weights explicitly as a user model.
 Validation on 3 November: **626 passed, 5 skipped** in the full Linux suite,
 with two existing warnings; the actual CPU installer smoke test passed at both
 diameters. Native macOS/Windows validation remains pending.
+
+## 14. Segmentation to Filtering after rerun — 4 November 2026
+
+Rerun segmentation over an already curated mask, then open Filtering. It must
+load the new labels without “Cannot restore mask state”. The previous JSON is
+preserved under `curation_archive/`; per-mask cell/foci filter parameters remain,
+while old object overrides, manual geometry and history are not applied to new
+labels. Rewriting identical label pixels with new TIFF metadata/storage must
+preserve decisions for new-format records. Older records with a changed TIFF
+are conservatively archived once. Mask TIFF contents must remain untouched by
+this restoration. Expected `.curation.json` stores state; `.tmp` is temporary.
+Windows sharing locks are retried and failed saves clean their scratch while
+keeping the last valid JSON. Only owned scratch older than 24 hours is cleaned
+on open. See [the curation guide](docs/FILTERING_CURATION.md).
+
+Validation on 4 November: **636 passed, 5 skipped** in the full Linux suite
+(two existing warnings). Includes a real Qt Filtering reopen with a legacy
+curation record, label/storage comparisons, archive preservation, stale editor
+protection and simulated Windows locks/failures. Native Windows remains to test.

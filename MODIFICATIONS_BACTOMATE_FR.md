@@ -1,6 +1,6 @@
 # BactoMate Custom — bilan consolidé des modifications
 
-Mise à jour : **3 novembre 2026**. Le code de référence du 1 novembre était
+Mise à jour : **4 novembre 2026**. Le code de référence du 1 novembre était
 **`811d5b6`** ; la section 13 décrit l’harmonisation suivante.
 Base : BactoMate **2.9.5**, commit **`2dfd181`**.
 Branche active : **BactoMate_Custom_New-Analyses**.
@@ -267,3 +267,24 @@ la branche, ou charger les autres poids explicitement comme modèle utilisateur.
 Validation du 3 novembre : **626 tests réussis, 5 ignorés** dans la suite complète
 sous Linux, avec deux avertissements existants ; l’inférence CPU de l’installateur
 réussit aux deux diamètres. Les essais natifs macOS/Windows restent à faire.
+
+## 14. Segmentation vers Filtering après relance — 4 novembre 2026
+
+Relancer la segmentation sur un masque déjà édité, puis ouvrir Filtering. Le
+nouveau masque doit apparaître sans « Cannot restore mask state ». L’ancien JSON
+est conservé dans `curation_archive/` ; les paramètres de filtres cellule/foci et
+la calibration restent, mais les anciens choix manuels, contours ajoutés et
+historiques ne sont pas appliqués aux nouveaux objets. Avec les nouveaux fichiers
+de curation, une réécriture identique des pixels avec d’autres métadonnées TIFF
+conserve les choix. Un ancien fichier dont le TIFF a déjà changé est archivé
+par précaution. Cette reprise ne modifie pas le TIFF des masques.
+Le `.curation.json` conserve l’état ; le `.tmp` sert à l’écriture temporaire.
+Les verrous Windows sont réessayés ; un échec nettoie son fichier temporaire et
+garde le dernier JSON valide. Seuls les temporaires propres à ce masque, vieux
+de plus de 24 heures, sont nettoyés à l’ouverture. Voir le
+[guide anglais](docs/FILTERING_CURATION.md).
+
+Validation du 4 novembre : **636 tests réussis, 5 ignorés** sous Linux (deux
+avertissements existants), dont la réouverture Qt avec une ancienne curation,
+les archives, les choix conservés à pixels identiques, la protection d’un éditeur
+périmé et des verrous Windows simulés. L’essai Windows natif reste à faire.

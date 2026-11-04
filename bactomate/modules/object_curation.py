@@ -3,36 +3,130 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
+import re
 import tempfile
+import time
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
+
+
+LOG = logging.getLogger('bactomate')
+
+
+def _label_signature(path):
+    """Identify label geometry, independent of TIFF metadata and integer storage."""
+    import numpy as np
+    import tifffile
+    labels = np.asarray(tifffile.imread(path))
+    if labels.ndim == 2:
+        labels = labels[np.newaxis]
+    if labels.ndim != 3 or not np.issubdtype(labels.dtype, np.integer) or (labels < 0).any():
+        raise ValueError('Curation needs a YX or TYX integer segmentation mask.')
+    digest = hashlib.sha256(str(labels.shape).encode('ascii'))
+    # One plane at a time avoids an extra uint64 copy of an entire time-lapse.
+    for plane in labels:
+        digest.update(np.ascontiguousarray(plane, dtype='<u8').tobytes())
+    return digest.hexdigest()
+
+
+def _replace(source, destination):
+    """Retry short Windows sharing/antivirus locks; keep other errors explicit."""
+    for attempt in range(5):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError as exc:
+            if getattr(exc, 'winerror', None) not in (5, 32, 33) or attempt == 4:
+                raise
+            time.sleep(.05 * 2 ** attempt)
 
 
 class ObjectCuration:
     def __init__(self, mask_path):
         self.mask_path = Path(mask_path).resolve()
         self.path = self.mask_path.with_name(self.mask_path.name + '.curation.json')
+        self.archived_path = None
+        self._source_stat = self._stat()
         with self.mask_path.open('rb') as stream:
             signature = hashlib.file_digest(stream, 'sha256').hexdigest()
         self.data = {'version': 1, 'segmentation_sha256': signature,
                      'cells': {}, 'foci': {}, 'history': []}
         if self.path.exists():
-            saved = json.loads(self.path.read_text())
+            saved_bytes = self.path.read_bytes()
+            saved = json.loads(saved_bytes.decode('utf-8'))
             if saved.get('version') != 1:
                 raise ValueError('Unsupported curation file version')
             if saved.get('segmentation_sha256') == signature:
                 self.data = saved
             else:
-                raise ValueError('Segmentation changed: archive its curation file before curating new masks')
+                labels_signature = _label_signature(self.mask_path)
+                if saved.get('segmentation_labels_sha256') == labels_signature:
+                    # TIFF metadata/compression/dtype changed, but IDs and geometry did not.
+                    self.data = saved
+                    self.data['segmentation_sha256'] = signature
+                else:
+                    # Old IDs cannot be assigned to a new segmentation. Preserve the
+                    # complete old record, carrying only portable filter parameters.
+                    archive = self.path.parent / 'curation_archive'
+                    archive.mkdir(exist_ok=True)
+                    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+                    self.archived_path = archive / f'{self.path.stem}.{stamp}.{uuid4().hex[:8]}.json'
+                    # Keep the active JSON intact until its replacement succeeds.
+                    with self.archived_path.open('xb') as stream:
+                        stream.write(saved_bytes)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    if isinstance(saved.get('filter_settings'), dict):
+                        self.data['filter_settings'] = deepcopy(saved['filter_settings'])
+                    LOG.warning(f'[Curation] New segmentation: archived old object decisions at {self.archived_path}; filter parameters retained.')
+                self.data['segmentation_labels_sha256'] = labels_signature
+                self.save()
+        if 'segmentation_labels_sha256' not in self.data:
+            self.data['segmentation_labels_sha256'] = _label_signature(self.mask_path)
+        self._clean_old_temporary_files()
+
+    def _stat(self):
+        stat = self.mask_path.stat()
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+    def _check_source(self):
+        current = self._stat()
+        if current == self._source_stat:
+            return
+        with self.mask_path.open('rb') as stream:
+            signature = hashlib.file_digest(stream, 'sha256').hexdigest()
+        if signature != self.data['segmentation_sha256']:
+            if _label_signature(self.mask_path) != self.data.get('segmentation_labels_sha256'):
+                raise ValueError('Segmentation changed while Filtering was open. Reopen Filtering before editing the new masks.')
+            self.data['segmentation_sha256'] = signature
+        self._source_stat = current
+
+    def _clean_old_temporary_files(self):
+        # Only this writer's exact scratch names, older than a day. Never load
+        # unfinished writes as curation or touch another mask's temporary files.
+        pattern = re.compile(re.escape(self.path.name) + r'[a-z0-9_]{8}\.tmp')
+        for path in self.path.parent.glob(self.path.name + '*.tmp'):
+            try:
+                if pattern.fullmatch(path.name) and path.stat().st_mtime < time.time() - 86400:
+                    path.unlink()
+            except OSError:
+                LOG.debug(f'[Curation] Could not remove old scratch file {path}')
 
     def save(self):
+        self._check_source()
         fd, name = tempfile.mkstemp(dir=self.path.parent, prefix=self.path.name, suffix='.tmp')
         try:
-            with os.fdopen(fd, 'w') as stream:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
                 json.dump(self.data, stream, indent=2, allow_nan=False)
-            os.replace(name, self.path)
+                stream.flush()
+                os.fsync(stream.fileno())
+            # Refuse a stale preview write if segmentation completed meanwhile.
+            self._check_source()
+            _replace(name, self.path)
         finally:
             if os.path.exists(name):
                 os.unlink(name)

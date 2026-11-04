@@ -1,12 +1,22 @@
 # BactoMate Custom — release and development notes
 
-Documentation updated **3 November 2026**, extending the November 1
+Documentation updated **4 November 2026**, extending the November 1
 code reference **`811d5b6`**.
 Active custom branch: **BactoMate_Custom_New-Analyses**.
 The package still reports upstream version 2.9.5; custom milestones below are Git
 commits, not newly assigned upstream release numbers. These notes consolidate
 the custom history; [the change summary](../MODIFICATIONS_BACTOMATE_EN.md) defines
 current behavior and [the manual](BACTOMATE_USER_MANUAL.md) describes its use.
+
+## 4 November 2026 — reopen masks after resegmentation
+
+Filtering automatically archives obsolete object curation and loads the new mask
+when segmentation replaces a TIFF at the same path. Per-mask filter parameters
+are retained; old IDs, geometry and history are kept in `curation_archive/`.
+New label-pixel signatures preserve choices across metadata/storage-only rewrites,
+with conservative migration for legacy records. Atomic JSON saves retry Windows
+sharing locks and clean failed-write scratch. Old open editors cannot overwrite
+new-segmentation curation. See [recovery behavior](FILTERING_CURATION.md#rerun-segmentation-into-the-same-folder).
 
 ## 3 November 2026 — shared Mac/Windows segmentation
 
@@ -155,3 +165,8 @@ formats, native macOS focus/close behavior or native R/MATLAB execution. Use the
 Validation on 3 November: **626 passed, 5 skipped** in the full Linux suite,
 with two existing warnings; the actual CPU installer smoke test passed at both
 diameters. Native macOS/Windows validation remains pending.
+
+Validation on 4 November: **636 passed, 5 skipped** in the full Linux suite
+(two existing warnings). Includes a real Qt Filtering reopen with a legacy
+curation record, label/storage comparisons, archive preservation, stale editor
+protection and simulated Windows locks/failures. Native Windows remains to test.

@@ -1,6 +1,6 @@
 # BactoMate Custom — installation et parcours de test
 
-Mise à jour : **3 novembre 2026**, branche
+Mise à jour : **4 novembre 2026**, branche
 **BactoMate_Custom_New-Analyses**.
 [Version anglaise](GUIDE_TEST_BACTOMATE_EN.md) · [Bilan des changements](MODIFICATIONS_BACTOMATE_FR.md)
 
@@ -188,8 +188,9 @@ avec différences de polices possibles. Les scripts ne refont pas la segmentatio
 
 Noter réussite/échec, entrées/XY/frame/canal, étapes, attendu/observé et logs. Garder
 sources, curation, presets et bundle fautif. Dernière suite de code enregistrée :
-**626 réussis / 5 ignorés** sous Linux le 3 novembre (deux avertissements
-existants). L’inférence CPU de l’installateur réussit aux diamètres 30 et 33.
+**636 réussis / 5 ignorés** sous Linux le 4 novembre (deux avertissements
+existants), dont la réouverture d’un masque remplacé et des verrous Windows
+simulés. L’inférence CPU de l’installateur réussit aux diamètres 30 et 33 le 3 novembre.
 Cela ne remplace pas les tests natifs Mac/Windows ni l’évaluation biologique.
 
 ## 13. Comparaison de référence Mac/Windows — 3 novembre 2026
@@ -207,3 +208,19 @@ réussite. Fermer/rouvrir l’aperçu puis changer les champs : aucune erreur de
 QDoubleSpinBox détruit. Clear Cache doit invalider les aperçus disque. Les comptes
 historiques d’exports sans tuilage peuvent changer avec le nouveau calcul commun.
 Voir [la procédure détaillée en anglais](docs/MAC_WINDOWS_REPRODUCIBILITY.md).
+
+## 14. Segmentation vers Filtering après relance — 4 novembre 2026
+
+Relancer la segmentation sur un masque déjà édité, puis ouvrir Filtering. Le
+nouveau masque doit apparaître sans « Cannot restore mask state ». L’ancien JSON
+est conservé dans `curation_archive/` ; les paramètres de filtres cellule/foci et
+la calibration restent, mais les anciens choix manuels, contours ajoutés et
+historiques ne sont pas appliqués aux nouveaux objets. Avec les nouveaux fichiers
+de curation, une réécriture identique des pixels avec d’autres métadonnées TIFF
+conserve les choix. Un ancien fichier dont le TIFF a déjà changé est archivé
+par précaution. Cette reprise ne modifie pas le TIFF des masques.
+Le `.curation.json` conserve l’état ; le `.tmp` sert à l’écriture temporaire.
+Les verrous Windows sont réessayés ; un échec nettoie son fichier temporaire et
+garde le dernier JSON valide. Seuls les temporaires propres à ce masque, vieux
+de plus de 24 heures, sont nettoyés à l’ouverture. Voir le
+[guide anglais](docs/FILTERING_CURATION.md).

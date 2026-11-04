@@ -1,6 +1,6 @@
 # Filtering: tables, selection and manual curation
 
-Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 4 November 2026.
 [Settings](FILTERING_PRESETS.md) · [Batch/output review](FILTERING_REVIEW.md)
 
 ## Workspace and measurements
@@ -75,3 +75,27 @@ Save with Filter File/Folder before relying on filtered objects in downstream
 Analyze or kept-foci spatial figures. See the [batch guide](FILTERING_REVIEW.md).
 
 ![Right-click curation menu, illustrated with synthetic data](images/filtering-object-menu-example.png)
+
+## Rerun segmentation into the same folder
+
+Filtering no longer stops with “Cannot restore mask state” when a mask TIFF has
+been replaced. For a changed segmentation, it copies the old curation record to
+`curation_archive/` beside the mask and starts fresh object choices/history.
+Per-mask cell/foci filter parameters and calibration are retained. Original TIFFs
+are not changed by this recovery, and old Keep/Exclude decisions or manual
+geometry are never assigned to new cell IDs. Archives are records, not inputs
+that Filtering automatically reapplies.
+
+New curation records identify the label pixels independently of TIFF metadata,
+compression and integer storage. Rewriting an identical label image keeps object
+choices. Older records are upgraded when their original TIFF still matches; if
+an older TIFF has already changed, the old curation is conservatively archived
+because its former label geometry cannot be verified.
+
+`.curation.json` is the expected persistent state file, not a second segmentation.
+A name ending in `.curation.jsonXXXXXXXX.tmp` is a temporary atomic write.
+Short Windows sharing locks are retried; a failed save keeps the last valid JSON
+and removes its own scratch file. Opening a mask also cleans only its own exact
+scratch names older than 24 hours, leaving recent and unrelated files untouched.
+An already-open stale editor cannot overwrite curation for a replaced mask;
+reopen Filtering to load that new segmentation.

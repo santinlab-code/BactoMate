@@ -2,7 +2,7 @@
 
 **Branch:** BactoMate_Custom_New-Analyses
 
-**Updated:** 3 November 2026; see the active branch for its current commit
+**Updated:** 4 November 2026; see the active branch for its current commit
 
 **Upstream baseline/package version:** BactoMate 2.9.5 (`2dfd181`)
 
@@ -225,8 +225,15 @@ LUT ranges remain independent from scientific filter thresholds.
 
 The mask's `.curation.json` stores manual choices/geometry and local recipes.
 Keep it with its source mask. A changed segmentation must not receive old object
-choices against unrelated labels. History records before/after counts, parameters
-and manual steps for the current frame; it is a record, not an undo command.
+choices against unrelated labels. After resegmentation into the same path, the
+old record is preserved in `curation_archive/` and Filtering opens the new mask,
+retaining filter parameters but resetting object choices/geometry/history. New
+records compare label pixels, so TIFF metadata/storage-only rewrites preserve
+choices. Legacy records with an already changed TIFF are archived conservatively.
+The `.curation.json` is expected state; `.tmp` files are atomic-write scratch,
+with Windows lock retries and cleanup. See [curation recovery](FILTERING_CURATION.md#rerun-segmentation-into-the-same-folder).
+History records before/after counts, parameters and manual steps for the current
+frame; it is a record, not an undo command.
 
 Import/Save filter settings above the panels handles portable JSONs: one cells
 file and one per named foci channel. Importing one channel leaves the others
