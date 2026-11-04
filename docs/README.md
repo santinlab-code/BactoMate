@@ -1,7 +1,7 @@
 # Documentation index
 
 These guides describe **BactoMate_Custom_New-Analyses**, updated on 4 November
-2026. The November 3 segmentation and November 4 curation fixes extend the earlier `811d5b6` baseline. The package version remains 2.9.5; the branch
+2026. The November 3 segmentation and November 4 curation and Filtering layout fixes extend the earlier `811d5b6` baseline. The package version remains 2.9.5; the branch
 and Git commit identify the custom build. All topic guides are in English.
 Only the testing guide and consolidated change summary also have French editions.
 

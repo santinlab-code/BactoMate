@@ -74,8 +74,12 @@ The saved view is rendered RGB, not a new scientific label mask.
 
 ## 5. Filter cells and foci on each XY
 
-Open Filtering and choose **Mask / XY position**. Expect fixed cell/foci controls,
-tables/history with room for ten rows and no large empty detached-image area.
+Open Filtering and choose **Mask / XY position**. Inspect **Cell table**,
+**Foci table**, **Cell filters** and **Foci filters**. Expect ten table rows with
+history below, intact fields and no large empty detached-image area. Import/Save
+presets appear on the filter pages. Try normal/larger fonts, resize the pane,
+attach/detach twice and drag the image/pages divider. No controls or rows may
+overlap; overflow must remain accessible if the viewport is too small.
 New recipes have border-cell exclusion and **Exclude fully outside** enabled.
 Previously saved choices can override defaults.
 
@@ -204,8 +208,9 @@ scripts redraw saved primitives; they do not repeat segmentation or reanalysis.
 
 Record pass/fail, input/XY/frame/channel, steps, expected/observed result and log
 path. Preserve sources, curation, filter presets and a failing figure bundle.
-The 4 November Linux suite recorded **636 passed / 5 skipped** (two existing
-warnings), including reopening a replaced mask and simulated Windows write locks.
+The 4 November Linux suite recorded **639 passed / 5 skipped** (two existing
+warnings), including replaced-mask recovery, simulated Windows locks and bounded-layout
+checks with enlarged fonts and repeated attach/detach.
 The actual CPU installer inference passed at diameters 30 and 33 on 3 November.
 These checks do not replace native Mac/Windows testing or biological review.
 

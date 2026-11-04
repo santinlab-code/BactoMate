@@ -28,6 +28,46 @@ def draw_detected_foci(rgb, detected, passed, mask_shape):
 
 
 def ten_row_table(table):
-    height=max(22,table.fontMetrics().height()+6)
-    table.verticalHeader().setDefaultSectionSize(height)
-    table.setFixedHeight(table.horizontalHeader().sizeHint().height()+10*height+2*table.frameWidth()+18)
+    from PyQt6.QtCore import QEvent, QObject, QTimer
+    if hasattr(table, '_ten_row_sizer'):
+        table._ten_row_sizer.sync()
+        return
+
+    class TableSizer(QObject):
+        pending = False
+
+        def queue(self, *_):
+            if not self.pending:
+                self.pending = True
+                QTimer.singleShot(0, self.sync)
+
+        def eventFilter(self, obj, event):
+            if event.type() in (QEvent.Type.Show, QEvent.Type.FontChange,
+                                QEvent.Type.StyleChange):
+                self.queue()
+            return False
+
+        def sync(self):
+            from PyQt6 import sip
+            if sip.isdeleted(table):
+                return
+            self.pending = False
+            vertical, horizontal = table.verticalHeader(), table.horizontalHeader()
+            row = max(22, table.fontMetrics().height() + 6, vertical.minimumSectionSize())
+            if vertical.defaultSectionSize() != row:
+                vertical.setDefaultSectionSize(row)
+            header = max(horizontal.sizeHint().height(), horizontal.fontMetrics().height() + 8)
+            if horizontal.isVisible():
+                header = max(header, horizontal.height())
+            # Headers can acquire their actual size only after columns/style exist.
+            height = header + 10 * row + 2 * table.frameWidth() + table.horizontalScrollBar().sizeHint().height()
+            if table.minimumHeight() != height or table.maximumHeight() != height:
+                table.setFixedHeight(height)
+
+    sizer = TableSizer(table)
+    table._ten_row_sizer = sizer
+    for widget in (table, table.horizontalHeader(), table.verticalHeader()):
+        widget.installEventFilter(sizer)
+    table.horizontalHeader().geometriesChanged.connect(sizer.queue)
+    table.verticalHeader().geometriesChanged.connect(sizer.queue)
+    sizer.sync()

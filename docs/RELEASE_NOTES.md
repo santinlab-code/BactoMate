@@ -8,6 +8,19 @@ commits, not newly assigned upstream release numbers. These notes consolidate
 the custom history; [the change summary](../MODIFICATIONS_BACTOMATE_EN.md) defines
 current behavior and [the manual](BACTOMATE_USER_MANUAL.md) describes its use.
 
+## 4 November 2026 — Filtering layout under constrained sizes
+
+Separate Cell/Foci table and filter pages replace vertically stacked forms that
+could be shrunk below their content height. Tables reserve ten rows after fonts
+and headers are populated, with history below. Small-viewport overflow prevents
+clipping; whole-control wrapping preserves checkboxes/actions. The attached image
+sits beside the workspace; detachment releases its column and reattachment
+restores it. Image selection opens the matching table, and View changes preserve
+an open filter page. See [Filtering](FILTERING_CURATION.md).
+Validation: **639 passed, 5 skipped** in the full Linux suite (two existing
+warnings), including bounded styled previews with normal/enlarged fonts and
+repeated attach/detach. Native platform visual verification remains pending.
+
 ## 4 November 2026 — reopen masks after resegmentation
 
 Filtering automatically archives obsolete object curation and loads the new mask
@@ -170,3 +183,6 @@ Validation on 4 November: **636 passed, 5 skipped** in the full Linux suite
 (two existing warnings). Includes a real Qt Filtering reopen with a legacy
 curation record, label/storage comparisons, archive preservation, stale editor
 protection and simulated Windows locks/failures. Native Windows remains to test.
+
+After the final button-width and image-selection refinements, five targeted
+geometry/attach-detach checks passed again on the final code.

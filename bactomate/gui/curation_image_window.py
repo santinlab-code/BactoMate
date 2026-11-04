@@ -30,11 +30,15 @@ class CurationImageWindow(DetachablePreviewImage):
 
     def detach(self):
         super().detach()
-        self.preview._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        if self.home is not self.preview:
+            self.home.hide()
+        self.preview._layout.setAlignment(Qt.AlignmentFlag(0))
         self.preview.setMinimumHeight(0)
         self.preview.updateGeometry()
 
     def attach(self):
+        if self.home is not self.preview:
+            self.home.show()
         super().attach()
         self.preview._layout.setAlignment(Qt.AlignmentFlag(0))
         self.preview.updateGeometry()

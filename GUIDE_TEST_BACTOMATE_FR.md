@@ -76,8 +76,11 @@ pas un masque scientifique.
 
 ## 5. Filtering : objets et tableaux
 
-Choisir Mask / XY position. Vérifier panneaux fixes, dix lignes dans tables/
-historiques et absence de grand vide après détachement. Nouvelles recettes :
+Choisir Mask / XY position. Tester les pages Cell table, Foci table, Cell filters
+et Foci filters : dix lignes, historique en dessous et champs intacts. Import/Save
+apparaissent sur les pages de filtres. Tester des polices plus grandes, redimensionner,
+attacher/détacher deux fois et déplacer le séparateur image/pages. Aucun chevauchement ;
+le contenu doit rester accessible si la zone est trop petite, sans grand vide après détachement. Nouvelles recettes :
 exclusion des cellules au bord et Exclude fully outside cochées ; les choix déjà
 enregistrés peuvent remplacer ces défauts.
 
@@ -188,9 +191,9 @@ avec différences de polices possibles. Les scripts ne refont pas la segmentatio
 
 Noter réussite/échec, entrées/XY/frame/canal, étapes, attendu/observé et logs. Garder
 sources, curation, presets et bundle fautif. Dernière suite de code enregistrée :
-**636 réussis / 5 ignorés** sous Linux le 4 novembre (deux avertissements
-existants), dont la réouverture d’un masque remplacé et des verrous Windows
-simulés. L’inférence CPU de l’installateur réussit aux diamètres 30 et 33 le 3 novembre.
+**639 réussis / 5 ignorés** sous Linux le 4 novembre (deux avertissements
+existants), dont la réouverture d’un masque remplacé, des verrous Windows
+simulés, les grandes polices et des cycles attaché/détaché en zone contrainte. L’inférence CPU de l’installateur réussit aux diamètres 30 et 33 le 3 novembre.
 Cela ne remplace pas les tests natifs Mac/Windows ni l’évaluation biologique.
 
 ## 13. Comparaison de référence Mac/Windows — 3 novembre 2026

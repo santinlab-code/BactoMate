@@ -7,10 +7,18 @@ Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 4 November 20
 
 Open Filtering after segmentation/foci detection. **Mask / XY position** above
 the tables chooses the image, labels, detections and curation to inspect.
-Cell filtering and Foci filtering are fixed panels. Cell/Foci tables and histories
-provide room for ten rows rather than the former five. Detaching the image leaves
-controls compact in the main window; LUTs and Keep/Exclude/Use filters commands
-follow the image. LUTs remain open on the right.
+Use the fixed **Cell table**, **Foci table**, **Cell filters** and **Foci filters**
+pages instead of stacking every form and history above the image. Tables reserve
+ten rows; their history selector/details stay below the rows. Import/Save presets
+appear on the filter pages. A narrow/short viewport provides overflow without
+squeezing fields or drawing history over table rows. Checkboxes/buttons wrap as
+whole controls, and table sizing follows the actual font/header sizes.
+
+The attached image sits beside these pages with an adjustable divider. Detaching
+it gives the workspace the whole width; reattaching restores the image column.
+LUTs and Keep/Exclude/Use filters commands follow the image. Detached LUTs remain
+open on the right. Selecting a cell or focus in the image opens its matching table.
+Changing View while editing filters keeps the current settings page open.
 
 The cell table shows retained status, ID, area in µm², length/width in µm and
 X/Y centers in pixels. Calibration changes update physical dimensions. Length

@@ -57,8 +57,11 @@ def test_channel_click_selects_focus_delete_keeps_cell(tmp_path,qapp):
         assert panel.foci_table.height()>=10*panel.foci_table.verticalHeader().defaultSectionSize()
         from PyQt6.QtWidgets import QGroupBox,QScrollArea
         assert not isinstance(dlg._filter_settings_host,QScrollArea)
-        assert dlg._filter_settings_host.findChild(QGroupBox,'FilterCellGroup').isVisible()
-        assert dlg._filter_settings_host.findChild(QGroupBox,'FilterFociGroup').isVisible()
+        for index, name in ((2, 'FilterCellGroup'), (3, 'FilterFociGroup')):
+            dlg._filter_tables.setCurrentIndex(index)
+            qapp.processEvents()
+            assert dlg._filter_settings_host.findChild(QGroupBox, name).isVisible()
+        dlg._filter_tables.setCurrentIndex(1)
         dlg.refresh();qapp.processEvents()
         assert tuple(dlg._preview_overlay_base[34,40])==(0,255,0)
         assert tuple(dlg._preview_overlay_base[34,90])==(255,0,0)

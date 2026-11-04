@@ -41,10 +41,12 @@ saving keeps the window open. Closing successfully reattaches the canvas.
 
 ## 3. Filtering layout and calibrated tables
 
-Cell filtering and Foci filtering are fixed control panels rather than one long
-scrolling form. Cell/Foci tables and histories are organized with room for ten
-rows. Duplicate Import/Save controls were removed from the left interface;
-**Import filter settings…** and **Save filter settings…** remain above the filters.
+Cell/Foci tables and Cell/Foci filters now have independent fixed pages, with
+room for ten table rows and history below them. Font/header-aware sizing and
+small-viewport overflow prevent overlaps. The attached image is beside the pages;
+detaching it returns the whole width to the workspace. Duplicate Import/Save
+controls were removed from the left interface; **Import filter settings…** and
+**Save filter settings…** appear when a filter page is selected.
 The manual Keep/Exclude/Use filters actions follow the detached image with its LUTs.
 
 The cell table reports area in µm², length/width in µm and X/Y centers in pixels.
@@ -292,3 +294,21 @@ Validation on 4 November: **636 passed, 5 skipped** in the full Linux suite
 (two existing warnings). Includes a real Qt Filtering reopen with a legacy
 curation record, label/storage comparisons, archive preservation, stale editor
 protection and simulated Windows locks/failures. Native Windows remains to test.
+
+## 15. Filtering layout without squeezed fields or overlapping histories
+
+Cell/Foci tables and Cell/Foci filters use independent fixed pages. History stays
+below each ten-row table; header/font-aware sizing also works after columns load
+or the font changes. Whole controls wrap without disappearing during reparenting.
+The attached image sits beside the pages in an adjustable divider; detaching it
+returns the whole width to the workspace. Small viewports provide overflow while
+preserving native field heights. Presets appear on filter pages. Image clicks open
+the matching table; View changes preserve an open settings page.
+
+Full Linux suite: **639 passed, 5 skipped**, with two existing warnings. Bounded
+styled previews cover normal/enlarged fonts, both table types, fields, history,
+manual controls and repeated attach/detach. Native Mac/Windows visual checks remain
+part of local acceptance; the automated runs use offscreen Qt on Linux.
+
+After the final button-width and image-selection refinements, five targeted
+geometry/attach-detach checks passed again on the final code.

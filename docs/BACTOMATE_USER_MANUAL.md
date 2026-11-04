@@ -155,10 +155,16 @@ See [segmentation previews](SEGMENTATION_CONTOURS.md).
 
 ## 5. Filtering and manual curation
 
-Open Filtering after detection. The image can remain detached while controls and
-tables stay in the main interface. Cell filtering/Foci filtering are fixed panels;
-cell/foci tables and histories provide space for ten rows. **Mask / XY position**
-above them selects the active sample, mask, detections and curation.
+Open Filtering after detection. **Cell table**, **Foci table**, **Cell filters**
+and **Foci filters** are separate fixed pages, keeping rows and history from
+being squeezed together. Tables reserve ten rows using the current font/header
+sizes. Import/Save filter presets appear on the filter pages. Very small panes
+provide overflow rather than clipping fields or overlapping widgets.
+
+The attached image sits beside the pages with an adjustable divider; detaching
+it gives the pages full width. Image clicks open the corresponding table. LUTs
+and manual commands follow the image. **Mask / XY position** above the pages
+selects the active sample, mask, detections and curation.
 
 ### Cell filters and calibrated dimensions
 

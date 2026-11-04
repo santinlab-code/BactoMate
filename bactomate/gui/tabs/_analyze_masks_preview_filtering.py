@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 import numpy as np
 from PyQt6.QtCore import QEvent, QObject, Qt, QThread, QTimer, QItemSelectionModel
-from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QTableWidget, QTabWidget, QTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QTableWidget, QTextEdit, QVBoxLayout, QWidget
 from bactomate.gui.analyze_masks_preview_worker import AnalyzeMasksPreviewWorker
 from bactomate.gui.filter_apply_progress import FilterApplyProgressDialog, _qt_alive
 from bactomate.gui.image_utils import scale_for_preview, to_qpixmap
@@ -700,13 +700,15 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         fs_foci0 = resolve_foci_settings_for_source(dict(fs0), None)
     settings_host = QWidget()
     settings_outer = QVBoxLayout(settings_host)
-    preset_row = QHBoxLayout()
+    preset_bar = QWidget()
+    preset_row = QHBoxLayout(preset_bar)
+    preset_row.setContentsMargins(0, 0, 0, 0)
     for label, callback in [('Import filter settings…', tab.import_filter_preset),
                             ('Save filter settings…', tab.export_filter_preset)]:
         button = QPushButton(label)
         button.clicked.connect(callback)
         preset_row.addWidget(button)
-    settings_outer.addLayout(preset_row)
+    settings_outer.addWidget(preset_bar)
     settings_outer.setContentsMargins(0, 0, 0, 0)
     settings_outer.setSpacing(6)
 
@@ -780,16 +782,10 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         '• Bright-field — classic interior sharpness (Laplacian / edge energy).'
     )
     cell_filter_info = create_info_icon(_cell_filter_info, parent_widget=settings_host, compact=True)
-    cell_filter_toggles = QWidget(settings_host)
+    from bactomate.gui.filtering_workspace import WrappingControls
+    cell_filter_toggles = WrappingControls(w_excl_border, w_focus_en, w_focus_mod,
+                                         cell_filter_info, parent=settings_host)
     cell_filter_toggles.setObjectName('FilterCellToggles')
-    toggle_lay = QHBoxLayout(cell_filter_toggles)
-    toggle_lay.setContentsMargins(0, 2, 0, 0)
-    toggle_lay.setSpacing(10)
-    toggle_lay.addWidget(w_excl_border, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-    toggle_lay.addWidget(w_focus_en, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-    toggle_lay.addWidget(w_focus_mod, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-    toggle_lay.addWidget(cell_filter_info, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-    toggle_lay.addStretch(1)
 
     def _cell_spin_field(label: str, spin: QDoubleSpinBox):
         return setting_field(label, spin, min_width=_CELL_SPIN_W, max_width=_CELL_SPIN_W)
@@ -797,7 +793,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         'Cell filtering',
         object_name='FilterCellGroup',
         parent=settings_host,
-        min_cell_width=220,
+        min_cell_width=210,
         label_min_width=118,
         control_max_width=_CELL_SPIN_W,
         max_columns=4,
@@ -958,14 +954,6 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     foci_table.installEventFilter(_foci_col_fit)
     foci_table_host.installEventFilter(_foci_col_fit)
     foci_table_section.installEventFilter(_foci_col_fit)
-    # Filter cards stay outside any scroll area. Only table rows scroll.
-    filter_cards=QWidget(settings_host)
-    filter_cards_layout=QHBoxLayout(filter_cards)
-    filter_cards_layout.setContentsMargins(0,0,0,0)
-    for card in (cell_group,foci_group):
-        settings_outer.removeWidget(card)
-        filter_cards_layout.addWidget(card,1)
-    settings_outer.insertWidget(1,filter_cards)
     foci_history=QComboBox()
     foci_history.setObjectName('FociHistory')
     foci_history.setMaxVisibleItems(10)
@@ -975,20 +963,30 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     curation_panel.history_updated.connect(lambda: foci_history.setCurrentIndex(curation_panel.history.currentIndex()))
     foci_history_details=QTextEdit()
     foci_history_details.setReadOnly(True)
-    foci_history_details.setMaximumHeight(90)
+    foci_history_details.setFixedHeight(2 * foci_history_details.fontMetrics().lineSpacing() + 16)
     curation_panel.details.textChanged.connect(lambda: foci_history_details.setPlainText(curation_panel.details.toPlainText()))
     foci_history_details.setPlainText(curation_panel.details.toPlainText())
     foci_table_lay.addWidget(foci_history)
     foci_table_lay.addWidget(foci_history_details)
-    table_tabs = QTabWidget(settings_host)
+    from bactomate.gui.filtering_workspace import FilteringWorkspaceTabs
+    table_tabs = FilteringWorkspaceTabs(settings_host)
     table_tabs.setObjectName('FilteringTables')
-    for section,title in ((curation_section,'Cell table / History'),(foci_table_section,'Foci table / History')):
+    for section,title in ((curation_section,'Cell table'),(foci_table_section,'Foci table')):
         settings_outer.removeWidget(section)
         section.set_expanded(True)
         section._header.hide()
         table_tabs.addTab(section,title)
-    settings_outer.addWidget(table_tabs)
-    settings_outer.setAlignment(Qt.AlignmentFlag.AlignTop)
+    for card, title in ((cell_group, 'Cell filters'), (foci_group, 'Foci filters')):
+        settings_outer.removeWidget(card)
+        table_tabs.addTab(card, title)
+    table_tabs.setTabVisible(3, has_foci_image_files)
+    def _workspace_page_changed(index):
+        preset_bar.setVisible(index >= 2)
+        if index == 1:
+            w_show_foci_table.setChecked(True)
+    table_tabs.currentChanged.connect(_workspace_page_changed)
+    preset_bar.setVisible(False)
+    settings_outer.addWidget(table_tabs, 1)
     from bactomate.gui.artifact_paths import discover_mask_tiffs_for_workspace
     # Include sibling XYs even when the preview was opened from one mask file.
     search_root=p if p.is_dir() else p.parent
@@ -1001,6 +999,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     mask_row=QHBoxLayout()
     mask_row.addWidget(QLabel('Mask / XY position'))
     mask_selector=QComboBox();mask_selector.setObjectName('FilteringMaskSelector')
+    mask_selector.setMinimumWidth(0)
+    mask_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    mask_selector.setMinimumContentsLength(0)
     for candidate in mask_candidates:
         mask_selector.addItem(str(candidate.relative_to(search_root.resolve())) if candidate.is_relative_to(search_root.resolve()) else candidate.name,str(candidate))
     mask_selector.setCurrentIndex(mask_selector.findData(str(current_mask)))
@@ -1008,7 +1009,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     mask_selector.setToolTip('Choose the mask / XY to inspect and filter. The main Filtering input follows this choice.')
     mask_row.addWidget(mask_selector,1)
     settings_outer.insertLayout(0,mask_row)
-    settings_host.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Maximum)
+    settings_host.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
     settings_scroll = settings_host
     from bactomate.gui.filtering_display import ten_row_table
     ten_row_table(curation_panel.table)
@@ -1474,7 +1475,9 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         is_foci_view = _view_path_is_foci(view_p)
         try:
             curation_panel.kind.setCurrentIndex(1 if is_foci_view else 0)
-            table_tabs.setCurrentWidget(foci_table_section if is_foci_view else curation_section)
+            # Keep an open settings page visible while changing its View channel.
+            if table_tabs.currentIndex() < 2:
+                table_tabs.setCurrentWidget(foci_table_section if is_foci_view else curation_section)
             if is_foci_view:w_show_foci_table.setChecked(True)
             cell_group.setVisible(True)
             foci_group.setVisible(bool(has_foci_image_files))
@@ -2123,7 +2126,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     def _update_foci_table_live() -> None:
         if dlg is None:
             return
-        show = bool(w_show_foci_table.isChecked())
+        show = bool(w_show_foci_table.isChecked()) or table_tabs.currentIndex() == 1
         foci_table_section.setVisible(show and bool(foci_sources))
         table_tabs.setTabEnabled(1,bool(foci_sources))
         if not show:
@@ -3272,6 +3275,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                 for row in range(curation_panel.table.rowCount()):
                     if int(curation_panel.table.item(row, 0).text()) == label:
                         curation_section.set_expanded(True)
+                        table_tabs.setCurrentWidget(curation_section)
                         choose(curation_panel.table,row)
                         curation_panel.table.scrollToItem(curation_panel.table.item(row, 0))
                         break
@@ -3297,6 +3301,8 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
                     if not additive:foci_table.clearSelection()
         dlg.canvas.clicked_image.connect(_pick_curated_object)
         from bactomate.gui.curation_image_window import CurationImageWindow
+        from bactomate.gui.filtering_workspace import mount_filtering_workspace
+        mount_filtering_workspace(dlg, settings_host, curation_panel.manual_controls)
         def create_object(kind,points):
             cur=_current_curation();frame=int(dlg.state().frame_idx)
             if kind=='cells':

@@ -43,9 +43,12 @@ fenêtre ouverte. Une fermeture réussie réintègre le canevas.
 
 ## 3. Filtering : disposition et mesures
 
-Cell filtering et Foci filtering sont des panneaux fixes. Les tables/historiques
-laissent dix lignes visibles. Les commandes Import/Save en double à gauche ont
-été retirées ; celles au-dessus des filtres restent disponibles. Les commandes
+Les tables Cell/Foci et les filtres Cell/Foci ont chacun leur page fixe. La
+hauteur suit les polices et en-têtes pour réserver dix lignes, avec l’historique
+en dessous. Une petite zone offre un débordement accessible sans superposition.
+L’image attachée est à côté ; la détacher rend toute la largeur aux pages.
+Les commandes Import/Save en double à gauche ont été retirées ; elles apparaissent
+quand une page de filtres est choisie. Les commandes
 Keep/Exclude/Use filters suivent l’image détachée avec les LUTs.
 
 La table cellulaire indique aire en µm², longueur/largeur en µm et centre X/Y en
@@ -288,3 +291,22 @@ Validation du 4 novembre : **636 tests réussis, 5 ignorés** sous Linux (deux
 avertissements existants), dont la réouverture Qt avec une ancienne curation,
 les archives, les choix conservés à pixels identiques, la protection d’un éditeur
 périmé et des verrous Windows simulés. L’essai Windows natif reste à faire.
+
+## 15. Filtering : champs lisibles et historiques sans chevauchement
+
+Les tables Cell/Foci et les filtres Cell/Foci occupent des pages fixes séparées.
+L’historique reste sous chaque table de dix lignes ; la hauteur suit les polices
+et les en-têtes, même après le chargement des colonnes. Les commandes reviennent
+à la ligne sans disparaître après réintégration. L’image attachée se place à côté,
+avec un séparateur réglable ; la détacher rend toute la largeur aux pages. Une
+petite zone permet d’atteindre le débordement sans écraser les champs. Import/Save
+apparaissent sur les pages de filtres. Un clic dans l’image ouvre la bonne table ;
+changer View conserve une page de réglages ouverte.
+
+Suite complète Linux : **639 réussis, 5 ignorés**, deux avertissements existants.
+Les tests couvrent les zones contraintes, polices normales/agrandies, les deux
+tables, leurs historiques et plusieurs cycles attaché/détaché. La vérification
+visuelle native Mac/Windows reste à faire ; Qt est testé hors écran sous Linux.
+
+Après les derniers ajustements de largeur des boutons et de sélection dans
+l’image, cinq contrôles ciblés de géométrie/attachement réussissent sur le code final.

@@ -52,7 +52,7 @@ def test_detach_click_highlight_keyboard_exclusion_and_attach(tmp_path, qapp,mon
         controller.window.close()
         assert not controller.window.isVisible()
         assert dlg.canvas.parentWidget() is controller.home
-        assert dlg.lut_section.parentWidget() is dlg
+        assert dlg.lut_section.parentWidget() is controller.home
         for widget, layout, index in slots:
             assert layout.indexOf(widget) == index
         controller.detach()

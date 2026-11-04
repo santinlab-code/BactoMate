@@ -2,7 +2,7 @@
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QItemSelectionModel, pyqtSignal
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
                             QTableWidgetItem, QComboBox, QLabel, QPushButton, QMessageBox, QTextEdit)
 from bactomate.modules.object_curation import ObjectCuration
 
@@ -16,6 +16,8 @@ class ObjectCurationPanel(QWidget):
         self.cur = None
         self.frame = 0
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(4)
         self.summary = QLabel('Selection — current frame')
         layout.addWidget(self.summary)
         self.table = QTableWidget(0, 7)
@@ -27,18 +29,17 @@ class ObjectCurationPanel(QWidget):
         ten_row_table(self.table)
         self.table.cellDoubleClicked.connect(self._focus)
         layout.addWidget(self.table)
-        self.manual_controls = QWidget(self)
+        from bactomate.gui.filtering_workspace import WrappingControls
+        self.manual_controls = WrappingControls(parent=self)
         self.manual_controls.setObjectName("ManualObjectSelection")
-        row = QHBoxLayout(self.manual_controls)
-        row.setContentsMargins(0, 0, 0, 0)
         self.kind = QComboBox()
         self.kind.addItems(['Cells', 'Foci — current channel'])
-        row.addWidget(self.kind)
+        self.manual_controls.add_widget(self.kind)
         for title, keep in [('Keep selected objects', True), ('Exclude selected objects', False),
                             ('Use filters for selected objects', None)]:
             button = QPushButton(title)
             button.clicked.connect(lambda checked=False, k=keep: self.edit(k))
-            row.addWidget(button)
+            self.manual_controls.add_widget(button)
         layout.addWidget(self.manual_controls)
         self.history = QComboBox()
         self.history.setMaxVisibleItems(10)
@@ -47,7 +48,7 @@ class ObjectCurationPanel(QWidget):
         self.history.currentIndexChanged.connect(self._history_detail)
         self.details = QTextEdit()
         self.details.setReadOnly(True)
-        self.details.setMaximumHeight(90)
+        self.details.setFixedHeight(2 * self.details.fontMetrics().lineSpacing() + 16)
         layout.addWidget(self.details)
 
     def context(self, path, frame, mask, accepted, pixel_size=None):
