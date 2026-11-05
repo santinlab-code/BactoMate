@@ -8,6 +8,42 @@ commits, not newly assigned upstream release numbers. These notes consolidate
 the custom history; [the change summary](../MODIFICATIONS_BACTOMATE_EN.md) defines
 current behavior and [the manual](BACTOMATE_USER_MANUAL.md) describes its use.
 
+## 5 November 2026 — length-envelope demographs and curved-cell maps
+
+Figure guide defaults to VDemo-style length-scaled columns, ordered by measured
+centerline length, with fluorescence or local mask width (µm) as colour. The
+earlier equal-length row layout and all 13 figure types remain available.
+
+A new guide question maps mean fluorescence onto a reference capsule, with
+black/white background and palette controls. A 64 × 32 grid interpolates only
+within measured support; equal cell weighting and exported contributor counts
+make aggregation explicit. Display sampling adds no optical resolution.
+
+Automatic geometry follows curved centerlines through both caps, using local
+normals and half-widths. Subpixel foci interpolate this nonlinear field instead
+of a global affine fit, avoiding artificial lateral pole displacement while
+preserving real off-axis positions. Existing ellipse metrics retain their
+meaning; axial length/width, physical distances and geometry version are exported.
+Ambiguous curved masks require curation. Rebuild older spatial figures from
+masks/images to use the new coordinates. Point-density kernels are restricted
+to the schematic capsule without relocating points. Figure options adds density
+resolution/smoothing and background controls. Reproduction scripts preserve
+background and draw the image before contour/point overlays.
+
+Spatial/catalog worker results and completion use Qt receiver slots, so pending
+signals disconnect when the Analysis receiver is destroyed. This addresses a
+native crash encountered during consecutive GUI test windows.
+
+Validation: **655 passed, 5 skipped** in the final Linux suite (18 warnings from
+two existing warning types). New checks cover curved pole/lateral foci, rotation,
+branched-mask rejection, length envelopes and missing bins, local width units,
+equal-cell means, both backgrounds, Python reproduction, guided project loading,
+missing raw-signal stripes and Excel sheet splitting. Real retained validation
+masks: 114 cells processed, 76 using curved axes and 38 straight axes; fluorescence,
+local-width and normalized-map figures/exports were inspected. This is a software
+check, not biological localization validation. Native macOS/Windows and native
+R/MATLAB execution remain to be checked locally.
+
 ## 5 November 2026 — consistent outlines and full-width Analysis
 
 Single-image Segmentation uses Filtering's display resolution (up to 2048 px),

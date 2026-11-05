@@ -71,6 +71,9 @@ Detached image windows keep their LUT controls on the right, support mouse zoom
 and pan, and offer recentering and position sliders. Filtering supports object
 selection, reversible exclusion and manual annotation. Analysis opens each figure
 in its own window and exports PDF/SVG, tables and Python/R/MATLAB reproduction code.
+The Figure guide includes length-envelope demographs and mean fluorescence on a
+normalized cell, with black/white backgrounds and curved-cell coordinates for
+fluorescence and foci. Earlier layouts and all 13 figure types remain available.
 Automatic result PNG previews are disabled. Omnipose previews and exports now use
 the same native-resolution tiled calculation; see the Mac/Windows comparison guide
 before comparing historical and newly processed masks.
@@ -83,7 +86,7 @@ before comparing historical and newly processed masks.
 | [User manual](docs/BACTOMATE_USER_MANUAL.md) / [PDF](docs/BactoMate.pdf) | Complete workflow and control reference |
 | [Testing guide — English](GUIDE_TEST_BACTOMATE_EN.md) / [French](GUIDE_TEST_BACTOMATE_FR.md) | Installation and acceptance checks |
 | [Custom changes — English](MODIFICATIONS_BACTOMATE_EN.md) / [French](MODIFICATIONS_BACTOMATE_FR.md) | Consolidated changes since the upstream baseline |
-| [Simple Analysis](docs/NEW_ANALYSIS.md) / [Figure guide](docs/FIGURE_GUIDE.md) | Conditions, replicates, demographs, maxima and kymographs |
+| [Simple Analysis](docs/NEW_ANALYSIS.md) / [Figure guide](docs/FIGURE_GUIDE.md) | Conditions, replicates, length-envelope demographs, fluorescence maps, maxima and kymographs |
 | [Mac/Windows comparison](docs/MAC_WINDOWS_REPRODUCIBILITY.md) | Shared versions, CPU reference and corrected segmentation failures |
 | [Release notes](docs/RELEASE_NOTES.md) | Custom development milestones and validation limits |
 

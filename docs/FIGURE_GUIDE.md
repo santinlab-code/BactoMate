@@ -1,6 +1,6 @@
 # Figure guide: practical recipes
 
-Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 5 November 2026.
 [Simple Analysis](NEW_ANALYSIS.md) · [Methods and exports](ANALYSIS.md)
 
 ## Four steps
@@ -8,7 +8,8 @@ Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 20
 Click **Figure guide…** in Analysis:
 
 1. **Question:** compare a measurement, relate two metrics, show a demograph,
-   locate maxima, count foci per cell, or follow a cell through a time-lapse.
+   map cell fluorescence, locate maxima, count foci per cell, or follow a cell
+   through a time-lapse.
 2. **Population:** choose data/metric, condition, frame and, for spatial figures,
    channel and all matching XYs or one sample. Conditions & replicates is available
    here and remains at the top of the main Analysis view in both modes.
@@ -36,18 +37,30 @@ Choose the demograph question. In Population, select the channel, condition, fra
 and XY population. The guide extracts measured profiles from the project's mask
 and fluorescence images; a morphology spreadsheet alone is not enough.
 
-For straight rods choose **Straight rods — principal axis**. For curved rods use
-**Curved rods — medial axis** after checking the masks. Branched/ambiguous skeletons
-are refused rather than assigned invented coordinates. Choose geometric orientation
+Keep **Automatic — follow curved cells** for a mixture of straight and vibrioid
+cells. It follows a smoothed centerline through both caps when curvature is
+detected and uses a straight axis for near-straight cells. Explicit principal-axis
+and medial-axis choices remain available. Ambiguous curved/branched masks are
+refused; inspect and curate the reported cell. Choose geometric orientation
 unless a deliberate brighter-pole alignment is appropriate. Brighter pole places
 the end with greater mean terminal-quarter signal at left/top; it does not identify
 an old/new pole and changes the apparent population pattern.
 
-One row represents one cell observation, sorted by increasing cell length.
-Longitudinal position is relative, 0–1. Colour represents the mean fluorescence
-in each segment, after the explicit normalization below. The count is the number
-of cell observations, not bins. First frame avoids repeated film observations;
-All frames intentionally includes them. A demograph is not a time-lapse kymograph.
+The default **Length-scaled columns — cells ordered by length (VDemo)** puts one
+cell observation in each column, shortest to longest. Its profile is centered at
+zero and displayed with its measured centerline length. Y is centered axial
+distance divided by half the longest cell's length; the longest cell spans −1…1.
+The growing outer envelope therefore retains the population's length differences.
+Colour shows **Fluorescence intensity** by default, in raw measured units. Choose
+**Local cell width (µm)** to reproduce the second reference panel: colour then
+shows mask width perpendicular to the local axis, with no intensity normalization.
+
+The earlier **Normalized rows — each cell has equal displayed length** layout
+remains available, with one cell per row and longitudinal position 0–1. Both
+layouts use the sampling/normalization choices below. Counts are cell observations,
+not bins. First frame avoids repeated film observations; All frames intentionally
+includes them. A demograph is not a time-lapse kymograph. Geometric orientation
+alone does not align a particular biological pole across cells.
 
 ### Choose an intensity scale
 
@@ -84,6 +97,29 @@ resolution. The separate 2D cell-map bins are not changed into native profiles.
 
 These 24 segments concern Analysis profiles, not the model's cell segmentation.
 
+## Mean fluorescence on a normalized cell
+
+Choose **Map fluorescence on a normalized cell**, then the channel, condition,
+frame and XY population. Keep the automatic cell-shape method. In Appearance,
+choose raw or per-cell normalized fluorescence, the colour map, and **black**
+or **white** background. The defaults are raw fluorescence, turbo and black.
+Generate separate figures for different conditions when comparing distributions.
+
+Every retained cell is straightened onto the same capsule: relative length 0–1
+and relative width −0.5…0.5. Signed lateral distance is divided by the local
+half-width, then mapped into the reference capsule's cap geometry. This follows
+curved cells instead of flattening their bends onto a global straight axis.
+The guide samples a 64 longitudinal × 32 transverse grid by linear interpolation
+within measured pixel support; it does not extrapolate or fill missing values
+with zero. This display grid adds no optical resolution. At each position the
+heatmap is the equal-weight mean of cells contributing there, not a pooled pixel
+mean. The number of contributors can vary; inspect `cell_coverage.csv` in exports.
+
+The outline is a common schematic shape, not the mean measured cell boundary.
+Keep acquisition/background comparable before comparing raw brightness. Display
+LUT changes do not alter these measurements. Background and palette remain
+editable in Figure options. Advanced controls retain rectangular cell maps.
+
 ## Maxima on a normalized cell
 
 Choose the maxima-location question and a channel/population. Select one source:
@@ -93,15 +129,24 @@ Choose the maxima-location question and a channel/population. Select one source:
 - **Kept detected foci:** saved filtered foci for that channel. Save Filtering
   first. Foci outside the retained masks are excluded from this spatial view.
 
-Coordinates normalize length to 0–1 and width to −0.5–0.5. Raw x/y, cell metrics
-and source identity remain exportable. Principal-axis foci projections preserve
-subpixel positions; medial-axis positions use the nearest measured pixel.
+Keep **Automatic — follow curved cells**. Axial position follows centerline arc
+length through both caps; lateral position uses the local normal and half-width
+before mapping into the reference capsule. Subpixel foci use local interpolation
+of that nonlinear coordinate field. A pole focus therefore stays close to the
+pole axis when a vibrioid cell is straightened; a genuinely off-axis focus keeps
+its signed lateral offset. No focus is deliberately snapped onto the centerline.
 
-The capsule is a schematic guide, not an average fitted cell; points are not
-forced inside it. Its axes are relative coordinates, not µm. Density is a
-96 × 96 histogram smoothed with a Gaussian of σ=2 bins and scaled to peak 1;
-values below 1% of peak are transparent. It is relative point density, not
-fluorescence intensity or probability. Individual points can be hidden/shown.
+Raw x/y, `axis_position_um`, signed `normal_distance_um`, cell metrics, actual
+coordinate method and geometry version remain exportable. The relative capsule
+is schematic; its coordinates do not preserve every physical distance. Density
+defaults to a 96 × 96 histogram smoothed with a Gaussian of σ=2 bins and scaled
+to peak 1. The displayed kernel is masked outside the capsule; values below 1%
+of peak are transparent. This does not move the individual points. Density is
+relative point density, not fluorescence or probability. Figure options controls
+point visibility, density resolution/smoothing, background and palette.
+
+Rebuild spatial figures from masks/images with the guide to use these coordinates.
+Old exported coordinates cannot be corrected from a morphology table alone.
 
 ## Number of foci per cell
 
@@ -138,7 +183,7 @@ appropriate internal aspect ratio within that page.
 | --- | --- |
 | Labels / axes | Title, X/Y labels, automatic/custom bounds, X-label rotation, title/grid/legend visibility |
 | Categories | Move up/down, display names/colours, box/violin X spacing and width |
-| Appearance | Font and point size, opacity, line width, box outliers, maxima points, colormap/colour bounds |
+| Appearance | Font and point size, opacity, line width, box outliers, maxima points, density resolution/smoothing, black/white background, colormap/colour bounds |
 | Export size | Square lock, width/height in cm or pixels, raster DPI |
 
 Apply redraws only that figure. Category spacing controls chiefly apply to
@@ -163,7 +208,9 @@ wanted figures before resetting.
 
 **Export figure, data & code…** produces PDF/SVG by default, CSV/XLSX source and
 plot data, metadata/provenance and Python/R/MATLAB scripts. Optional replicate
-summaries and native profiles are included when relevant. Automatic PNG generation
+summaries and native profiles are included when relevant. Length-envelope figures
+add a cell-order/length table; normalized maps add a contributing-cell matrix.
+Automatic PNG generation
 is off. Explicit manual PNG saving remains available; old PNG files are not removed.
 The scripts redraw computed geometry and do not repeat original analysis. Python
 execution is tested; native R/MATLAB execution and native macOS window behavior

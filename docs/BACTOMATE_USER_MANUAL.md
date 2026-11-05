@@ -391,10 +391,21 @@ and required fields. The [figure guide](FIGURE_GUIDE.md) provides recipes.
 
 ### Spatial profiles and intensity
 
-A demograph has one row per cell observation, sorted by length, with relative
-longitudinal position 0–1. Principal axis is a straight projection; medial axis
-uses a pixel skeleton for curved rods and rejects ambiguous/branched axes.
-Cell-table length/width still use the equivalent ellipse. Geometric alignment
+The guide's default demograph puts one cell observation per column, ordered by
+measured centerline length. Each profile is centered and retains its length
+relative to the longest cell, producing a VDemo-style envelope. Y is centered
+axial distance divided by half the longest length. Colour can show fluorescence
+or local mask width in µm. The earlier equal-length normalized rows remain an
+option. Raw fluorescence is the guide default; the choices below remain available.
+
+**Automatic — follow curved cells** uses a smoothed medial axis for curved rods,
+extended through their caps, and a straight principal axis for near-straight rods.
+Signed lateral distance uses the local normal/half-width, mapped into the common
+reference capsule. This avoids displacing pole foci sideways when vibrioid cells
+are straightened. True lateral offsets remain. Explicit straight/medial modes
+remain available; ambiguous curved/branched axes are refused for review.
+Cell-table length/width still use the equivalent ellipse; spatial exports add
+`axis_length_um`, `local_width_um` and geometry provenance. Geometric alignment
 does not infer pole age; optional brighter-pole alignment places it at left/top.
 
 Default longitudinal sampling is 24 segments. Native resolution → 24 positions
@@ -413,9 +424,22 @@ Raw values remain available. A zero denominator maps the normalized profile to
 zero. These intensity choices do not replace background correction. LUT contrast
 is independent of this quantitative normalization.
 
+**Map fluorescence on a normalized cell** in Figure guide averages each cell's
+straightened fluorescence on a common capsule. Choose the channel/population,
+raw or normalized signal, palette and black/white background (black by default).
+A 64 × 32 grid uses linear interpolation inside measured pixel support, without
+extrapolation or zero filling. Each contributing cell has equal weight at each
+position; `cell_coverage.csv` records the varying counts. The grid adds no image
+resolution. Advanced rectangular maps remain available.
+
 Maxima map distinguishes brightest raw pixel per cell from kept detected foci.
-Its capsule is schematic and its density is relative point density; neither is a
-measured cell shape or fluorescence heatmap. Foci count uses per-cell counts,
+Subpixel foci use local interpolation of curved coordinates; raw x/y, axial
+position and signed normal distance in µm remain exportable. Its capsule is
+schematic and its density is relative point density; neither is a measured cell
+shape or fluorescence heatmap. Density kernels are masked outside the capsule
+without moving points; smoothing/resolution, points and background are editable.
+Rebuild old spatial figures from masks/images with automatic shape to apply the
+new coordinates; old tables alone cannot repair curvature. Foci count uses per-cell counts,
 including zeros. Kymographs require one XY/channel and verified identity in at
 least two frames; time uses minutes when known, otherwise frames.
 

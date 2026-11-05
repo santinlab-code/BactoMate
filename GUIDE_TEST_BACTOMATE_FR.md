@@ -153,8 +153,9 @@ un réplicat.
 ## 10. Guide, démographe, maxima et film
 
 Suivre Question → Population → Appearance → Review/draw. Démographe : bon canal/
-condition/frame, cellules retenues, tri par longueur, axe 0–1 et 24 segments par
-défaut. Comparer les trois intensités ; les cases manquantes ne doivent pas être
+condition/frame, cellules retenues, enveloppe en colonnes triées par longueur et
+alternative en lignes normalisées 0–1, avec 24 segments par défaut. Comparer les
+trois intensités ; les cases manquantes ne doivent pas être
 interprétées comme une fluorescence nulle. Le choix natif ajoute native_profiles.csv.
 
 Maxima map : comparer brightest pixel et kept detected foci, contrôler axes
@@ -244,3 +245,38 @@ seule dans une fenêtre séparée, avec toutes les lignes. Vérifier les lignes 
 100, le choix d’une table à inspecter sans changer les paramètres de figure,
 fermeture/décochage/réouverture et remise à zéro de session. Figures, guide, exports
 et chargement automatique des résultats doivent continuer à fonctionner.
+
+
+## 17. Enveloppes VDemo et cartes des cellules courbes — 5 novembre 2026
+
+Dans Figure guide, choisir démographe, canal et population retenue. Garder
+Automatic et Length-scaled columns : cellules courtes avant les longues, profils
+centrés sur zéro, enveloppe croissante. Y est la distance axiale divisée par la
+demi-longueur de la plus longue cellule. Comparer fluorescence et Local cell width
+(µm) : la largeur reste physique même après un ancien choix d’intensité normalisée.
+Tester les lignes normalisées et l’option native. Comparer `cell_order.csv` aux
+colonnes ; les bins manquants doivent rester manquants.
+
+Choisir Map fluorescence on a normalized cell. Comparer fonds noir/blanc, palettes,
+intensités et conditions séparées. La capsule moyenne donne le même poids à chaque
+cellule contributrice, sans extrapoler hors du support mesuré. Contrôler nombres
+dans `cell_coverage.csv`, CSV/XLSX, fond et contours après reproduction Python.
+Les grandes tables doivent occuper plusieurs feuilles Excel numérotées sans perte
+de lignes ; le CSV reste complet.
+
+Sur une cellule vibrioïde avec foci connus aux pôles, sur l’axe et réellement
+latéral, comparer Principal axis et Automatic. Les points axiaux restent près de
+l’axe local ; le point latéral garde son décalage. Vérifier x/y bruts et distance
+normale physique. Après rotation de 90°, décalages latéraux absolus et distance au
+pôle proche doivent être comparables à la précision du pixel. Un masque courbe
+branché doit produire une erreur sans coordonnées inventées. Tester lissage/
+résolution de densité, points et fonds. Recréer les anciennes figures spatiales
+depuis masques/images pour appliquer la correction. Répéter tracé/édition/fermeture
+et changement de projet pendant un calcul : aucun résultat périmé ne doit agir sur
+un autre projet ou une vue Analysis détruite.
+
+Suite Linux finale : **655 réussis, 5 ignorés**, 18 avertissements de deux types
+préexistants. Les tests spatiaux utilisent des positions synthétiques connues aux
+pôles/sur le côté et une extraction réelle de 114 cellules, avec figures/exports
+inspectés. Mac/Windows natifs et R/MATLAB restent à tester localement ; ces contrôles
+logiciels ne valident ni identité des pôles ni précision biologique de localisation.

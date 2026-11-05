@@ -2,7 +2,7 @@
 from pathlib import Path
 from os.path import commonpath
 import pandas as pd
-from PyQt6.QtCore import QThread,QTimer,pyqtSignal,Qt
+from PyQt6.QtCore import QThread,QTimer,pyqtSignal,pyqtSlot,Qt
 from PyQt6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QComboBox,QGroupBox,
     QPushButton,QLabel,QCheckBox,QLineEdit,QDialog,QDialogButtonBox,QTableWidget,QTableWidgetItem,QMessageBox)
 from bactomate.gui.tabs.figure_analysis import FigureAnalysisTab
@@ -95,7 +95,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
             QMessageBox.warning(self,'Cannot open Figure guide',str(exc));return
         if parent is not None:guide.setParent(parent,Qt.WindowType.Dialog)
         goal={'Violin plot':'distribution','Box plot':'distribution','Histogram':'distribution','ECDF':'distribution',
-              'Scatter':'relationship','Mean curve':'relationship','Demograph':'demograph','Maxima map':'maxima','Foci count':'counts','Kymograph':'kymograph'}.get(self.figure_choice.currentData())
+              'Scatter':'relationship','Mean curve':'relationship','Demograph':'demograph','Normalized cell heatmap':'cell_heatmap','Maxima map':'maxima','Foci count':'counts','Kymograph':'kymograph'}.get(self.figure_choice.currentData())
         if goal and parent is None:guide.goal.setCurrentIndex(guide.goal.findData(goal))
         self._figure_guide=guide
         guide.exec()
@@ -145,7 +145,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
 
     def figure_changed(self,*_):
         kind=self.figure_choice.currentData()
-        guided=kind in ('Demograph','Maxima map','Foci count','Kymograph')
+        guided=kind in ('Demograph','Normalized cell heatmap','Maxima map','Foci count','Kymograph')
         self.metric.setVisible(not guided);self.simple_form.labelForField(self.metric).setVisible(not guided)
         self.second_metric.setVisible(kind in ('Scatter','Mean curve'))
         self.simple_form.labelForField(self.second_metric).setVisible(kind in ('Scatter','Mean curve'))
@@ -154,12 +154,13 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.frame_choice.setVisible(has_frame);self.simple_form.labelForField(self.frame_choice).setVisible(has_frame)
         self.simple_draw.setText('Edit with Figure guide…' if guided else 'Draw figure')
         self.simple_hint.setText({
-            'Demograph':'One row per cell, sorted by length. Position runs from 0 to 1. Use Figure guide to choose the channel, condition, frame and pole alignment.',
+            'Demograph':'Cells ordered by length, with their length envelope preserved. Figure guide also offers normalized rows and local cell-width colours.',
+            'Normalized cell heatmap':'Mean fluorescence on a reference cell. Figure guide follows curved axes and lets you choose the channel, condition and black/white background.',
             'Maxima map':'Maxima on a normalized reference cell. Use Figure guide to choose brightest pixels or kept detected foci. The outline is schematic.',
             'Kymograph':'Follow one verified cell across a time-lapse. Use Figure guide to choose one XY, a persistent ID and the time interval.',
             'Foci count':'Percentage of cells with 0, 1, 2… foci. Use Figure guide to choose the count column and compare conditions.'
         }.get(kind,'Cells form the distribution. Coloured points show replicate means. Give XYs from the same biological replicate the same replicate name.'))
-        if kind in SPATIAL-{'Demograph','Maxima map','Foci count','Kymograph'}:self.advanced.setChecked(True)
+        if kind in SPATIAL-{'Demograph','Normalized cell heatmap','Maxima map','Foci count','Kymograph'}:self.advanced.setChecked(True)
         if hasattr(self,'advanced') and self.advanced.isChecked():self.kind.setCurrentText(kind)
         self.mark_dirty()
 
@@ -236,9 +237,18 @@ class GuidedAnalysisTab(FigureAnalysisTab):
             return
         self.catalog_root=root;self.catalog_status.setText(f'Looking for results: {root}')
         worker=CatalogWorker(root,self,self._catalog_cache);self.catalog_worker=worker
-        worker.ready.connect(lambda result:self.receive_catalog(root,result))
-        worker.failed.connect(lambda error:self.catalog_status.setText('Cannot read results: '+error))
+        worker.ready.connect(self.catalog_result_ready)
+        worker.failed.connect(self.catalog_failed)
         worker.start()
+
+    @pyqtSlot(object)
+    def catalog_result_ready(self,result):
+        self.receive_catalog(self.sender().root,result)
+
+    @pyqtSlot(str)
+    def catalog_failed(self,error):
+        if self.sender().root==self.catalog_root:
+            self.catalog_status.setText('Cannot read results: '+error)
 
     def receive_catalog(self,root,result):
         if root!=self.catalog_root:return
@@ -307,7 +317,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
             if table is None:
                 QMessageBox.information(self,'My data','Project results appear here after the analysis completes.');return
             kind=self.figure_choice.currentData()
-            if kind in SPATIAL-{'Demograph','Maxima map','Foci count','Kymograph'}:self.advanced.setChecked(True);return
+            if kind in SPATIAL-{'Demograph','Normalized cell heatmap','Maxima map','Foci count','Kymograph'}:self.advanced.setChecked(True);return
             compare=self.compare.isChecked()
             needs_rep=self.rep_points.isChecked() and kind in ('Violin plot','Box plot')
             frame_value=self.frame_choice.currentData()
@@ -352,7 +362,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
 
     def apply_figure_plan(self,plan,pairs):
         from bactomate.gui.spatial_sources import SpatialBatchWorker
-        if plan.goal in ('demograph','maxima','kymograph'):
+        if plan.goal in ('demograph','cell_heatmap','maxima','kymograph'):
             if not pairs:raise ValueError('No matching mask/channel images for this population.')
             if plan.goal=='kymograph' and (not plan.track_confirmed or len(pairs)!=1):
                 raise ValueError('Kymograph needs one XY and verified persistent cell/track identities.')
@@ -361,15 +371,16 @@ class GuidedAnalysisTab(FigureAnalysisTab):
                 raise ValueError('Saved filtered foci are missing for one or more XYs. Run Filtering → Filter File/Folder first, or choose brightest pixels.')
             options=dict(pixel_size=plan.pixel_size,method=plan.method,orientation=plan.orientation,sampling=plan.sampling,
                          use_foci=plan.goal=='maxima' and plan.maxima_profile=='focus',tracked_mask=plan.tracked_mask if plan.goal=='kymograph' else '',time_interval=plan.time_interval)
+            if plan.goal=='cell_heatmap':options.update(map_sampling='interpolated',map_bins=64,map_across=32)
             self.mark_dirty()
             self.guide_button.setEnabled(False)
             worker=SpatialBatchWorker(pairs,options,self.assignments,self);self.worker=worker
             worker.progress.connect(self.status.setText)
-            generation=self._figure_generation;root=self.context_root()
-            worker.ready.connect(lambda result:self.receive_spatial_result(result,plan)
-                if generation==self._figure_generation and root==self.context_root() else None)
+            worker.figure_generation=self._figure_generation
+            worker.context_root=self.context_root();worker.figure_plan=plan
+            worker.ready.connect(self.spatial_result_ready)
             worker.failed.connect(self.spatial_figure_failed)
-            worker.finished.connect(lambda:self.guide_button.setEnabled(True))
+            worker.finished.connect(self.spatial_figure_finished)
             worker.start()
         else:
             table=self.tables.get(plan.dataset)
@@ -379,28 +390,41 @@ class GuidedAnalysisTab(FigureAnalysisTab):
                 raise ValueError('Choose a per-cell foci count measurement, including cells with zero foci.')
             self.draw_figure_plan(table,plan,self.provenance)
 
+    @pyqtSlot(object)
+    def spatial_result_ready(self,result):
+        worker=self.sender()
+        if worker.figure_generation==self._figure_generation and worker.context_root==self.context_root():
+            self.receive_spatial_result(result,worker.figure_plan)
+
+    @pyqtSlot()
+    def spatial_figure_finished(self):
+        if self.sender() is self.worker:self.guide_button.setEnabled(True)
+
+    @pyqtSlot(str)
     def spatial_figure_failed(self,error):
+        worker=self.sender()
+        if worker is not None and (worker.figure_generation!=self._figure_generation or worker.context_root!=self.context_root()):return
         self.status.setText('Cannot build spatial figure: '+error)
         QMessageBox.warning(self,'Cannot build spatial figure',error)
 
     def receive_spatial_result(self,result,plan):
         self._spatial_tables={'Spatial profiles':result['profiles'],'Profile cell measurements':result['cells']}
         provenance=dict(root=str(self.context_root()),sources=result['sources'],
-                        normalization='Coordinates normalized per cell; outline schematic; no pole-age inference.',
-                        density='96×96 histogram, Gaussian sigma=2 bins, peak scaled to 1; density below 1% of peak transparent')
+                        normalization='Axial arc length, signed local half-width mapped to a reference capsule; no pole-age inference. Raw pixel coordinates and physical distances retained.',
+                        density='96×96 histogram, Gaussian sigma=2 bins, peak scaled to 1; kernel restricted to reference cell; density below 1% transparent')
         self.set_tables({**self.tables,**self._spatial_tables},provenance)
         try:self.draw_figure_plan(self.select_population(result['profiles'],plan),plan,provenance)
         except ValueError as exc:QMessageBox.warning(self,'Cannot draw spatial figure',str(exc))
 
     def draw_figure_plan(self,table,plan,provenance):
         from bactomate.modules.figure_analysis import FigureSpec
-        spatial=plan.goal in ('demograph','maxima','kymograph')
+        spatial=plan.goal in ('demograph','cell_heatmap','maxima','kymograph')
         needs_rep=not spatial and plan.replicate and plan.kind in ('Violin plot','Box plot')
         required=(['Condition'] if plan.compare and not spatial else [])+(['Replicate'] if needs_rep else [])
         if any(c not in table or table[c].fillna('').astype(str).str.strip().eq('').any() for c in required):
             raise ValueError('Fill in Conditions & replicates first, or turn off condition comparison / replicate means.')
         spec=FigureSpec(kind=plan.kind,title=plan.title or (plan.channel if spatial and plan.channel else plan.kind),
-                        cmap='inferno' if spatial else 'viridis')
+                        cmap=plan.palette if spatial else 'viridis',map_background=plan.map_background if spatial else 'white')
         if plan.goal=='kymograph':
             identity='track_id' if 'track_id' in table else 'cell_id'
             table=table[table[identity].eq(plan.track_id)]
@@ -408,7 +432,12 @@ class GuidedAnalysisTab(FigureAnalysisTab):
             spec.x='relative_position';spec.y='time_min' if 'time_min' in table else 'frame'
             spec.value='intensity';spec.group=identity;spec.track_confirmed=plan.track_confirmed;spec.normalization=plan.normalization
         elif plan.goal=='demograph':
-            spec.x='relative_position';spec.y='object_key';spec.value='intensity';spec.sort='length_um';spec.normalization=plan.normalization
+            spec.x='relative_position';spec.y='object_key';spec.value=plan.demograph_value
+            spec.sort='axis_length_um' if 'axis_length_um' in table else 'length_um'
+            spec.normalization=plan.normalization;spec.demograph_layout=plan.demograph_layout
+        elif plan.goal=='cell_heatmap':
+            spec.x='relative_width';spec.y='relative_position';spec.value='intensity'
+            spec.cell_map_shape='capsule';spec.normalization=plan.normalization
         elif plan.goal=='maxima':
             spec.x='relative_width';spec.y='relative_position';spec.value='intensity'
             spec.maxima_profile=plan.maxima_profile;spec.show_points=plan.show_points
@@ -438,6 +467,9 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.normalization.setCurrentText(spec.normalization);self.relative_position.setChecked(False)
         self.maxima_source.setCurrentIndex(self.maxima_source.findData(spec.maxima_profile))
         self.show_maxima_points.setChecked(spec.show_points)
+        self.demograph_layout.setCurrentIndex(self.demograph_layout.findData(spec.demograph_layout))
+        self.cell_map_shape.setCurrentIndex(self.cell_map_shape.findData(spec.cell_map_shape))
+        self.map_background.setCurrentText(spec.map_background)
         self._guided_replicate=spec.replicate;self._guided_title=None
         self.plot_table(table,spec,provenance)
         self.simple_export.setEnabled(True)

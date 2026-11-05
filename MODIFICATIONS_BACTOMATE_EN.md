@@ -166,13 +166,15 @@ Maxima map and Foci count. All compatible numeric metrics remain accessible.
 
 Spatial figures match project masks/channels automatically, preferring filtered
 masks and reporting unfiltered inputs. Calibration comes from image metadata or
-an explicit fallback. Principal-axis projection suits straight rods; medial-axis
-pixel skeletons follow curved rods and reject ambiguous axes. Raw coordinates
+an explicit fallback. Automatic cell shape chooses a straight axis or a curved
+centerline extended through the caps; explicit principal/medial modes remain.
+Ambiguous curved axes are rejected. Raw coordinates
 and metrics remain exportable. Geometric orientation does not determine pole age;
 explicit brighter-pole alignment places the brighter pole at left/top.
 
-Demographs use one row per cell observation, sort by length and display relative
-length 0–1. **24 longitudinal segments** are the default, not a change to neural
+The guided demograph defaults to length-scaled columns ordered by centerline
+length (VDemo envelope); equal-length normalized rows remain available. Colour
+can show fluorescence or local width in µm. **24 longitudinal segments** are the default, not a change to neural
 cell segmentation parameters. Optional **Native resolution → 24 positions**
 measures at approximately one-pixel spacing, then linearly resamples onto the
 common grid, holding the first/last measured means at the edges. Native values
@@ -183,7 +185,11 @@ empty bins remain missing rather than zero; min–max maps constant profiles to 
 A normalized maxima map distinguishes brightest raw pixel per cell from saved
 kept foci; its relative point density and schematic capsule are not fluorescence
 intensity or a measured average cell contour. Foci-count percentages use per-cell
-counts including zeros, not a foci-only denominator.
+counts including zeros, not a foci-only denominator. The guide also offers mean
+fluorescence on a normalized capsule, with black/white background, linear sampling
+within measured support and equal weighting of contributing cells. Curved-cell
+coordinates use local normals/half-widths; foci use local subpixel interpolation
+without a whole-cell affine fit. Raw and physical positions remain exportable.
 
 Kymographs require one XY/channel, at least two frames and a verified cell/track
 identity. The guide discovers tracked masks; ordinary segmentation labels require
@@ -334,3 +340,46 @@ source rows in the optional read-only window, table/session resets, unchanged
 plot settings during inspection, and a 1608 px Qt Segmentation preview with
 Filtering-identical outline pixels attached/detached. Model inference is stubbed
 for this display regression; native Mac/Windows visual verification remains local.
+
+
+## 17. Length-envelope demographs and curved-cell maps — 5 November 2026
+
+Figure guide defaults to length-scaled columns ordered by centerline length,
+preserving the centered length envelope (VDemo). Colour represents fluorescence
+or local mask width in µm. The normalized-row layout remains available. Default
+longitudinal sampling stays at 24 segments, with optional native sampling; new
+guided spatial figures use raw fluorescence by default.
+
+**Map fluorescence on a normalized cell** averages cells with equal weights on a
+capsule, using a 64 × 32 grid interpolated inside measured support. Background
+(black/white) and palette are editable. Missing values are not extrapolated or
+set to zero. Exports add `cell_coverage.csv` for contributor counts and
+`cell_order.csv` for demograph identities/lengths, plus corresponding Excel sheets.
+Large source/plot tables split over numbered Excel sheets; CSV remains complete.
+Python/R/MATLAB reproduction preserves backgrounds and contour/point overlays.
+Existing rectangular maps and all 13 figure types remain available.
+
+Automatic geometry chooses a straight axis for near-straight rods and a smoothed
+centerline through both caps for curved rods. Arc length and signed local
+normal/half-width coordinates map into a common capsule. Subpixel foci interpolate
+this nonlinear field locally, replacing a global affine fit: axial pole foci stay
+near the axis while real lateral offsets remain. Raw x/y and physical axial/
+normal distances are exportable. Existing ellipse metrics retain their meaning;
+spatial rows add axis length, local width and geometry version. Ambiguous curved/
+branched masks are refused for curation. This does not assign pole age or preserve
+all physical distances in the reference. Rebuild old spatial figures from masks/
+images with Automatic to apply it. Density masking outside the capsule changes
+the displayed kernel without relocating measured points.
+
+Figure options adds background and density resolution/smoothing. Analysis worker
+callbacks use Qt receiver slots, which disconnect when their receiver is destroyed;
+consecutive GUI tests exposed a former late-callback crash. See the
+[practical guide](docs/FIGURE_GUIDE.md).
+
+Final Linux validation: **655 passed, 5 skipped**, 18 warnings from two existing
+warning types. Tests include curved pole/true lateral foci, rotation, branched
+masks, missing profiles/raw-signal stripes, length envelopes, local width units,
+equal-cell means, backgrounds, guide loading, Python reproduction and Excel sheet
+splitting. Real validation masks: 114 cells processed (76 curved, 38 straight),
+with figures/exports inspected. Biological localization, native Mac/Windows and
+native R/MATLAB execution still require local validation.

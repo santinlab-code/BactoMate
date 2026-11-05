@@ -165,12 +165,15 @@ Foci count. Les métriques numériques compatibles restent accessibles.
 
 Les vues spatiales retrouvent masques/canaux du projet, préfèrent les masques
 filtrés et signalent les non filtrés. Calibration depuis les métadonnées ou valeur
-explicite. Principal axis convient aux bâtonnets droits ; Medial axis suit un
-squelette pixel de cellule courbe et refuse les axes ambigus. Coordonnées et
+explicite. Le mode automatique choisit un axe droit ou une ligne centrale courbe
+prolongée dans les pôles ; les modes Principal axis et Medial axis restent
+disponibles. Les axes courbes ambigus sont refusés. Coordonnées et
 métriques brutes restent exportables. L’orientation géométrique ne donne pas l’âge
 des pôles ; Bright pole place explicitement le plus lumineux à gauche/en haut.
 
-Démographe : une ligne par observation cellulaire, tri par longueur, axe 0–1.
+Le démographe guidé affiche par défaut des colonnes triées par longueur centrale,
+avec une enveloppe conservant les longueurs (VDemo). Les lignes normalisées 0–1
+restent disponibles. La couleur représente fluorescence ou largeur locale en µm.
 Défaut **24 segments longitudinaux**, sans changer les paramètres du réseau de
 segmentation cellulaire. Native resolution → 24 positions mesure à environ un
 pixel d’intervalle, puis interpole linéairement sur la grille commune ; les bords
@@ -182,6 +185,11 @@ Les bins directs vides restent manquants, pas zéro ; une cellule constante devi
 0 en min–max. Maxima map distingue pixel le plus brillant et foci conservés. Sa
 densité relative et sa capsule schématique ne mesurent pas l’intensité ni un contour
 moyen réel. Foci count utilise les cellules avec zéro focus dans le dénominateur.
+Le guide ajoute une moyenne de fluorescence sur capsule normalisée, avec fond
+noir/blanc, interpolation dans le support mesuré et poids égal par cellule
+contributrice. Les cellules courbes utilisent normale/largeur locales et les
+foci une interpolation subpixel locale, sans transformation affine globale.
+Coordonnées brutes et distances physiques restent exportables.
 
 Kymographe : un XY/canal, au moins deux frames, une identité cellulaire suivie et
 vérifiée. Le guide retrouve les masques Tracking ; des labels ordinaires exigent
@@ -333,3 +341,47 @@ en lecture seule, fermeture/remise à zéro de la table sans modifier les choix 
 figure, et contours identiques à Filtering sur un aperçu Qt de 1608 px, attaché
 et détaché. L’inférence est simulée pour ce test d’affichage ; la vérification
 visuelle native Mac/Windows reste locale.
+
+
+## 17. Démographes VDemo et cartes des cellules courbes — 5 novembre 2026
+
+Figure guide propose des colonnes triées par longueur centrale, avec une enveloppe
+centrée conservant les différences de longueur (VDemo). La couleur représente la
+fluorescence ou la largeur locale du masque en µm. Les lignes normalisées restent
+disponibles. Le défaut reste à 24 segments, avec option native ; les nouvelles
+figures spatiales guidées proposent la fluorescence brute par défaut.
+
+**Map fluorescence on a normalized cell** moyenne les cellules à poids égal sur
+une capsule, avec une grille interpolée de 64 × 32 dans le support mesuré. Fond
+noir/blanc et palette sont réglables. Aucun remplissage à zéro ni extrapolation.
+`cell_coverage.csv` et Excel donnent les nombres de cellules contributrices ;
+`cell_order.csv` donne ordre et longueurs du démographe. Les grandes tables sont
+réparties sur des feuilles Excel numérotées ; le CSV reste complet. Les scripts
+Python/R/MATLAB conservent fond et superposition des contours/points. Cartes
+rectangulaires et 13 types de figures restent disponibles dans le mode avancé.
+
+Le mode automatique suit un axe droit pour les cellules quasi droites et une
+ligne centrale courbe prolongée dans les pôles pour les autres. Longueur d’arc,
+normale et demi-largeur locales servent à la normalisation sur capsule. Les foci
+subpixel utilisent une interpolation locale plutôt qu’une transformation affine
+globale : les points axiaux des pôles restent près de l’axe, ceux réellement
+latéraux gardent leur décalage. X/y bruts et distances axiales/normales physiques
+restent exportables. Les métriques d’ellipse ne changent pas ; les profils ajoutent
+longueur centrale, largeur locale et version géométrique. Les masques courbes
+ambigus/branchés sont refusés pour correction. Cela n’identifie pas l’âge des pôles
+et ne conserve pas toutes les distances physiques dans le schéma. Recréer les
+anciennes figures spatiales depuis masques/images avec Automatic. Le masquage de
+densité hors capsule modifie le noyau affiché sans déplacer les points mesurés.
+
+Figure options ajoute fond et résolution/lissage de densité. Les rappels des
+calculs utilisent des slots Qt déconnectés à la destruction du récepteur ; des
+tests successifs avaient exposé un crash de rappel tardif. Voir le
+[guide pratique anglais](docs/FIGURE_GUIDE.md).
+
+Validation Linux finale : **655 réussis, 5 ignorés**, 18 avertissements de deux
+types préexistants. Tests : foci axiaux/latéraux sur cellule courbe, rotation,
+masques branchés, profils/signal manquants, enveloppes, largeur locale, moyennes
+à poids cellulaire égal, fonds, guide, reproduction Python et feuilles Excel.
+Masques réels de validation : 114 cellules traitées (76 courbes, 38 droites), avec
+figures/exports inspectés. La localisation biologique, Mac/Windows natifs et
+l’exécution native R/MATLAB restent à valider localement.

@@ -67,9 +67,14 @@ class FigureAnalysisTab(QWidget):
         self.confirm=QCheckBox('Track IDs verified across frames')
         self.confirm.setToolTip('Check only after verifying that these IDs refer to the same cells across frames.')
         self.calibration=QDoubleSpinBox(); self.calibration.setDecimals(6); self.calibration.setRange(.000001,1000); self.calibration.setValue(.108)
-        self.method=QComboBox(); self.method.addItems(['medial axis','principal axis'])
+        self.method=QComboBox(); self.method.addItems(['auto','medial axis','principal axis'])
         self.sampling=QComboBox();self.sampling.addItem('24 segments','fixed');self.sampling.addItem('Native → 24 positions','native')
         self.orientation=QComboBox(); self.orientation.addItems(['geometric','bright pole'])
+        self.demograph_layout=QComboBox()
+        self.demograph_layout.addItem('Length-scaled columns (VDemo)','length-scaled columns')
+        self.demograph_layout.addItem('Normalized rows','normalized rows')
+        self.cell_map_shape=QComboBox();self.cell_map_shape.addItem('Reference cell','capsule');self.cell_map_shape.addItem('Rectangular matrix','rectangle')
+        self.map_background=QComboBox();self.map_background.addItems(['white','black'])
         from bactomate.gui.analysis_workspace import AnalysisCards, AnalysisDataWindow, settings_group
         self.advanced_controls=AnalysisCards()
         groups=[
@@ -80,7 +85,7 @@ class FigureAnalysisTab(QWidget):
                 ('Minimum X',self.minimum),('Maximum X',self.maximum)], 'Exact-value and numeric limits select the observations used to draw the figure. Source tables are not edited.'),
             ('Appearance', [('Histogram bins',self.bins),('Color map',self.cmap),('Map intensity',self.normalization),('',self.relative_position)],
                 'Raw intensity keeps the measured values. Per-cell max divides each profile by its maximum; per-cell min-max maps its minimum to 0 and maximum to 1. Missing bins stay missing.'),
-            ('Spatial maps and time', [('Maxima source',self.maxima_source),('',self.show_maxima_points),('',self.confirm)],
+            ('Spatial maps and time', [('Demograph layout',self.demograph_layout),('Cell-map shape',self.cell_map_shape),('Background',self.map_background),('Maxima source',self.maxima_source),('',self.show_maxima_points),('',self.confirm)],
                 'Kymograph: choose position for X, frame/time for Y, intensity for Value and a verified track ID for Group; filter to one track and source/XY. Normalized cell heatmaps give each occupied cell bin equal weight; counts can differ between bins.'),
             ('Extract cell profiles', [('Calibration (µm / px)',self.calibration),('Profile coordinates',self.method),
                 ('Profile sampling',self.sampling),('Profile orientation',self.orientation)],
@@ -178,6 +183,9 @@ class FigureAnalysisTab(QWidget):
         kind=self.kind.currentText()
         if kind in ('Demograph','Kymograph','Normalized cell heatmap'):
             defaults=dict(x='position',value='intensity',y='object_key' if kind=='Demograph' else ('frame' if kind=='Kymograph' else 'transverse'),sort='length_um' if kind=='Demograph' else '',group='cell_id' if kind=='Kymograph' else '')
+        if kind=='Normalized cell heatmap' and {'relative_width','relative_position'}.issubset(table):
+            defaults=dict(x='relative_width',y='relative_position',value='intensity',sort='',group='')
+        if kind=='Demograph' and 'axis_length_um' in table:defaults['sort']='axis_length_um'
         if kind=='Maxima map':defaults=dict(x='relative_width',y='relative_position',value='intensity',group='',sort='')
         for key,value in defaults.items():
             if value in table.columns or not value:self.fields[key].setCurrentText(value)
@@ -203,7 +211,8 @@ class FigureAnalysisTab(QWidget):
                 filter_value=self.filter_value.text(),minimum=float(self.minimum.text()) if self.minimum.text().strip() else None,
                 maximum=float(self.maximum.text()) if self.maximum.text().strip() else None,bins=self.bins.value(),
                 title=getattr(self,'_guided_title',None) or self.title.text(),cmap=self.cmap.currentText(),track_confirmed=self.confirm.isChecked(),normalization=self.normalization.currentText(),replicate=getattr(self,'_guided_replicate',''),relative_position=self.relative_position.isChecked(),
-                maxima_profile=self.maxima_source.currentData(),show_points=self.show_maxima_points.isChecked())
+                maxima_profile=self.maxima_source.currentData(),show_points=self.show_maxima_points.isChecked(),
+                demograph_layout=self.demograph_layout.currentData(),cell_map_shape=self.cell_map_shape.currentData(),map_background=self.map_background.currentText())
             self.plot_table(table,spec,self.provenance)
         except Exception as exc:
             self.mark_dirty(); QMessageBox.warning(self,'Cannot draw figure',str(exc))

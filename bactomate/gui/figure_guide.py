@@ -10,11 +10,12 @@ GOALS={
     'Compare a cell measurement':'distribution',
     'Relate two measurements':'relationship',
     'See fluorescence along cells (demograph)':'demograph',
+    'Map fluorescence on a normalized cell':'cell_heatmap',
     'Locate maxima on a normalized cell':'maxima',
     'Count foci per cell':'counts',
     'Follow one cell through a time-lapse (kymograph)':'kymograph',
 }
-SPATIAL_GOALS={'demograph','maxima','kymograph'}
+SPATIAL_GOALS={'demograph','cell_heatmap','maxima','kymograph'}
 
 
 @dataclass
@@ -33,7 +34,7 @@ class FigurePlan:
     maxima_profile:str='maximum'
     show_points:bool=True
     pixel_size:float=0.0
-    method:str='principal axis'
+    method:str='auto'
     compare:bool=True
     replicate:bool=True
     title:str=''
@@ -43,6 +44,10 @@ class FigurePlan:
     time_interval:float=0.
     figure_options:dict=field(default_factory=dict)
     sampling:str='fixed'
+    demograph_layout:str='length-scaled columns'
+    demograph_value:str='intensity'
+    map_background:str='white'
+    palette:str='inferno'
 
 
 class GuidePage(QWizardPage):
@@ -106,7 +111,16 @@ class FigureGuide(QWizard):
         self.normalization=QComboBox()
         for text,value in [('Keep absolute fluorescence','raw'),('Scale each cell to its maximum','per-cell max'),('Scale each cell from 0 to 1','per-cell min-max')]:self.normalization.addItem(text,value)
         look.form.addRow('Intensity',self.normalization)
-        self.method=QComboBox();self.method.addItem('Straight rods — principal axis','principal axis')
+        self.demograph_layout=QComboBox()
+        self.demograph_layout.addItem('Length-scaled columns — cells ordered by length (VDemo)','length-scaled columns')
+        self.demograph_layout.addItem('Normalized rows — each cell has equal displayed length','normalized rows')
+        look.form.addRow('Demograph layout',self.demograph_layout)
+        self.demograph_value=QComboBox();self.demograph_value.addItem('Fluorescence intensity','intensity')
+        self.demograph_value.addItem('Local cell width (µm)','local_width_um');look.form.addRow('Demograph colour measures',self.demograph_value)
+        self.background=QComboBox();self.background.addItems(['white','black']);look.form.addRow('Background',self.background)
+        self.palette=QComboBox();self.palette.addItems(['inferno','turbo','magma','viridis','plasma','cividis','gray']);look.form.addRow('Colour map',self.palette)
+        self.method=QComboBox();self.method.addItem('Automatic — follow curved cells','auto')
+        self.method.addItem('Straight rods — principal axis','principal axis')
         self.method.addItem('Curved rods — medial axis','medial axis');look.form.addRow('Cell shape',self.method)
         self.sampling=QComboBox();self.sampling.addItem('24 segments (direct measurements)','fixed')
         self.sampling.addItem('Native resolution → 24 positions','native');look.form.addRow('Profile sampling',self.sampling)
@@ -125,6 +139,7 @@ class FigureGuide(QWizard):
         self.review=QLabel();self.review.setWordWrap(True);self.review.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         review.form.addRow(self.review);self.addPage(review)
         self.goal.currentIndexChanged.connect(self.update_description)
+        self.demograph_value.currentIndexChanged.connect(self.update_intensity_controls)
         self.dataset.currentTextChanged.connect(self.update_metrics)
         self.sample.currentIndexChanged.connect(self.update_tracking_choices)
         self.update_metrics();self.update_description()
@@ -141,6 +156,9 @@ class FigureGuide(QWizard):
             else:self.frame.setEditText(str(previous.frame))
             self.orientation.setCurrentIndex(self.orientation.findData(previous.orientation))
             self.method.setCurrentIndex(self.method.findData(previous.method))
+            self.demograph_layout.setCurrentIndex(self.demograph_layout.findData(previous.demograph_layout))
+            self.demograph_value.setCurrentIndex(self.demograph_value.findData(previous.demograph_value))
+            self.background.setCurrentText(previous.map_background);self.palette.setCurrentText(previous.palette)
             self.sampling.setCurrentIndex(self.sampling.findData(previous.sampling))
             self.maxima.setCurrentIndex(self.maxima.findData(previous.maxima_profile))
             self.pixel_size.setValue(previous.pixel_size);self.points.setChecked(previous.show_points)
@@ -166,11 +184,18 @@ class FigureGuide(QWizard):
         self.description.setText({
             'distribution':'Compare cell areas, lengths or intensities. Recommended: a violin plot with one point per replicate mean.',
             'relationship':'Check whether two measurements vary together. Recommended: a scatter plot.',
-            'demograph':'One row per cell, sorted by length. X runs from one pole (0) to the other (1); colour shows fluorescence.',
+            'demograph':'Order cells by their measured length, keeping their length envelope. Colour shows fluorescence or local cell width. Normalized-row layout is also available.',
+            'cell_heatmap':'Average fluorescence on a straight reference cell. Curved cells are straightened along their own axes; choose one condition and a black or white background.',
             'maxima':'Place brightest pixels or kept foci on a normalized reference cell. Show individual points and relative density.',
             'kymograph':'Follow fluorescence along one cell across frames. Requires one XY and verified persistent cell/track identities. Saved tracking masks are detected automatically.',
             'counts':'Show the percentage of cells with 0, 1, 2… foci. Uses the per-cell table so cells without foci are included.'
         }[self.goal.currentData()])
+        self.update_intensity_controls()
+
+    def update_intensity_controls(self):
+        width=self.goal.currentData()=='demograph' and self.demograph_value.currentData()=='local_width_um'
+        self.normalization.setEnabled(not width)
+        self.normalization.setToolTip('Local cell width stays in raw µm.' if width else '')
 
     def update_tracking_choices(self):
         old=self.tracked.currentData();self.tracked.clear()
@@ -215,28 +240,35 @@ class FigureGuide(QWizard):
             self.data_note.setText(f'{len(self.sources)} matching image/channel pairs found. Filtered masks are preferred. Calibration uses image metadata first.' if spatial else 'Use a per-cell table for cell distributions and foci counts. Conditions and replicates are set above the main figure view.')
         if step==2:
             options={'distribution':['Violin plot','Box plot','Histogram','ECDF'],'relationship':['Scatter','Mean curve'],
-                     'demograph':['Demograph'],'maxima':['Maxima map'],'counts':['Foci count'],'kymograph':['Kymograph']}[goal]
+                     'demograph':['Demograph'],'cell_heatmap':['Normalized cell heatmap'],'maxima':['Maxima map'],'counts':['Foci count'],'kymograph':['Kymograph']}[goal]
             if goal!=getattr(self,'_appearance_goal',None):
                 self.style.clear();self.style.addItems(options)
-                self.normalization.setCurrentIndex(1 if goal=='demograph' else 0)
+                self.normalization.setCurrentIndex(0)
+                self.background.setCurrentText('black' if goal=='cell_heatmap' else 'white')
+                self.palette.setCurrentText('turbo' if goal=='cell_heatmap' else 'inferno')
                 if self._previous_plan is not None and self._previous_plan.goal==goal:
                     self.style.setCurrentText(self._previous_plan.kind)
                     self.normalization.setCurrentIndex(self.normalization.findData(self._previous_plan.normalization))
+                    self.background.setCurrentText(self._previous_plan.map_background)
+                    self.palette.setCurrentText(self._previous_plan.palette)
                 self._appearance_goal=goal
             for widget in (self.orientation,self.method,self.sampling):self._visible(self.look_page,widget,spatial)
-            self._visible(self.look_page,self.normalization,goal in ('demograph','kymograph'))
+            self._visible(self.look_page,self.normalization,goal in ('demograph','cell_heatmap','kymograph'))
+            for widget in (self.demograph_layout,self.demograph_value):self._visible(self.look_page,widget,goal=='demograph')
+            for widget in (self.background,self.palette):self._visible(self.look_page,widget,spatial)
             self._visible(self.look_page,self.maxima,goal=='maxima');self.points.setVisible(goal=='maxima')
             self.compare.setVisible(not spatial);self.replicate.setVisible(goal=='distribution')
             note={
-                'demograph':'Each row is one cell. Per-cell scaling highlights localization patterns. Brighter-pole alignment changes the population pattern and does not identify old/new poles.',
+                'demograph':'In length-scaled columns, X is cell rank (short to long), and Y is axial distance divided by half the longest cell length. Cells keep their relative length envelope. Pole 0 is at the top. Local widths remain in µm.',
+                'cell_heatmap':'Each cell contributes equally to each measured grid bin. Linear interpolation stays within measured pixel support; missing regions are not set to zero. The background changes only the display. Draw one condition at a time for separate comparable panels.',
                 'kymograph':'Each row is a time point for the selected cell. Check tracking first. Geometric orientation does not establish pole identity when a cell rotates.',
-                'maxima':'Colour shows relative point density (peak = 1). The outline is a schematic reference cell. Brightest pixels and detected foci are separate measurements; neither identifies pole age.'
+                'maxima':'Automatic coordinates follow curved axes to the poles. Axial arc length and signed fraction of local width map to the reference cell; truly off-axis foci stay off-axis. Colour is relative point density, not fluorescence. Neither orientation identifies pole age.'
             }.get(goal,'Cells form each distribution. Replicate means are descriptive points; no significance test is inferred.')
             self.look_note.setText(note)
         if step==3:
             plan=self.plan();pairs=self.selected_pairs()
             self.review.setText(f'Figure: {plan.kind}\nPopulation: {plan.condition or "all conditions"}\nFrame: {plan.frame if plan.frame is not None else "all (repeated observations)"}\n'+
-                (f'Channel: {plan.channel}\nXYs: {len(pairs)}\nUnfiltered masks: {sum(not p["filtered"] for p in pairs)}\nOrientation: {plan.orientation}\nCell coordinates: {plan.method}\nCell / track ID: {plan.track_id if plan.goal=="kymograph" else "not used"}\nMaxima: {plan.maxima_profile}\nIntensity: {plan.normalization}\nProfiles will be calculated from the existing masks and images.\n' if spatial else f'Data: {plan.dataset}\nMeasurement: {plan.metric}\nCompare conditions: {plan.compare}\nReplicate means: {plan.replicate}\n')+
+                (f'Channel: {plan.channel}\nXYs: {len(pairs)}\nUnfiltered masks: {sum(not p["filtered"] for p in pairs)}\nOrientation: {plan.orientation}\nCell coordinates: {plan.method}\nCell / track ID: {plan.track_id if plan.goal=="kymograph" else "not used"}\nMaxima: {plan.maxima_profile}\nIntensity: {plan.normalization}\nDemograph: {plan.demograph_layout}; {plan.demograph_value}\nBackground: {plan.map_background}\nProfiles will be calculated from the existing masks and images.\n' if spatial else f'Data: {plan.dataset}\nMeasurement: {plan.metric}\nCompare conditions: {plan.compare}\nReplicate means: {plan.replicate}\n')+
                 '\nOutput: square figure + source rows + plot data + Python / R / MATLAB code.')
 
     def selected_pairs(self):
@@ -246,6 +278,7 @@ class FigureGuide(QWizard):
 
     def plan(self):
         options=dict(self._previous_plan.figure_options) if self._previous_plan and self._previous_plan.goal==self.goal.currentData() else {}
+        for key in ('cmap','map_background','demograph_layout','cell_map_shape'):options.pop(key,None)
         if self._previous_plan and (self.metric.currentText()!=self._previous_plan.metric or self.other.currentText()!=self._previous_plan.second_metric):
             options.pop('xlabel',None);options.pop('ylabel',None)
         text=self.frame.currentText().strip()
@@ -253,9 +286,10 @@ class FigureGuide(QWizard):
         return FigurePlan(goal=self.goal.currentData(),kind=self.style.currentText(),dataset=self.dataset.currentText(),
             metric=self.metric.currentText(),second_metric=self.other.currentText(),condition=self.condition.currentData(),
             frame=frame,channel=self.channel.currentText(),source_id=self.sample.currentData(),
-            normalization=self.normalization.currentData(),orientation=self.orientation.currentData(),
+            normalization=('raw' if self.goal.currentData()=='demograph' and self.demograph_value.currentData()=='local_width_um' else self.normalization.currentData()),orientation=self.orientation.currentData(),
             maxima_profile=self.maxima.currentData(),show_points=self.points.isChecked(),pixel_size=self.pixel_size.value(),
-            method=self.method.currentData(),track_id=self.track_id.value(),track_confirmed=self.track_confirmed.isChecked(),tracked_mask=self.tracked.currentData() or '',time_interval=self.time_interval.value(),sampling=self.sampling.currentData(),figure_options=options,compare=self.compare.isChecked(),replicate=self.replicate.isChecked(),title=self.title.text().strip())
+            method=self.method.currentData(),track_id=self.track_id.value(),track_confirmed=self.track_confirmed.isChecked(),tracked_mask=self.tracked.currentData() or '',time_interval=self.time_interval.value(),sampling=self.sampling.currentData(),figure_options=options,compare=self.compare.isChecked(),replicate=self.replicate.isChecked(),title=self.title.text().strip(),
+            demograph_layout=self.demograph_layout.currentData(),demograph_value=self.demograph_value.currentData(),map_background=self.background.currentText(),palette=self.palette.currentText())
 
     def validate_step(self,step):
         from PyQt6.QtWidgets import QMessageBox

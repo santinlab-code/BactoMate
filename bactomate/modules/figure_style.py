@@ -10,6 +10,7 @@ def ordered_groups(plot,spec):
 
 
 def apply_style(figure,ax,spec):
+    ax.set_facecolor(spec.map_background)
     if not spec.show_title:ax.set_title('')
     if spec.xlabel:ax.set_xlabel(spec.xlabel)
     if spec.ylabel:ax.set_ylabel(spec.ylabel)

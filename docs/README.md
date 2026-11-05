@@ -27,7 +27,7 @@ Only the testing guide and consolidated change summary also have French editions
 | [Filtering review and outputs](FILTERING_REVIEW.md) | Batch selection, saved results and duplicate-file audit |
 | [Foci distance preview](FOCI_DISTANCE_PREVIEW.md) | Pairing, colocalization, display and navigation |
 | [Simple Analysis](NEW_ANALYSIS.md) | Automatic data loading, conditions and replicates |
-| [Figure guide](FIGURE_GUIDE.md) | Step-by-step figures, intensity choices and figure windows |
+| [Figure guide](FIGURE_GUIDE.md) | Length-envelope demographs, normalized fluorescence/foci maps, curved-cell coordinates and step-by-step figures |
 | [Analysis methods and exports](ANALYSIS.md) | All 13 figure types, coordinates, sampling and code reproduction |
 
 **Analyze** in the Segmentation workflow computes measurements. The separate

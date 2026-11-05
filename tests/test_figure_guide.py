@@ -63,6 +63,8 @@ def test_guide_demograph_from_project_images(project_window,qapp,tmp_path):
     assert guide.sources[0]['filtered']
     guide.condition.setCurrentIndex(guide.condition.findData('X'))
     guide.next();assert guide.currentId()==2
+    guide.demograph_layout.setCurrentIndex(guide.demograph_layout.findData('normalized rows'))
+    guide.normalization.setCurrentIndex(guide.normalization.findData('per-cell max'))
     guide.orientation.setCurrentIndex(guide.orientation.findData('bright pole'))
     guide.next();assert guide.currentId()==3
     assert 'XYs: 1' in guide.review.text()

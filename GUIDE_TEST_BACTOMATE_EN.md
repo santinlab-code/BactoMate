@@ -160,8 +160,9 @@ condition, not one replicate per XY. Check the exported Replicates sheet/CSV.
 ## 10. Figure guide, spatial plots and kymographs
 
 Follow Question → Population → Appearance → Review/draw. Draw a demograph for
-one channel/condition/frame. Check retained population, length sorting and 0–1
-relative length. Default sampling is 24 longitudinal segments. Compare raw,
+one channel/condition/frame. Check the length-scaled column envelope and the
+alternative normalized-row layout with 0–1 relative length. Default sampling is
+24 longitudinal segments. Compare raw,
 per-cell max and min–max intensity; direct missing bins must not masquerade as
 zero fluorescence. Native sampling should also export `native_profiles.csv`.
 
@@ -260,3 +261,38 @@ shown. **Show data table** opens a read-only window with all source rows. Check
 rows beyond 100, change its inspected table without changing plotting choices,
 close/uncheck/reopen it, and reset the session. Figure windows, guide editing,
 exports and automatic result loading must remain functional.
+
+
+## 17. VDemo envelopes and curved-cell maps — 5 November 2026
+
+From Figure guide choose demograph, channel and retained population. Keep
+Automatic cell shape and length-scaled columns: short cells must precede long
+cells, centered at zero, with an increasing length envelope. Y is axial distance
+divided by half the longest length. Compare fluorescence with Local cell width
+(µm); width stays in physical units even after a previous intensity normalization.
+Test normalized rows and native sampling. Check `cell_order.csv` against matrix
+columns. Missing measured bins must remain missing.
+
+Choose Map fluorescence on a normalized cell. Compare black/white backgrounds,
+palettes, raw/per-cell scaling and separately selected conditions. Expect a capsule
+mean with equal contributing-cell weights and no extrapolation beyond measured
+support. Check `cell_coverage.csv`, CSV/XLSX, background and contour layers after
+Python reproduction. Large tables must split into numbered Excel sheets without
+lost rows; CSV remains complete.
+
+Use a curved vibrioid mask with known pole foci, an axial body focus and a real
+lateral focus. Compare Principal axis with Automatic: pole/axial points should
+remain near the local axis while the lateral focus stays offset. Check raw x/y
+and physical normal distance in exports. Rotate input by 90°: absolute lateral
+offset and distance to the nearer pole should agree within pixel-method precision.
+Branched curved masks must report an error instead of invented coordinates.
+Check density smoothing/resolution, points and backgrounds. Rebuild older spatial
+figures from masks/images to apply corrected coordinates. Repeat drawing/editing/
+closing figures and changing projects during extraction: stale results must not
+affect another project or a destroyed Analysis receiver.
+
+Final automated Linux suite: **655 passed, 5 skipped**, 18 warnings from two
+existing warning types. Spatial checks include synthetic ground-truth pole/
+lateral positions and real 114-cell mask extraction with inspected figures and
+exports. Native Mac/Windows and R/MATLAB execution remain local acceptance tests;
+software checks do not validate biological pole identity or localization accuracy.

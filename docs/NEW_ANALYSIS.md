@@ -60,7 +60,22 @@ evolution, rather than interpreting pooled demograph rows as time.
 **Figure guide…** asks what you want to show, which population/channel to use,
 how to display it and what will be drawn. It can find the masks/images already
 in the project for spatial plots. Follow the [recipes](FIGURE_GUIDE.md) for
-Demograph, Maxima map, Foci count and Kymograph.
+Demograph, normalized fluorescence heatmap, Maxima map, Foci count and Kymograph.
+
+For a VDemo-style demograph, choose **See fluorescence along cells**, then channel
+and population. Appearance defaults to length-scaled columns, raw fluorescence
+and automatic curved-cell coordinates. Each column retains its measured length;
+the alternative local-width colour quantity uses µm. The previous equal-length
+row layout is still a choice.
+
+For a population fluorescence map, choose **Map fluorescence on a normalized
+cell**. The guide straightens each cell onto a common capsule and averages its
+signal with equal cell weights. Choose black/white background and a palette.
+Use automatic cell shape for vibrioid cells: both fluorescence and foci follow
+the curved centerline through the caps, preserving genuine lateral offsets.
+To apply the new geometry, rebuild older spatial figures from their masks/images
+with the guide. Export includes cell order/length or contributor counts as
+appropriate. See the [methods and limitations](ANALYSIS.md#profile-extraction).
 
 **Advanced / MicrobeJ-style controls** keeps all 13 plot types, manual imports,
 free axes/groups, exact filters and profile extraction. It is a BactoMate workflow

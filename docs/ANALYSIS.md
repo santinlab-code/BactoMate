@@ -42,7 +42,7 @@ Conditions/replicates assignments are saved separately in analysis_groups.json.
 | Violin plot | X metric; Matplotlib KDE per group, constant groups shown as points |
 | ECDF | X metric; sorted observations and cumulative fraction per group |
 | Correlation | Numeric columns; pairwise Pearson with at least 3 paired observations |
-| Demograph | Longitudinal position, object key, intensity; rows sorted by a cell metric |
+| Demograph | Ordered length-scaled cell columns (guide default) or equal-length normalized rows; fluorescence or local width |
 | Kymograph | Longitudinal position, time/frame, intensity; one verified identity/source |
 | Normalized cell heatmap | Longitudinal/transverse positions and intensity; mean across occupied cell bins |
 | Heatmap | Numeric X/Y and Value; mean per coordinate pair |
@@ -72,10 +72,23 @@ position/transverse on −1…1, relative_position on 0…1 and relative_width o
 and calibrated cell metrics preserve provenance. Equivalent-ellipse length/width
 in Cells are distinct from the centerline distance used for curved coordinates.
 
-**Principal axis** projects mask pixels onto a straight PCA axis; it does not
-straighten curved cells. **Medial axis** uses a pixel skeleton and nearest-centerline
-projection with cumulative distance, rejecting branched/cyclic/too-short ambiguous
-axes. These are pixel methods, not MicrobeJ subpixel contours.
+**Automatic — follow curved cells** is the extraction default. It tests a smoothed
+pixel skeleton for curvature (arc/chord ratio above 1.015 and maximum deviation
+above 0.75 px). Near-straight cells use PCA; curved cells use the medial axis.
+Endpoints are extended through the measured caps. Projection onto continuous
+centerline segments gives arc length and signed local-normal distance. Bilinear
+mask sampling estimates each side's half-width; lateral coordinates divide by
+that half-width and map into a fixed reference capsule (caps span one-sixth of
+relative length). Raster overshoot is bounded at the local boundary. These are
+pixel-derived methods, not MicrobeJ's subpixel contour model.
+
+Explicit **Principal axis** and **Medial axis** remain available. PCA projects
+onto a straight axis and cannot correct a curved cell. Branched/cyclic/disconnected
+medial axes are rejected; automatic mode permits straight-axis fallback only for
+near-convex masks (solidity ≥0.9). Inspect masks when geometry is ambiguous.
+`axis_length_um` is centerline length; `local_width_um` is width across the local
+normal. Existing `length_um`/`width_um` retain equivalent-ellipse semantics.
+Exports record requested/actual methods and `geometry_version`.
 
 **Geometric** orientation is deterministic from image coordinates and does not
 identify pole age. **Bright pole** compares mean signals in terminal quarters and
@@ -93,8 +106,13 @@ linearly interpolates their measured means onto 24 common positions. The first/
 last measured means extend to edge positions. This makes rows comparable on a
 common grid but adds no optical information. Rows distinguish `native measured`
 from `native resampled`; resampled values have no fabricated pixel_count. The
-bundle includes `native_profiles.csv` for that path. Two-dimensional cell maps
-remain separately measured bins (24 longitudinal × 16 transverse by default).
+bundle includes `native_profiles.csv` for that path. Advanced two-dimensional
+maps retain measured bins (24 longitudinal × 16 transverse by default). The new
+guided capsule heatmap instead uses a 64 × 32 display grid interpolated linearly
+inside measured support, with no extrapolation. Source NaNs remain part of the
+interpolation support; missing signal is not silently bridged by deleting them.
+Rows record sampling mode and grid dimensions. Native longitudinal sampling does
+not change how these 2D maps are sampled.
 
 ### Intensity normalization and missing values
 
@@ -108,18 +126,40 @@ strip as signal: empty bins are missing, while a bright colour can be near-white
 
 ### Spatial aggregation and identities
 
-Demograph sorts cell-observation rows stably by the selected metric, typically
-length_um. The guide displays relative length 0–1. A 2D normalized cell heatmap
-averages occupied per-cell bins equally; different positions can have different
-numbers of contributing cells. It is distinct from a point-density maxima map.
+The guide defaults to a VDemo-style demograph: one centered cell profile per
+column, sorted stably by `axis_length_um`, preserving each cell's length relative
+to the longest cell. Y is centered axial distance divided by half the longest
+length; X is cell rank. Fluorescence defaults to raw units, with optional per-cell
+normalization. Local mask width in µm is an alternative colour quantity and must
+stay unnormalized. Display repeats each measured longitudinal bin over its extent;
+missing bins remain missing. `cell_order.csv` records identities, order and lengths.
+The earlier normalized-row layout remains available, including arbitrary sort
+metrics. The programmatic FigureSpec default retains that legacy layout.
+
+A 2D normalized cell heatmap averages per-cell positions equally; different
+positions can have different contributor counts. The guide uses a straight
+reference capsule and black background, editable to white. Advanced controls also
+retain rectangular maps; the FigureSpec API retains its rectangular default.
+`cell_coverage.csv` reports contributing-cell counts per position. Both maps are
+distinct from a point-density maxima map. Missing regions show the selected
+background and must not be interpreted as measured zero fluorescence.
 
 Maxima map offers one raw brightest pixel per cell (first row-major pixel for ties)
 or kept detections from saved Filtering foci data. Foci must belong to retained
-masks. Principal-axis focus positions can preserve subpixel projection;
-medial-axis positions use the nearest measured pixel. Source x/y are retained.
-The capsule is schematic; points are not forced inside it. Density uses a 96 × 96
-histogram, Gaussian σ=2 bins, normalized to peak 1 with values below 1% transparent;
-it is not fluorescence or a probability density normalized to integral 1.
+masks. Subpixel focus coordinates use local bilinear interpolation of the
+nonlinear per-pixel coordinates, replacing a global affine fit that displaced
+pole foci on curved cells. Source x/y, axial µm and signed normal-distance µm are
+retained. Relative coordinates use the same local-width capsule mapping as the
+fluorescence map; this is a schematic reference, not a distance-preserving rigid
+transform. Density defaults to a 96 × 96 histogram, Gaussian σ=2 bins, normalized
+to peak 1 with values below 1% transparent. Its kernel is masked outside the
+reference capsule without relocating points. Resolution, smoothing, points,
+palette and black/white background are editable. Density is not fluorescence or
+a probability density normalized to integral 1. No pole age is inferred.
+
+Re-extract old spatial figures with the guide's automatic method to apply the
+new geometry. Existing exported coordinates do not contain enough information
+to repair curvature without the original masks and images.
 
 Kymograph requires one source/XY, one verified track-ID group and at least two
 time points. The guide can find Tracking masks, filters the chosen ID and
@@ -131,8 +171,8 @@ orientation can still change during rotation and needs review.
 
 | Figure | X | Y | Value | Other |
 | --- | --- | --- | --- | --- |
-| Demograph | position | object_key | intensity | Sort length_um; relative-position option for 0–1 |
-| Normalized cell heatmap | position | transverse | intensity | Filter the intended frame/population |
+| Demograph | relative_position | object_key | intensity / local_width_um | Sort axis_length_um; choose length-scaled columns or normalized rows |
+| Normalized cell heatmap | relative_width | relative_position | intensity | Capsule or rectangle; filter intended population |
 | Kymograph | position | frame/time | intensity | Group verified track ID; filter one ID and source; confirm continuity |
 | Maxima map | relative_width | relative_position | — | Select maximum/focus source |
 | Foci count | per-cell count column | — | — | Group condition; include zero-focus cells |
@@ -151,7 +191,9 @@ The export works on an off-screen copy and does not resize the visible canvas.
 | figure.pdf / figure.svg | Default rendered figure; square 15.24 cm page unless changed |
 | source_rows.csv | Rows actually used after selection/normalization |
 | plot_data.csv | Aggregated values or plotted matrix, retaining missing positions |
-| figure_data.xlsx | Source rows and Plot data sheets; Replicates sheet when applicable |
+| figure_data.xlsx | Source rows and Plot data, split into numbered sheets if needed; Replicates, Cell order and Cell coverage when applicable |
+| cell_order.csv | Ordered object identities and measured lengths for length-envelope demographs |
+| cell_coverage.csv | Contributing-cell count at each normalized fluorescence-map coordinate |
 | replicate_summary.csv | Counts/means/SD for box/violin replicate groups when used |
 | native_profiles.csv | Native longitudinal measurements when native sampling is used |
 | figure.json | FigureSpec, labels, missing/normalization conventions and provenance |

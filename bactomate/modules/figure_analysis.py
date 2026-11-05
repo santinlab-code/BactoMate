@@ -1,4 +1,4 @@
-"""Table-driven figures and explicit principal-axis fluorescence profiles.
+"""Table-driven figures and shape-aware fluorescence profiles.
 
 No implicit tracking, missing-pixel filling, or fluorescence normalization.
 """
@@ -11,6 +11,7 @@ import pandas as pd
 
 KINDS = ('Histogram', 'Scatter', 'Mean curve', 'Box plot', 'Violin plot', 'ECDF',
          'Correlation', 'Demograph', 'Kymograph', 'Normalized cell heatmap', 'Heatmap', 'Maxima map', 'Foci count')
+EXCEL_DATA_ROWS = 1_048_575  # Leave one row for column headers.
 
 
 @dataclass
@@ -37,6 +38,9 @@ class FigureSpec:
     show_points: bool = True
     density_bins: int = 96
     density_sigma: float = 2.0
+    demograph_layout: str = 'normalized rows'
+    cell_map_shape: str = 'rectangle'
+    map_background: str = 'white'
     group_order: tuple = ()
     category_labels: dict = field(default_factory=dict)
     category_colors: dict = field(default_factory=dict)
@@ -80,7 +84,8 @@ def load_tables(path):
 
 
 def extract_profiles(masks, images, *, pixel_size, source, bins=24, across=16,
-                     orientation='geometric', method='principal axis', foci=None, sampling='fixed'):
+                     orientation='geometric', method='auto', foci=None, sampling='fixed',
+                     map_sampling='binned', map_bins=None, map_across=None):
     """Pixel skeleton or straight principal-axis profiles (not MicrobeJ subpixel contours).
 
     Pixels are averaged in normalized bins; empty bins remain NaN. Polarity is
@@ -99,7 +104,7 @@ def extract_profiles(masks, images, *, pixel_size, source, bins=24, across=16,
         raise ValueError('Enter a valid pixel calibration in µm / px.')
     if orientation not in ('geometric', 'bright pole'):
         raise ValueError('Unknown orientation.')
-    cells, samples = [], []
+    cells, samples, map_tables = [], [], []
     foci = pd.DataFrame(foci).copy() if foci is not None else None
     if foci is not None and not foci.empty:
         if not {'x','y'}.issubset(foci):raise ValueError('Foci data needs x and y pixel coordinates.')
@@ -113,93 +118,71 @@ def extract_profiles(masks, images, *, pixel_size, source, bins=24, across=16,
         for r in regionprops(mask):
             coords = r.coords.astype(float)
             if len(coords) < 3: continue
-            centered = coords - coords.mean(axis=0)
-            _, vectors = np.linalg.eigh(centered.T @ centered)
-            axis = vectors[:, -1]
-            if axis[np.argmax(np.abs(axis))] < 0: axis = -axis
-            if method == 'medial axis':
-                from skimage.morphology import skeletonize
-                from scipy.ndimage import distance_transform_edt
-                from scipy.spatial import cKDTree
-                from scipy.sparse import csr_matrix
-                from scipy.sparse.csgraph import dijkstra
-                local = r.image
-                center = np.argwhere(skeletonize(local))
-                lookup = {tuple(p):i for i,p in enumerate(center)}
-                edges, destinations, weights = [], [], []
-                for i,p in enumerate(center):
-                    for dy in (-1,0,1):
-                        for dx in (-1,0,1):
-                            if dy==dx==0:continue
-                            j=lookup.get((p[0]+dy,p[1]+dx))
-                            if j is not None:
-                                edges.append(i); destinations.append(j); weights.append(np.hypot(dy,dx))
-                graph=csr_matrix((weights,(edges,destinations)),shape=(len(center),len(center)))
-                endpoints=np.flatnonzero(np.diff(graph.indptr)==1)
-                if len(endpoints)!=2:
-                    raise ValueError(f'Frame {frame}, cell {r.label}: medial axis is branched, cyclic or too short. Curate the mask or choose principal axis.')
-                distances,previous=dijkstra(graph,indices=int(endpoints[0]),return_predecessors=True)
-                chain=[int(endpoints[1])]
-                while chain[-1]!=endpoints[0]:
-                    nxt=int(previous[chain[-1]])
-                    if nxt<0:raise ValueError('Disconnected medial axis.')
-                    chain.append(nxt)
-                center=center[chain]
-                # Deterministic geometric direction; no pole-age inference.
-                if (center[-1]-center[0]) @ axis < 0:center=center[::-1]
-                distances=np.r_[0,np.cumsum(np.linalg.norm(np.diff(center,axis=0),axis=1))]
-                local_coords=coords-np.array(r.bbox[:2])
-                _,nearest=cKDTree(center).query(local_coords)
-                u=2*distances[nearest]/max(distances[-1],1e-12)-1
-                tangent=np.gradient(center.astype(float),axis=0)
-                tangent/=np.maximum(np.linalg.norm(tangent,axis=1)[:,None],1e-12)
-                normal=np.c_[-tangent[:,1],tangent[:,0]]
-                radius=distance_transform_edt(local)[tuple(center.T)]
-                v=np.sum((local_coords-center[nearest])*normal[nearest],axis=1)/np.maximum(radius[nearest],1)
-                v=np.clip(v,-1,1)
-            elif method == 'principal axis':
-                u = centered @ axis
-                v = centered @ np.array([-axis[1], axis[0]])
-                u = 2*(u-u.min())/max(np.ptp(u), 1e-12)-1
-                v = 2*(v-v.min())/max(np.ptp(v), 1e-12)-1
-            else:raise ValueError('Unknown profile coordinate method.')
+            from bactomate.modules.cell_coordinates import cell_coordinates
+            try:
+                geometry = cell_coordinates(r, method)
+            except ValueError as exc:
+                raise ValueError(f'Frame {frame}, cell {r.label}: {exc}') from exc
+            u, v = geometry['u'], geometry['v']
             intensity = images[frame][tuple(r.coords.T)].astype(float)
+            flipped = False
             if orientation == 'bright pole':
                 left, right = intensity[u < -.5], intensity[u > .5]
                 if left.size and right.size and np.nanmean(right) > np.nanmean(left):
                     u, v = -u, -v
+                    flipped = True
             object_key = f'{source}::frame={frame}::cell={r.label}'
-            base = dict(source=source, profile_method=method, frame=frame, cell_id=int(r.label), object_key=object_key,
+            base = dict(source=source, profile_method=geometry['method'], requested_profile_method=method,
+                        geometry_version=geometry['geometry_version'], longitudinal_bins=int(bins),
+                        map_longitudinal_bins=int(map_bins or bins), map_transverse_bins=int(map_across or across),
+                        axis_length_um=geometry['length']*pixel_size, frame=frame, cell_id=int(r.label), object_key=object_key,
                         area_um2=r.area*pixel_size**2, length_um=r.major_axis_length*pixel_size,
                         width_um=r.minor_axis_length*pixel_size, mean_intensity=float(np.nanmean(intensity)))
             cells.append(base)
             from bactomate.modules.publication_figures import maxima_points
             local_foci=foci[(foci.frame==frame)&(foci._mask_label==r.label)] if foci is not None and not foci.empty else None
-            samples.extend(maxima_points(base,coords,u,v,intensity,local_foci))
+            samples.extend(maxima_points(base,coords,u,v,intensity,local_foci,
+                normal_distance=geometry['transverse_pixels']*pixel_size*(-1 if flipped else 1)))
             # Separate longitudinal and 2D bins: each is averaged directly from raw pixels.
             xi = np.minimum(((u+1)*bins/2).astype(int), bins-1)
             yi = np.minimum(((v+1)*across/2).astype(int), across-1)
             tmp = pd.DataFrame(dict(xi=xi, yi=yi, intensity=intensity))
+            def local_width(pos):
+                query = (pos+1)/2
+                if flipped: query = 1-query
+                return float(np.interp(query, geometry['axis_s'], geometry['axis_width'])*pixel_size)
+
             if sampling=='native':
                 from bactomate.modules.profile_sampling import native_profile
-                length=distances[-1] if method=='medial axis' else np.ptp(centered@axis)
+                length=geometry['length']
                 positions,native,target,values=native_profile(u,intensity,length,bins)
                 for pos,(_,measurement) in zip(positions,native.iterrows()):
                     samples.append(dict(**base,profile='native longitudinal',position=pos,transverse=np.nan,
-                        intensity=measurement['mean'],pixel_count=int(measurement['count']),sampling='native measured'))
+                        intensity=measurement['mean'],pixel_count=int(measurement['count']),sampling='native measured',local_width_um=local_width(pos)))
                 for pos,value in zip(target,values):
                     samples.append(dict(**base,profile='longitudinal',position=pos,transverse=np.nan,
-                        intensity=value,pixel_count=np.nan,sampling='native resampled'))
+                        intensity=value,pixel_count=np.nan,sampling='native resampled',local_width_um=local_width(pos)))
             elif sampling=='fixed':
                 for idx, vals in tmp.groupby('xi').intensity:
                     samples.append(dict(**base, profile='longitudinal', position=-1+(idx+.5)*2/bins,
-                                        transverse=np.nan, intensity=vals.mean(), pixel_count=vals.count(),sampling='fixed measured'))
+                                        transverse=np.nan, intensity=vals.mean(), pixel_count=vals.count(),sampling='fixed measured',
+                                        local_width_um=local_width(-1+(idx+.5)*2/bins)))
             else:raise ValueError('Unknown profile sampling method.')
-            for (i, j), vals in tmp.groupby(['xi', 'yi']).intensity:
-                samples.append(dict(**base, profile='cell map', position=-1+(i+.5)*2/bins,
-                                    transverse=-1+(j+.5)*2/across, intensity=vals.mean(), pixel_count=vals.count()))
+            if map_sampling == 'interpolated':
+                from bactomate.modules.cell_coordinates import interpolate_cell_map
+                xs, ys, values = interpolate_cell_map(u,v,intensity,map_bins or bins,map_across or across)
+                xx,yy=np.meshgrid(xs,ys,indexing='ij');finite=np.isfinite(values)
+                chunk=pd.DataFrame(dict(position=xx[finite],transverse=yy[finite],intensity=values[finite],
+                                        pixel_count=np.nan,profile='cell map',map_sampling='linear within measured support'))
+                for key,value in base.items():chunk[key]=value
+                map_tables.append(chunk)
+            elif map_sampling == 'binned':
+                for (i, j), vals in tmp.groupby(['xi', 'yi']).intensity:
+                    samples.append(dict(**base, profile='cell map', position=-1+(i+.5)*2/bins,
+                                        transverse=-1+(j+.5)*2/across, intensity=vals.mean(), pixel_count=vals.count(),map_sampling='measured bins'))
+            else: raise ValueError('Unknown cell-map sampling method.')
     if not cells: raise ValueError('No cells with at least three pixels were found.')
-    profiles=pd.DataFrame(samples)
+    profiles=pd.concat([pd.DataFrame(samples),*map_tables],ignore_index=True) if map_tables else pd.DataFrame(samples)
     profiles['relative_position']=(profiles.position+1)/2
     profiles['relative_width']=profiles.transverse/2
     return pd.DataFrame(cells), profiles
@@ -207,6 +190,8 @@ def extract_profiles(masks, images, *, pixel_size, source, bins=24, across=16,
 
 def prepare(table, spec):
     if spec.kind not in KINDS: raise ValueError('Choose a supported figure type.')
+    if spec.map_background not in ('white','black'):raise ValueError('Choose a white or black plot background.')
+    if spec.demograph_layout not in ('normalized rows','length-scaled columns'):raise ValueError('Unknown demograph layout.')
     data = table.copy()
     if spec.filter_column:
         data = data[data[spec.filter_column].astype(str) == spec.filter_value]
@@ -254,6 +239,8 @@ def prepare(table, spec):
             raise ValueError('Select one source/XY for the kymograph.')
     labels = dict(xlabel=spec.x, ylabel=spec.y or 'Value')
     if spec.normalization != 'raw':
+        if spec.kind=='Demograph' and spec.value=='local_width_um':
+            raise ValueError('Cell-width demographs use raw micrometres; choose raw intensity scaling.')
         if spec.kind not in ('Heatmap','Demograph','Kymograph','Normalized cell heatmap'):
             raise ValueError('Per-cell intensity normalization is available for spatial maps.')
         identity='object_key' if 'object_key' in data else spec.group
@@ -264,12 +251,25 @@ def prepare(table, spec):
         denom=hi-lo
         data[spec.value]=np.where(denom>0,(data[spec.value]-lo)/np.where(denom>0,denom,1),0)
     if spec.kind in ('Heatmap', 'Demograph', 'Kymograph', 'Normalized cell heatmap'):
+        if spec.kind=='Demograph' and spec.demograph_layout=='length-scaled columns':
+            from bactomate.modules.spatial_plotting import length_demograph
+            return length_demograph(data,spec)
         matrix = data.pivot_table(index=spec.y, columns=spec.x, values=spec.value, aggfunc='mean', sort=True)
         if spec.kind == 'Demograph' and spec.sort:
             order = data.groupby(spec.y)[spec.sort].first().sort_values(kind='stable').index
             matrix = matrix.reindex(order)
         if matrix.empty: raise ValueError('The selected coordinates do not form a matrix.')
         labels['colorlabel'] = spec.value + f' ({spec.normalization}; mean in bin)'
+        if spec.kind=='Normalized cell heatmap' and spec.cell_map_shape=='capsule':
+            if 'map_longitudinal_bins' in data and 'map_transverse_bins' in data:
+                ny=int(data.map_longitudinal_bins.iloc[0]);nx=int(data.map_transverse_bins.iloc[0])
+                matrix.index=np.round(np.asarray(matrix.index,float),10)
+                matrix.columns=np.round(np.asarray(matrix.columns,float),10)
+                matrix=matrix.reindex(index=np.round((np.arange(ny)+.5)/ny,10),
+                                      columns=np.round(-.5+(np.arange(nx)+.5)/nx,10))
+            count=data.object_key.nunique() if 'object_key' in data else None
+            labels.update(xlabel='Relative cell width'+(f'\n(n = {count} cells)' if count is not None else ''),
+                          ylabel='Relative cell length')
         return data, matrix, labels
     plot = pd.DataFrame({'x':data[spec.x], 'group':group})
     if spec.replicate:plot['replicate']=data[spec.replicate].fillna('').astype(str)
@@ -310,6 +310,12 @@ def draw(figure, plot, spec, labels):
     if spec.kind=='Maxima map':
         from bactomate.modules.publication_figures import draw_maxima
         draw_maxima(figure,ax,plot,spec,labels)
+    elif spec.kind=='Demograph' and spec.demograph_layout=='length-scaled columns':
+        from bactomate.modules.spatial_plotting import draw_length_demograph
+        draw_length_demograph(figure,ax,plot,spec,labels)
+    elif spec.kind=='Normalized cell heatmap' and spec.cell_map_shape=='capsule':
+        from bactomate.modules.spatial_plotting import draw_cell_heatmap
+        draw_cell_heatmap(figure,ax,plot,spec,labels)
     elif matrix:
         image = ax.imshow(plot.to_numpy(dtype=float), aspect='auto', interpolation='nearest', cmap=spec.cmap)
         if spec.normalization!='raw':image.set_clim(0,1)
@@ -358,10 +364,10 @@ def draw(figure, plot, spec, labels):
                            s=spec.point_size*3,label=str(rep),zorder=5)
             ax.legend(title='Replicate means')
 
-    ax.set_box_aspect(2 if spec.kind=='Maxima map' else 1)
-    if spec.kind=='Demograph':
+    ax.set_box_aspect(2 if spec.kind=='Maxima map' or (spec.kind=='Normalized cell heatmap' and spec.cell_map_shape=='capsule') else 1)
+    if spec.kind=='Demograph' and spec.demograph_layout=='normalized rows':
         xlabel='Relative cell length' if spec.relative_position or spec.x=='relative_position' else labels['xlabel']
-        labels.update(xlabel=xlabel+f'\n(n = {len(plot)} cells)',ylabel='Cells, sorted by length' if spec.sort=='length_um' else 'Cells')
+        labels.update(xlabel=xlabel+f'\n(n = {len(plot)} cells)',ylabel='Cells, sorted by length' if spec.sort in ('length_um','axis_length_um') else 'Cells')
     elif spec.kind=='Kymograph':
         labels.update(xlabel='Relative cell length' if spec.x=='relative_position' else spec.x,ylabel='Time (min)' if spec.y=='time_min' else 'Frame (0-based)')
     elif spec.kind=='Maxima map':
@@ -389,8 +395,16 @@ def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('pdf'
     used.to_csv(folder/'source_rows.csv',index=False)
     plotted.to_csv(folder/'plot_data.csv',index=matrix)
     with pd.ExcelWriter(folder/'figure_data.xlsx') as writer:
-        used.to_excel(writer,sheet_name='Source rows',index=False)
-        plotted.to_excel(writer,sheet_name='Plot data',index=matrix)
+        _excel_table(writer,used,'Source rows',index=False)
+        _excel_table(writer,plotted,'Plot data',index=matrix)
+        if spec.kind=='Normalized cell heatmap' and 'object_key' in used:
+            coverage=used.groupby([spec.y,spec.x]).object_key.nunique().unstack(spec.x)
+            coverage.to_csv(folder/'cell_coverage.csv')
+            coverage.to_excel(writer,sheet_name='Cell coverage')
+        if spec.kind=='Demograph' and spec.demograph_layout=='length-scaled columns':
+            order=used[[spec.y,'demograph_order','demograph_length_um']].drop_duplicates().sort_values('demograph_order')
+            order.to_csv(folder/'cell_order.csv',index=False)
+            order.to_excel(writer,sheet_name='Cell order',index=False)
         if spec.replicate and spec.kind in ('Box plot','Violin plot'):
             summary=plotted.groupby(['group','replicate']).x.agg(['count','mean','std']).reset_index()
             summary.to_excel(writer,sheet_name='Replicates',index=False)
@@ -409,6 +423,13 @@ def export_bundle(folder, figure, used, plotted, spec, labels, *, formats=('pdf'
     (folder/'manifest.json').write_text(json.dumps(hashes,indent=2))
 
 
+def _excel_table(writer,table,name,*,index):
+    """Keep large per-cell map tables exportable beyond one worksheet's limit."""
+    for start in range(0,max(1,len(table)),EXCEL_DATA_ROWS):
+        sheet=name if start==0 else f'{name} {start//EXCEL_DATA_ROWS+1}'
+        table.iloc[start:start+EXCEL_DATA_ROWS].to_excel(writer,sheet_name=sheet,index=index)
+
+
 def _write_scripts(folder, figure, labels, spec,formats):
     """Export rendered data-space primitives so all languages share identical statistics."""
     from matplotlib.colors import to_rgba
@@ -418,6 +439,14 @@ def _write_scripts(folder, figure, labels, spec,formats):
         rgb = to_rgba(color)
         for a,b in zip(x,y): records.append(dict(element=index,kind=kind,x=float(a),y=float(b),r=rgb[0],g=rgb[1],b=rgb[2],alpha=alpha,point_size=point_size,line_width=line_width))
         index += 1
+    if ax.images:
+        im=ax.images[0]; values=np.ma.asarray(im.get_array()); rgba=im.to_rgba(values)
+        left,right,bottom,top=im.get_extent()
+        xe=np.linspace(left,right,values.shape[1]+1)
+        ye=np.linspace(top,bottom,values.shape[0]+1) if im.origin=='upper' else np.linspace(bottom,top,values.shape[0]+1)
+        for row,col in np.ndindex(values.shape):
+            if np.ma.is_masked(values[row,col]) or not np.isfinite(values[row,col]): continue
+            add('polygon',[xe[col],xe[col+1],xe[col+1],xe[col]],[ye[row],ye[row],ye[row+1],ye[row+1]],rgba[row,col])
     for line in ax.lines:
         x,y = line.get_data()
         # Steps are expanded so R/MATLAB do not reinterpret their interpolation.
@@ -441,19 +470,12 @@ def _write_scripts(folder, figure, labels, spec,formats):
             for path in collection.get_paths(): add('polygon',path.vertices[:,0],path.vertices[:,1],color,collection.get_alpha() or 1)
         else:
             for segment in collection.get_segments(): add('line',segment[:,0],segment[:,1],collection.get_colors()[0])
-    if ax.images:
-        im=ax.images[0]; values=np.ma.asarray(im.get_array()); rgba=im.to_rgba(values)
-        left,right,bottom,top=im.get_extent()
-        xe=np.linspace(left,right,values.shape[1]+1)
-        ye=np.linspace(top,bottom,values.shape[0]+1) if im.origin=='upper' else np.linspace(bottom,top,values.shape[0]+1)
-        for row,col in np.ndindex(values.shape):
-            if np.ma.is_masked(values[row,col]) or not np.isfinite(values[row,col]): continue
-            add('polygon',[xe[col],xe[col+1],xe[col+1],xe[col]],[ye[row],ye[row],ye[row+1],ye[row+1]],rgba[row,col])
     geometry=pd.DataFrame(records,columns=['element','kind','x','y','r','g','b','alpha','point_size','line_width'])
     geometry.to_csv(folder/'figure_geometry.csv',index=False)
     meta=dict(formats=list(formats),figure_size=[spec.figure_width,spec.figure_height],export_dpi=spec.export_dpi,font_size=spec.font_size,xtick_rotation=spec.x_tick_rotation,box_aspect=ax.get_box_aspect(),xlim=list(ax.get_xlim()),ylim=list(ax.get_ylim()),title=ax.get_title(),**labels,
               xticks=list(ax.get_xticks()),xticklabels=[t.get_text() for t in ax.get_xticklabels()],
               yticks=list(ax.get_yticks()),yticklabels=[t.get_text() for t in ax.get_yticklabels()])
+    meta['axes_facecolor'] = list(ax.get_facecolor())
     meta['legend'] = []
     handles,names=ax.get_legend_handles_labels()
     if ax.get_legend() is not None:
@@ -476,6 +498,7 @@ root=Path(__file__).resolve().parent
 d=pd.read_csv(root/'figure_geometry.csv'); m=json.loads((root/'axes.json').read_text())
 fig,ax=plt.subplots(figsize=m.get('figure_size',[6,6]))
 ax.set_box_aspect(m.get('box_aspect',1))
+ax.set_facecolor(m.get('axes_facecolor','white'))
 for _,g in d.groupby('element',sort=False):
     color=tuple(g.iloc[0][['r','g','b']]); kind=g.kind.iloc[0]; alpha=g.alpha.iloc[0]
     if kind=='polygon': ax.fill(g.x,g.y,color=color,alpha=alpha)
@@ -502,6 +525,7 @@ library(jsonlite)
 d <- read.csv("figure_geometry.csv"); m <- fromJSON("axes.json")
 render <- function() {
  plot(NA,xlim=m$xlim,ylim=m$ylim,xlab=m$xlabel,ylab=m$ylabel,main=m$title,axes=FALSE,xaxs="i",yaxs="i")
+ if (!is.null(m$axes_facecolor)) { u <- par("usr"); rect(u[1],u[3],u[2],u[4],col=rgb(m$axes_facecolor[1],m$axes_facecolor[2],m$axes_facecolor[3]),border=NA) }
  axis(1,at=m$xticks,labels=m$xticklabels); axis(2,at=m$yticks,labels=m$yticklabels); box()
  for (id in unique(d$element)) {
   g <- d[d$element==id,]; col <- rgb(g$r[1],g$g[1],g$b[1],g$alpha[1])
@@ -525,6 +549,7 @@ svg("reproduced_R.svg",width=m$figure_size[1],height=m$figure_size[2],pointsize=
 d=readtable('figure_geometry.csv'); m=jsondecode(fileread('axes.json'));
 figure('Units','inches','Position',[1 1 m.figure_size(1) m.figure_size(2)]); hold on;
 pbaspect([1 m.box_aspect 1]);
+if isfield(m,'axes_facecolor'), set(gca,'Color',reshape(m.axes_facecolor(1:3),1,3)); end
 for id=unique(d.element)'
  g=d(d.element==id,:); c=[g.r(1),g.g(1),g.b(1)]; k=string(g.kind(1));
  if k=="polygon", patch(g.x,g.y,c,'EdgeColor','none','FaceAlpha',g.alpha(1));

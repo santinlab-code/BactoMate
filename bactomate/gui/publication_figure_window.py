@@ -59,6 +59,10 @@ class FigureOptions(QDialog):
         check(form,'show_points','Show maxima points',spec.show_points)
         cmap=QComboBox();cmap.addItems(['viridis','inferno','magma','plasma','turbo','cividis','coolwarm','gray']);cmap.setCurrentText(spec.cmap)
         self.values['cmap']=cmap;form.addRow('Colour map',cmap)
+        background=QComboBox();background.addItems(['white','black']);background.setCurrentText(spec.map_background)
+        self.values['map_background']=background;form.addRow('Plot background',background)
+        spin(form,'density_bins','Maxima density resolution',spec.density_bins,32,256,16)
+        spin(form,'density_sigma','Maxima density smoothing (bins)',spec.density_sigma,.1,10,.2)
         for key,label in [('colorbar_min','Colour scale minimum'),('colorbar_max','Colour scale maximum')]:
             text(form,key,label,'' if getattr(spec,key) is None else getattr(spec,key)).setPlaceholderText('Automatic')
         form=page('Export size')
@@ -203,8 +207,12 @@ class PublicationFigureWindow(QDialog):
                 compare=bool(self.spec.group),replicate=bool(self.spec.replicate),title=self.spec.title)
         if self.plan is not None:
             plan=deepcopy(self.plan);plan.title=self.spec.title;plan.show_points=self.spec.show_points
+            plan.palette=self.spec.cmap;plan.map_background=self.spec.map_background
+            plan.demograph_layout=self.spec.demograph_layout
+            plan.demograph_value=self.spec.value if self.spec.value=='local_width_um' else 'intensity'
             scientific={'kind','x','y','value','group','sort','bins','title','filter_column','filter_value','minimum','maximum',
-                        'track_confirmed','normalization','replicate','show_replicates','relative_position','maxima_profile','show_points'}
+                        'track_confirmed','normalization','replicate','show_replicates','relative_position','maxima_profile','show_points',
+                        'demograph_layout','cell_map_shape'}
             from dataclasses import fields
             plan.figure_options={field.name:deepcopy(getattr(self.spec,field.name)) for field in fields(self.spec) if field.name not in scientific}
             self.tab._last_figure_plan=plan
