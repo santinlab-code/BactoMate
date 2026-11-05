@@ -87,3 +87,56 @@ def test_short_timelapse_export_keeps_every_frame_and_color(tmp_path, isolated_p
     assert result.shape == (2,20,24,3)
     for i in range(2):
         np.testing.assert_array_equal(result[i],segmentation_outline_rgb(images[i],masks[i],(0,255,255)))
+
+
+def test_single_segmentation_preview_uses_filtering_display_resolution(tmp_path,qapp,monkeypatch,isolated_preferences):
+    """A 1608px image must not get a thicker edge after a 1024px display reduction."""
+    from types import SimpleNamespace
+    from PyQt6.QtCore import QThread
+    from PyQt6.QtGui import QImage
+    from PyQt6.QtWidgets import QWidget,QVBoxLayout
+    from bactomate.gui.tabs import omnipose_seg as module
+    from bactomate.gui.filtering_display import white_cell_contours
+    from bactomate.modules import segmentation_runtime
+    from tests.test_filtering_preview_apply_flow import _wait_until
+    image=np.full((1608,1608),100,np.uint8)
+    mask=np.zeros(image.shape,np.uint16);mask[100:120,140:220]=1
+    mask[300:303,400:403]=2
+    source=tmp_path/'sample_phase.tif';tifffile.imwrite(source,image)
+    class Model:
+        cp=SimpleNamespace(nchan=2,nclasses=4,device='cpu')
+        def eval(self,*args,**kwargs):return mask.copy(),[],[],None
+    notices=[]
+    monkeypatch.setattr(module,'show_message_dialog',lambda *args,**kwargs:notices.append((args,kwargs)))
+    monkeypatch.setattr(module,'load_cellpose_segmentation_model',lambda **kwargs:Model())
+    # This is a display/lifecycle check; inference is tested separately.
+    monkeypatch.setattr(segmentation_runtime,'evaluate_omnipose_plane',lambda *a,**kw:mask.copy())
+    isolated_preferences.set_segmentation_outline_color('#00ffff')
+    parent=QWidget();mount=QWidget();QVBoxLayout(mount);mount.resize(1000,800);mount.show()
+    tab=module.OmniposeSegTab(parent);tab.file_path.setText(str(source))
+    tab.use_gpu.setChecked(False);tab.detect_foci.setChecked(False)
+    tab.attach_module_preview_mount(mount)
+    try:
+        tab.preview_segmentation();dlg=tab._embedded_segmentation_preview
+        assert dlg is not None, notices
+        assert _wait_until(lambda: np.array_equal(getattr(dlg,'masks',None),mask)
+                           and not any(t.isRunning() for t in dlg.findChildren(QThread)),timeout_s=20), notices
+        assert dlg.canvas._image_size==(1608,1608)
+        def edges():
+            qimage=dlg.canvas._pixmap.toImage().convertToFormat(QImage.Format.Format_RGB888)
+            ptr=qimage.bits();ptr.setsize(qimage.sizeInBytes())
+            rgb=np.frombuffer(ptr,np.uint8).reshape(qimage.height(),qimage.bytesPerLine())[:,:qimage.width()*3].reshape(qimage.height(),qimage.width(),3)
+            return np.all(rgb==(0,255,255),axis=2)
+        filtering=white_cell_contours(np.zeros((*image.shape,3),np.uint8),mask,color=(0,255,255))
+        expected=np.all(filtering==(0,255,255),axis=2)
+        np.testing.assert_array_equal(edges(),expected)
+        controller=dlg._detachable_image
+        for detached in (True,False):
+            controller.detach() if detached else controller.attach()
+            qapp.processEvents()
+            assert dlg.canvas._image_size==(1608,1608)
+            np.testing.assert_array_equal(edges(),expected)
+        np.testing.assert_array_equal(dlg.masks,mask)
+    finally:
+        tab._on_embedded_segmentation_preview_closed()
+        parent.close();mount.close();parent.deleteLater();mount.deleteLater()

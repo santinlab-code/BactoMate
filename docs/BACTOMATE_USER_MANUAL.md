@@ -2,7 +2,7 @@
 
 **Branch:** BactoMate_Custom_New-Analyses
 
-**Updated:** 4 November 2026; see the active branch for its current commit
+**Updated:** 5 November 2026; see the active branch for its current commit
 
 **Upstream baseline/package version:** BactoMate 2.9.5 (`2dfd181`)
 
@@ -151,6 +151,9 @@ The close cross asks Save / Discard / Cancel. Save writes the rendered canvas as
 RGB TIFF/JPEG; it is not a replacement for a label mask or raw intensity TIFF.
 Cancelling a save keeps the window open. Successful Save/Discard reattaches the
 canvas. During manual polygon creation, Escape cancels the polygon instead.
+Single-image Segmentation and Filtering use the same 2048 px display limit and
+one-pixel inner edges. The former 1024 px Segmentation display reduction no longer
+thickens outlines on zoom; detection and saved label masks are unchanged.
 See [segmentation previews](SEGMENTATION_CONTOURS.md).
 
 ## 5. Filtering and manual curation
@@ -369,6 +372,17 @@ It finds project masks/channels for spatial figures, prefers filtered masks and
 reports unfiltered inputs. Spatial computation runs in the background. Advanced /
 MicrobeJ-style controls keeps manual tables, free axes/groups/filters and profiles.
 This is inspired by MicrobeJ, not an integration of the Fiji plugin.
+
+Advanced settings fill the page in six responsive groups (one to three columns),
+rather than a narrow sidebar beside an unused figure area. Simple mode separates
+population/measurement choices from drawing/export actions. Conditions & replicates
+and Figure guide remain at the top. Figures still open in independent windows.
+
+The values table is hidden by default. **Show data table** opens a read-only
+window with all source rows, rendered lazily. Its selector is only for inspection;
+plotting choices are unchanged. Closing the window unchecks the box. A session
+reset hides and clears it. Figure-specific source/plotted data remain available
+in each figure's export bundle.
 
 All 13 types are available: Histogram, Scatter, Mean curve, Box plot, Violin plot,
 ECDF, Correlation, Demograph, Kymograph, Normalized cell heatmap, Heatmap, Maxima

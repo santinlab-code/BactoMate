@@ -1,6 +1,6 @@
 # BactoMate Custom — consolidated changes
 
-Updated: **4 November 2026**. The November 1 code reference was **`811d5b6`**;
+Updated: **5 November 2026**. The November 1 code reference was **`811d5b6`**;
 section 13 describes the subsequent harmonization.
 Baseline: upstream BactoMate **2.9.5**, commit **`2dfd181`** in this repository.
 Active branch: **BactoMate_Custom_New-Analyses**.
@@ -312,3 +312,25 @@ part of local acceptance; the automated runs use offscreen Qt on Linux.
 
 After the final button-width and image-selection refinements, five targeted
 geometry/attach-detach checks passed again on the final code.
+
+## 16. Matching contours and full-width Analysis — 5 November 2026
+
+Compare a 1608 px mask in single-image Segmentation and Filtering at matching
+zoom/colour: the same one-pixel edges should be visible, including small objects.
+Segmentation no longer draws these edges on a 1024 px display reduction; detection
+and scientific masks stay unchanged. Repeat attached and detached.
+
+Analysis keeps Conditions & replicates and Figure guide at the top. Advanced
+settings use six full-width responsive groups, with one to three columns; simple
+choices/actions use two groups. No embedded values table or empty figure area is
+shown. **Show data table** opens a read-only window with all source rows. Check
+rows beyond 100, change its inspected table without changing plotting choices,
+close/uncheck/reopen it, and reset the session. Figure windows, guide editing,
+exports and automatic result loading must remain functional.
+
+Validation on 5 November: **644 passed, 5 skipped**, two existing warnings in
+the full Linux suite. Checks include responsive Analysis at three widths, all
+source rows in the optional read-only window, table/session resets, unchanged
+plot settings during inspection, and a 1608 px Qt Segmentation preview with
+Filtering-identical outline pixels attached/detached. Model inference is stubbed
+for this display regression; native Mac/Windows visual verification remains local.

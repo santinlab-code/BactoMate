@@ -1,6 +1,6 @@
 # Simple Analysis: from results to a figure
 
-Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 5 November 2026.
 [Figure guide](FIGURE_GUIDE.md) · [Methods/export reference](ANALYSIS.md)
 
 ## Start with existing results
@@ -66,6 +66,23 @@ Demograph, Maxima map, Foci count and Kymograph.
 free axes/groups, exact filters and profile extraction. It is a BactoMate workflow
 inspired by MicrobeJ, not a copy of or connection to the Fiji plugin. Advanced
 controls do not infer missing tracks, replicate identities or spatial profiles.
+
+## Full-width settings and an optional data window
+
+Simple mode uses two groups for choosing a population/measurement and drawing or
+exporting a figure. Advanced mode uses six groups across the page: Figure and
+data, Axes and grouping, Filter observations, Appearance, Spatial maps and time,
+and Extract cell profiles. They reflow into one, two or three columns with the
+available width. Help icons explain specialized options. The centre is used for
+settings; figures keep their own independent windows.
+
+The values table is hidden by default in both modes. Check **Show data table** to
+open a separate read-only window. It shows all source rows with lazy rendering,
+not just the former first 100. Its Data table selector is for inspection and does
+not change the plotting population/fields. Changing the main population refreshes
+the window to that table. Uncheck the box or close the window to hide it; clearing
+the session closes and empties it. Figure-specific source/plotted values still
+come from the figure export bundle.
 
 ## Reopen, edit and start another dataset
 

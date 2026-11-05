@@ -3,7 +3,7 @@ from pathlib import Path
 from os.path import commonpath
 import pandas as pd
 from PyQt6.QtCore import QThread,QTimer,pyqtSignal,Qt
-from PyQt6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QStackedWidget,QComboBox,
+from PyQt6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QComboBox,QGroupBox,
     QPushButton,QLabel,QCheckBox,QLineEdit,QDialog,QDialogButtonBox,QTableWidget,QTableWidgetItem,QMessageBox)
 from bactomate.gui.tabs.figure_analysis import FigureAnalysisTab
 from bactomate.modules.analysis_catalog import read_catalog,read_assignments,save_assignments,assemble_catalog
@@ -38,14 +38,16 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self._last_figure_plan=None
         outer=self.layout()
         # Existing controls remain intact, in an optional advanced view.
-        old_actions=outer.takeAt(0)
-        self.import_actions=QWidget();self.import_actions.setLayout(old_actions)
-        self.split=outer.itemAt(0).widget()
-        scroll=self.split.widget(0)
+        outer.removeWidget(self.import_actions)
+        scroll=self.controls_scroll
         advanced=scroll.takeWidget()
-        self.control_stack=QStackedWidget()
-        self.simple=QWidget();form=QFormLayout(self.simple);self.simple_form=form
+        from bactomate.gui.analysis_workspace import AnalysisCards,AnalysisControlStack
+        self.control_stack=AnalysisControlStack()
+        self.simple=AnalysisCards(max_columns=2)
+        choices=QGroupBox('Choose data and figure')
+        form=QFormLayout(choices);self.simple_form=form
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.dataset=QComboBox();form.addRow('1 · My data',self.dataset)
         self.figure_choice=QComboBox()
         for kind,label in LABELS.items():self.figure_choice.addItem(label,kind)
@@ -57,11 +59,14 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.rep_points=QCheckBox('Show replicate means');self.rep_points.setChecked(True);form.addRow(self.rep_points)
         self.frame_choice=QComboBox();form.addRow('Frame / time',self.frame_choice)
         self.groups_button=QPushButton('Conditions && replicates…')
+        make=QGroupBox('Make and export a figure');make_layout=QVBoxLayout(make)
         hint=QLabel('Cells form the distribution. Coloured points show replicate means.\nGive XYs from the same experiment the same replicate name. A file is not automatically a biological replicate.')
-        hint.setWordWrap(True);form.addRow(hint);self.simple_hint=hint
-        draw_button=QPushButton('Draw figure');self.simple_draw=draw_button;draw_button.clicked.connect(self.render);form.addRow(draw_button)
+        hint.setWordWrap(True);make_layout.addWidget(hint);self.simple_hint=hint
+        draw_button=QPushButton('Draw figure');self.simple_draw=draw_button;draw_button.clicked.connect(self.render);make_layout.addWidget(draw_button)
         export_button=QPushButton('Export figure, data && code…');export_button.clicked.connect(self.save_bundle)
-        self.export.setVisible(False);self.simple_export=export_button;export_button.setEnabled(False);form.addRow(export_button)
+        self.export.setVisible(False);self.simple_export=export_button;export_button.setEnabled(False);make_layout.addWidget(export_button)
+        self.simple.add_card(choices);self.simple.add_card(make)
+        self.advanced_actions.hide()
         self.control_stack.addWidget(self.simple);self.control_stack.addWidget(advanced);scroll.setWidget(self.control_stack)
         header=QWidget();layout=QVBoxLayout(header)
         launch=QHBoxLayout();launch.addWidget(self.groups_button)
@@ -79,7 +84,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.advanced.toggled.connect(self.toggle_mode)
         for widget in (self.metric,self.second_metric,self.frame_choice):widget.currentIndexChanged.connect(self.mark_dirty)
         for widget in (self.compare,self.rep_points):widget.toggled.connect(self.mark_dirty)
-        self.preview.hide();self.figure_changed()
+        self.figure_changed()
 
     def open_figure_guide(self,_checked=False,parent=None):
         from bactomate.gui.figure_guide import FigureGuide
@@ -105,7 +110,7 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         super().set_tables(tables,provenance)
         if hasattr(self,'dataset'):
             if not tables:
-                self.snapshot=None;self.figure.clear();self.canvas.draw_idle();self.preview.setRowCount(0)
+                self.snapshot=None;self.figure.clear();self.canvas.draw_idle()
             old=self.dataset.currentText();self.dataset.blockSignals(True)
             self.dataset.clear();self.dataset.addItems(list(tables));self.dataset.setCurrentText(old if old in tables else next(iter(tables),''))
             self.dataset.blockSignals(False);self.sheet.setCurrentText(self.dataset.currentText());self.sync_metrics()
@@ -160,13 +165,14 @@ class GuidedAnalysisTab(FigureAnalysisTab):
 
     def toggle_mode(self,checked):
         self.control_stack.setCurrentIndex(1 if checked else 0)
-        self.import_actions.setVisible(checked);self.preview.setVisible(checked)
+        self.import_actions.setVisible(checked);self.advanced_actions.setVisible(checked)
         self.export.setVisible(checked)
         if checked:self.kind.setCurrentText(self.figure_choice.currentData())
         self.mark_dirty()
 
     def clear_session(self):
         self.close_figure_windows()
+        self.show_data_table.setChecked(False)
         self._figure_generation+=1
         self._last_figure_plan=None
         self.catalog_root=None;self._results_root=None;self._spatial_tables={}
@@ -175,7 +181,6 @@ class GuidedAnalysisTab(FigureAnalysisTab):
         self.set_tables({},{})
         for combo in (self.metric,self.second_metric,self.frame_choice,*self.fields.values()):combo.clear()
         for edit in (self.filter_value,self.minimum,self.maximum,self.title):edit.clear()
-        self.preview.setColumnCount(0)
         self.confirm.setChecked(False)
         self.catalog_status.setText('No active session. Run an analysis to see its results here.')
         self.status.clear()

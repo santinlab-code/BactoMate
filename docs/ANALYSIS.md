@@ -1,6 +1,6 @@
 # Analysis methods, advanced controls and exports
 
-Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 5 November 2026.
 [Simple workflow](NEW_ANALYSIS.md) · [Guided recipes](FIGURE_GUIDE.md)
 
 ## Scope and MicrobeJ reference
@@ -23,8 +23,11 @@ universal content deduplication.
 
 Numeric fields can serve as metrics, text fields as groups. The advanced controls
 select X, Y, Value, Group, sort column, exact-match filter and optional numeric
-X bounds. A preview shows up to the first 100 rows; computations use the entire
-selected dataset. Nonfinite values needed by a plot are removed. Redraw after
+X bounds. Settings occupy responsive groups across the full page instead of a
+narrow left sidebar. The values table is opt-in via **Show data table** and opens
+in its own read-only window. All source rows can be inspected without copying or
+editing the table; its table selector does not alter the plotting choices.
+Computations use the entire selected dataset. Nonfinite values needed by a plot are removed. Redraw after
 changing settings; each figure window holds a snapshot of rows/settings used.
 Conditions/replicates assignments are saved separately in analysis_groups.json.
 

@@ -8,7 +8,7 @@ This repository documents the laboratory customizations built on BactoMate 2.9.5
 The former `BactoMate_Custom_V1` and `BactoMate_Custom_Analyses` branches were
 removed from GitHub. Use this active branch for installation and further work.
 The package may still report version `2.9.5`; record the Git commit to identify
-this custom build. Documentation updated on **4 November 2026**; see the branch commit for the custom revision.
+this custom build. Documentation updated on **5 November 2026**; see the branch commit for the custom revision.
 
 ## Install this custom version
 

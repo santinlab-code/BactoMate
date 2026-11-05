@@ -1,6 +1,6 @@
 # BactoMate Custom — installation et parcours de test
 
-Mise à jour : **4 novembre 2026**, branche
+Mise à jour : **5 novembre 2026**, branche
 **BactoMate_Custom_New-Analyses**.
 [Version anglaise](GUIDE_TEST_BACTOMATE_EN.md) · [Bilan des changements](MODIFICATIONS_BACTOMATE_FR.md)
 
@@ -191,9 +191,10 @@ avec différences de polices possibles. Les scripts ne refont pas la segmentatio
 
 Noter réussite/échec, entrées/XY/frame/canal, étapes, attendu/observé et logs. Garder
 sources, curation, presets et bundle fautif. Dernière suite de code enregistrée :
-**639 réussis / 5 ignorés** sous Linux le 4 novembre (deux avertissements
+**644 réussis / 5 ignorés** sous Linux le 5 novembre (deux avertissements
 existants), dont la réouverture d’un masque remplacé, des verrous Windows
-simulés, les grandes polices et des cycles attaché/détaché en zone contrainte. L’inférence CPU de l’installateur réussit aux diamètres 30 et 33 le 3 novembre.
+simulés, les grandes polices et des cycles attaché/détaché en zone contrainte,
+ainsi que la nouvelle page Analysis, sa table optionnelle et les pixels des contours. L’inférence CPU de l’installateur réussit aux diamètres 30 et 33 le 3 novembre.
 Cela ne remplace pas les tests natifs Mac/Windows ni l’évaluation biologique.
 
 ## 13. Comparaison de référence Mac/Windows — 3 novembre 2026
@@ -227,3 +228,19 @@ Les verrous Windows sont réessayés ; un échec nettoie son fichier temporaire 
 garde le dernier JSON valide. Seuls les temporaires propres à ce masque, vieux
 de plus de 24 heures, sont nettoyés à l’ouverture. Voir le
 [guide anglais](docs/FILTERING_CURATION.md).
+
+## 16. Contours identiques et Analysis sur toute la largeur — 5 novembre 2026
+
+Comparer le même masque de 1608 px dans Segmentation et Filtering, avec un zoom
+et une couleur identiques : les contours restent d’un pixel, même sur les petits
+objets. Segmentation ne les trace plus sur une image réduite à 1024 px. Détection
+et masques scientifiques restent inchangés. Tester attaché et détaché.
+
+Analysis conserve Conditions & replicates et Figure guide en haut. Six groupes
+avancés se répartissent sur toute la largeur en une à trois colonnes ; les choix
+simples et les actions occupent deux groupes. Le tableau et l’espace de figure
+vides n’occupent plus la page. **Show data table** ouvre les valeurs en lecture
+seule dans une fenêtre séparée, avec toutes les lignes. Vérifier les lignes après
+100, le choix d’une table à inspecter sans changer les paramètres de figure,
+fermeture/décochage/réouverture et remise à zéro de session. Figures, guide, exports
+et chargement automatique des résultats doivent continuer à fonctionner.

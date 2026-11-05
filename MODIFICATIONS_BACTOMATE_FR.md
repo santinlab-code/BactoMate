@@ -1,6 +1,6 @@
 # BactoMate Custom — bilan consolidé des modifications
 
-Mise à jour : **4 novembre 2026**. Le code de référence du 1 novembre était
+Mise à jour : **5 novembre 2026**. Le code de référence du 1 novembre était
 **`811d5b6`** ; la section 13 décrit l’harmonisation suivante.
 Base : BactoMate **2.9.5**, commit **`2dfd181`**.
 Branche active : **BactoMate_Custom_New-Analyses**.
@@ -310,3 +310,26 @@ visuelle native Mac/Windows reste à faire ; Qt est testé hors écran sous Linu
 
 Après les derniers ajustements de largeur des boutons et de sélection dans
 l’image, cinq contrôles ciblés de géométrie/attachement réussissent sur le code final.
+
+## 16. Contours identiques et Analysis sur toute la largeur — 5 novembre 2026
+
+Comparer le même masque de 1608 px dans Segmentation et Filtering, avec un zoom
+et une couleur identiques : les contours restent d’un pixel, même sur les petits
+objets. Segmentation ne les trace plus sur une image réduite à 1024 px. Détection
+et masques scientifiques restent inchangés. Tester attaché et détaché.
+
+Analysis conserve Conditions & replicates et Figure guide en haut. Six groupes
+avancés se répartissent sur toute la largeur en une à trois colonnes ; les choix
+simples et les actions occupent deux groupes. Le tableau et l’espace de figure
+vides n’occupent plus la page. **Show data table** ouvre les valeurs en lecture
+seule dans une fenêtre séparée, avec toutes les lignes. Vérifier les lignes après
+100, le choix d’une table à inspecter sans changer les paramètres de figure,
+fermeture/décochage/réouverture et remise à zéro de session. Figures, guide, exports
+et chargement automatique des résultats doivent continuer à fonctionner.
+
+Validation du 5 novembre : **644 tests réussis, 5 ignorés**, deux avertissements
+existants sous Linux. Vérifications : Analysis à trois largeurs, toutes les lignes
+en lecture seule, fermeture/remise à zéro de la table sans modifier les choix de
+figure, et contours identiques à Filtering sur un aperçu Qt de 1608 px, attaché
+et détaché. L’inférence est simulée pour ce test d’affichage ; la vérification
+visuelle native Mac/Windows reste locale.

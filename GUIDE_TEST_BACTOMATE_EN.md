@@ -1,6 +1,6 @@
 # BactoMate Custom — installation and acceptance tests
 
-Updated: **4 November 2026**, branch
+Updated: **5 November 2026**, branch
 **BactoMate_Custom_New-Analyses**. [French edition](GUIDE_TEST_BACTOMATE_FR.md)
 · [Consolidated changes](MODIFICATIONS_BACTOMATE_EN.md)
 
@@ -208,9 +208,10 @@ scripts redraw saved primitives; they do not repeat segmentation or reanalysis.
 
 Record pass/fail, input/XY/frame/channel, steps, expected/observed result and log
 path. Preserve sources, curation, filter presets and a failing figure bundle.
-The 4 November Linux suite recorded **639 passed / 5 skipped** (two existing
+The 5 November Linux suite recorded **644 passed / 5 skipped** (two existing
 warnings), including replaced-mask recovery, simulated Windows locks and bounded-layout
-checks with enlarged fonts and repeated attach/detach.
+checks with enlarged fonts and repeated attach/detach, plus full-width Analysis,
+its optional read-only table and matching Segmentation/Filtering outline pixels.
 The actual CPU installer inference passed at diameters 30 and 33 on 3 November.
 These checks do not replace native Mac/Windows testing or biological review.
 
@@ -244,3 +245,18 @@ this restoration. Expected `.curation.json` stores state; `.tmp` is temporary.
 Windows sharing locks are retried and failed saves clean their scratch while
 keeping the last valid JSON. Only owned scratch older than 24 hours is cleaned
 on open. See [the curation guide](docs/FILTERING_CURATION.md).
+
+## 16. Matching contours and full-width Analysis — 5 November 2026
+
+Compare a 1608 px mask in single-image Segmentation and Filtering at matching
+zoom/colour: the same one-pixel edges should be visible, including small objects.
+Segmentation no longer draws these edges on a 1024 px display reduction; detection
+and scientific masks stay unchanged. Repeat attached and detached.
+
+Analysis keeps Conditions & replicates and Figure guide at the top. Advanced
+settings use six full-width responsive groups, with one to three columns; simple
+choices/actions use two groups. No embedded values table or empty figure area is
+shown. **Show data table** opens a read-only window with all source rows. Check
+rows beyond 100, change its inspected table without changing plotting choices,
+close/uncheck/reopen it, and reset the session. Figure windows, guide editing,
+exports and automatic result loading must remain functional.

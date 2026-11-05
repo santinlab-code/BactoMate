@@ -1,12 +1,26 @@
 # BactoMate Custom — release and development notes
 
-Documentation updated **4 November 2026**, extending the November 1
+Documentation updated **5 November 2026**, extending the November 1
 code reference **`811d5b6`**.
 Active custom branch: **BactoMate_Custom_New-Analyses**.
 The package still reports upstream version 2.9.5; custom milestones below are Git
 commits, not newly assigned upstream release numbers. These notes consolidate
 the custom history; [the change summary](../MODIFICATIONS_BACTOMATE_EN.md) defines
 current behavior and [the manual](BACTOMATE_USER_MANUAL.md) describes its use.
+
+## 5 November 2026 — consistent outlines and full-width Analysis
+
+Single-image Segmentation uses Filtering's display resolution (up to 2048 px),
+removing the former 1024 px reduction before one-pixel outlines were drawn.
+Inference and scientific label masks are unchanged. Preview-start logging is also
+compatible with Omnipose's formatter when multiple handlers consume a record.
+
+Analysis settings occupy responsive groups across the full width; the old empty
+figure area/sidebar split is removed. Simple mode uses two groups; advanced mode
+keeps all controls in six groups with help icons. Conditions/replicates and Figure
+guide remain at the top. **Show data table** is opt-in and opens all source rows
+in a separate read-only window with lazy rendering; inspection does not change
+plot settings. Figures remain independent windows. See [Analysis](NEW_ANALYSIS.md).
 
 ## 4 November 2026 — Filtering layout under constrained sizes
 
@@ -186,3 +200,10 @@ protection and simulated Windows locks/failures. Native Windows remains to test.
 
 After the final button-width and image-selection refinements, five targeted
 geometry/attach-detach checks passed again on the final code.
+
+Validation on 5 November: **644 passed, 5 skipped**, two existing warnings in
+the full Linux suite. Checks include responsive Analysis at three widths, all
+source rows in the optional read-only window, table/session resets, unchanged
+plot settings during inspection, and a 1608 px Qt Segmentation preview with
+Filtering-identical outline pixels attached/detached. Model inference is stubbed
+for this display regression; native Mac/Windows visual verification remains local.

@@ -2956,7 +2956,9 @@ class OmniposeSegTab(QWidget):
                 (vmin, vmax) = (float(vmin), float(vmax))
                 vrange = max(vmax - vmin, 1e-06)
                 display_uint8 = ((np.asarray(display_frame).astype(np.float64) - vmin) / vrange * 255).clip(0, 255).astype(np.uint8)
-                (disp_scaled, mask_scaled) = scale_for_preview(display_uint8, mask, max_size=PREVIEW_SEG_MAX_SIZE)
+                # Use the same display resolution as Filtering: a one-pixel edge
+                # must not be enlarged from the separate 1024px inference preview.
+                (disp_scaled, mask_scaled) = scale_for_preview(display_uint8, mask)
                 if bool(preview_dialog.state().extra.get('show_cells', True)):
                     overlay = build_segmentation_overlay(disp_scaled, mask_scaled, outline_color=get_segmentation_outline_color())
                 else:
@@ -3870,7 +3872,9 @@ class OmniposeSegTab(QWidget):
                     preview_dialog._seg_request_meta = {}
                 preview_dialog._seg_request_meta[preview_dialog._seg_request_id] = {'preserve_user_lut': bool(preserve_user_lut)}
                 kind = 'USER_MODEL' if params.get('pretrained_model') else 'BUILTIN'
-                get_logger().info('Preview: starting background worker (%s) frame_shape=%s diameter=%s flow_thr=%s', kind, getattr(seg_frame, 'shape', None), diameter_seg, flow_threshold)
+                # Omnipose's formatter rewrites LogRecord.msg; avoid leftover args
+                # breaking another handler before the preview worker can start.
+                get_logger().info(f'Preview: starting background worker ({kind}) frame_shape={getattr(seg_frame, "shape", None)} diameter={diameter_seg} flow_thr={flow_threshold}')
 
                 def _on_seg_worker_finished(rid, fid, ck, m, err):
                     worker = getattr(preview_dialog, '_seg_worker', None)
@@ -5051,7 +5055,7 @@ class OmniposeSegTab(QWidget):
                 else:
                     display_frame0 = frame0
             empty_mask = np.zeros(display_frame0.shape, dtype=np.int32)
-            (disp0, _) = scale_for_preview(display_frame0, empty_mask, max_size=PREVIEW_SEG_MAX_SIZE)
+            (disp0, _) = scale_for_preview(display_frame0, empty_mask)
             empty_scaled = np.zeros(disp0.shape, dtype=np.int32)
             initial_overlay = build_segmentation_overlay(disp0, empty_scaled, alpha=0.0)
             initial_pixmap = to_qpixmap(initial_overlay)

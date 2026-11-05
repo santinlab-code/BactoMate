@@ -1,6 +1,6 @@
 # Segmentation contours and detached previews
 
-Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 1 November 2026.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 5 November 2026.
 [Manual](BACTOMATE_USER_MANUAL.md) · [Filtering curation](FILTERING_CURATION.md)
 
 ## Contours instead of opaque fills
@@ -10,6 +10,13 @@ boundaries between touching labels. **Show cell outlines** controls visibility;
 **Outline color…** changes colour immediately. The choice is remembered and used
 for newly generated contour-overlay TIFFs. Cancelling the colour dialog preserves
 the previous colour. Existing exported overlays are not rewritten.
+
+Single-image Segmentation and Filtering now use the same display limit (2048 px
+on the longest side), with one-pixel inner edges. A 1608 × 1608 image stays at its
+native display resolution in both views. Segmentation previously reduced it to
+1024 px before drawing edges, which made the same contour look thicker and small
+objects look filled when zoomed. This display change is independent of inference
+resolution and of the intentionally small folder-grid thumbnails.
 
 Changing outline style does not rerun segmentation, relabel cells or change
 quantitative measurements. Omnipose, Cellpose-SAM and U-Net share the contour

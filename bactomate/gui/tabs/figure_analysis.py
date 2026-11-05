@@ -3,9 +3,8 @@ from pathlib import Path
 import copy
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QComboBox,QPushButton,
-    QLabel,QFileDialog,QSpinBox,QDoubleSpinBox,QLineEdit,QCheckBox,QMessageBox,QSplitter,
-    QTableWidget,QTableWidgetItem,QScrollArea,QGroupBox)
+from PyQt6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QComboBox,QPushButton,
+    QLabel,QFileDialog,QSpinBox,QDoubleSpinBox,QLineEdit,QCheckBox,QMessageBox,QScrollArea,QFrame)
 from PyQt6.QtCore import Qt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -42,55 +41,96 @@ class FigureAnalysisTab(QWidget):
         self.tables={}; self.provenance={}; self.snapshot=None; self.worker=None
         self._figure_windows=[]
         outer=QVBoxLayout(self)
-        actions=QHBoxLayout()
+        self.import_actions=QWidget()
+        actions=QHBoxLayout(self.import_actions)
+        actions.setContentsMargins(0,0,0,0)
         for text,callback in [('Load tables (CSV / TSV / XLSX)…',self.open_tables),
                               ('Build profiles from mask + fluorescence…',self.open_profiles)]:
             button=QPushButton(text); button.clicked.connect(callback); actions.addWidget(button)
-        outer.addLayout(actions)
-        split=QSplitter(Qt.Orientation.Horizontal); outer.addWidget(split,1)
-        controls=QWidget(); controls.setMinimumWidth(270); form=QFormLayout(controls); form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-        self.sheet=QComboBox(); self.sheet.currentTextChanged.connect(self.change_sheet); form.addRow('Data table',self.sheet)
-        self.kind=QComboBox(); self.kind.addItems(KINDS); self.kind.currentTextChanged.connect(self.suggest); form.addRow('Figure',self.kind)
+        outer.addWidget(self.import_actions)
+        self.sheet=QComboBox(); self.sheet.currentTextChanged.connect(self.change_sheet)
+        self.kind=QComboBox(); self.kind.addItems(KINDS); self.kind.currentTextChanged.connect(self.suggest)
         self.fields={}
         for key,title in [('x','X / measured metric'),('y','Y / cell / time'),('value','Heatmap intensity'),
                           ('group','Group / track ID'),('sort','Demograph sort metric'),('filter_column','Filter column')]:
-            combo=QComboBox(); self.fields[key]=combo; form.addRow(title,combo)
-        self.filter_value=QLineEdit(); self.filter_value.setPlaceholderText('Exact value, e.g. 1 or GFP'); form.addRow('Keep matching value',self.filter_value)
+            combo=QComboBox(); self.fields[key]=combo
+        self.filter_value=QLineEdit(); self.filter_value.setPlaceholderText('Exact value, e.g. 1 or GFP')
         self.minimum,self.maximum=QLineEdit(),QLineEdit()
         self.minimum.setPlaceholderText('Optional'); self.maximum.setPlaceholderText('Optional')
-        form.addRow('Minimum X',self.minimum); form.addRow('Maximum X',self.maximum)
-        self.bins=QSpinBox(); self.bins.setRange(2,500); self.bins.setValue(40); form.addRow('Histogram bins',self.bins)
-        self.title=QLineEdit(); form.addRow('Title',self.title)
-        self.cmap=QComboBox(); self.cmap.addItems(['viridis','magma','inferno','plasma','turbo','cividis','coolwarm','gray']); form.addRow('Color map',self.cmap)
-        self.normalization=QComboBox(); self.normalization.addItems(['raw','per-cell max','per-cell min-max']); form.addRow('Map intensity',self.normalization)
-        self.relative_position=QCheckBox('Demograph: convert −1…1 positions to 0…1');form.addRow(self.relative_position)
-        self.maxima_source=QComboBox();self.maxima_source.addItem('Brightest pixel per cell','maximum');self.maxima_source.addItem('Detected foci','focus');form.addRow('Maxima source',self.maxima_source)
-        self.show_maxima_points=QCheckBox('Show individual maxima');self.show_maxima_points.setChecked(True);form.addRow(self.show_maxima_points)
-        self.confirm=QCheckBox('I verified that track IDs persist across frames'); form.addRow(self.confirm)
+        self.bins=QSpinBox(); self.bins.setRange(2,500); self.bins.setValue(40)
+        self.title=QLineEdit()
+        self.cmap=QComboBox(); self.cmap.addItems(['viridis','magma','inferno','plasma','turbo','cividis','coolwarm','gray'])
+        self.normalization=QComboBox(); self.normalization.addItems(['raw','per-cell max','per-cell min-max'])
+        self.relative_position=QCheckBox('Convert −1…1 positions to 0…1')
+        self.maxima_source=QComboBox();self.maxima_source.addItem('Brightest pixel per cell','maximum');self.maxima_source.addItem('Detected foci','focus')
+        self.show_maxima_points=QCheckBox('Show individual maxima');self.show_maxima_points.setChecked(True)
+        self.confirm=QCheckBox('Track IDs verified across frames')
+        self.confirm.setToolTip('Check only after verifying that these IDs refer to the same cells across frames.')
         self.calibration=QDoubleSpinBox(); self.calibration.setDecimals(6); self.calibration.setRange(.000001,1000); self.calibration.setValue(.108)
-        form.addRow('Profiles: µm / px',self.calibration)
-        self.method=QComboBox(); self.method.addItems(['medial axis','principal axis']); form.addRow('Profile coordinates',self.method)
-        self.sampling=QComboBox();self.sampling.addItem('24 segments','fixed');self.sampling.addItem('Native → 24 positions','native');form.addRow('Profile sampling',self.sampling)
-        self.orientation=QComboBox(); self.orientation.addItems(['geometric','bright pole']); form.addRow('Profile orientation',self.orientation)
-        note=QLabel('Medial-axis mode follows a pixel skeleton for curved rods; ambiguous/branched axes are refused. Principal-axis mode uses a straight projection. Geometric orientation is not pole age. Bright-pole alignment changes the population average. Map intensity controls normalization; raw is the default. Missing bins stay missing. Calibrate before extraction.\n\nKymograph: choose position for X, frame/time for Y, intensity for Value, a verified track ID for Group, then filter to one track and source/XY.\n\nNormalized cell heatmaps average each occupied cell bin equally. Cell counts may differ between bins.'); note.setWordWrap(True); note.setMaximumWidth(340); form.addRow(note)
-        render=QPushButton('Draw figure'); render.clicked.connect(self.render); form.addRow(render)
-        self.export=QPushButton('Export figure + data + code…'); self.export.setEnabled(False); self.export.clicked.connect(self.save_bundle); form.addRow(self.export)
-        scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setMinimumWidth(285); scroll.setMaximumWidth(390); scroll.setWidget(controls); split.addWidget(scroll)
-        right=QWidget(); layout=QVBoxLayout(right); split.addWidget(right); split.setStretchFactor(1,3); split.setSizes([330,850])
+        self.method=QComboBox(); self.method.addItems(['medial axis','principal axis'])
+        self.sampling=QComboBox();self.sampling.addItem('24 segments','fixed');self.sampling.addItem('Native → 24 positions','native')
+        self.orientation=QComboBox(); self.orientation.addItems(['geometric','bright pole'])
+        from bactomate.gui.analysis_workspace import AnalysisCards, AnalysisDataWindow, settings_group
+        self.advanced_controls=AnalysisCards()
+        groups=[
+            ('Figure and data', [('Data table',self.sheet),('Figure',self.kind),('Title',self.title)], ''),
+            ('Axes and grouping', [('X / measured metric',self.fields['x']),('Y / cell / time',self.fields['y']),
+                ('Heatmap intensity',self.fields['value']),('Group / track ID',self.fields['group']),('Demograph sort metric',self.fields['sort'])], ''),
+            ('Filter observations', [('Filter column',self.fields['filter_column']),('Keep matching value',self.filter_value),
+                ('Minimum X',self.minimum),('Maximum X',self.maximum)], 'Exact-value and numeric limits select the observations used to draw the figure. Source tables are not edited.'),
+            ('Appearance', [('Histogram bins',self.bins),('Color map',self.cmap),('Map intensity',self.normalization),('',self.relative_position)],
+                'Raw intensity keeps the measured values. Per-cell max divides each profile by its maximum; per-cell min-max maps its minimum to 0 and maximum to 1. Missing bins stay missing.'),
+            ('Spatial maps and time', [('Maxima source',self.maxima_source),('',self.show_maxima_points),('',self.confirm)],
+                'Kymograph: choose position for X, frame/time for Y, intensity for Value and a verified track ID for Group; filter to one track and source/XY. Normalized cell heatmaps give each occupied cell bin equal weight; counts can differ between bins.'),
+            ('Extract cell profiles', [('Calibration (µm / px)',self.calibration),('Profile coordinates',self.method),
+                ('Profile sampling',self.sampling),('Profile orientation',self.orientation)],
+                'Medial axis follows a pixel skeleton for curved rods; ambiguous or branched axes are refused. Principal axis uses a straight projection. Geometric orientation is not pole age. Bright-pole alignment changes the population average. Calibrate before extraction.')]
+        for name,rows,note in groups:
+            self.advanced_controls.add_card(settings_group(name,rows,help_text=note))
+        self.controls_scroll=QScrollArea(); self.controls_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.controls_scroll.setWidgetResizable(True); self.controls_scroll.setMinimumWidth(0)
+        self.controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.controls_scroll.setWidget(self.advanced_controls); outer.addWidget(self.controls_scroll,1)
+        footer=QVBoxLayout()
+        self.advanced_actions=QWidget(); advanced_actions=QHBoxLayout(self.advanced_actions)
+        advanced_actions.setContentsMargins(0,0,0,0)
+        render=QPushButton('Draw figure'); render.clicked.connect(self.render);advanced_actions.addWidget(render)
+        self.export=QPushButton('Export figure + data + code…'); self.export.setEnabled(False); self.export.clicked.connect(self.save_bundle);advanced_actions.addWidget(self.export)
+        footer.addWidget(self.advanced_actions)
+        common_actions=QHBoxLayout()
+        reopen=QPushButton('Show latest figure');reopen.clicked.connect(self.show_latest_figure);common_actions.addWidget(reopen)
+        common_actions.addStretch(1)
+        self.show_data_table=QCheckBox('Show data table');common_actions.addWidget(self.show_data_table)
+        footer.addLayout(common_actions)
+        outer.addLayout(footer)
         self.figure=Figure(figsize=(6,6)); self.canvas=FigureCanvasQTAgg(self.figure); self.canvas.setMinimumSize(280,230)
-        self.square_canvas=SquareCanvasHost(self.canvas);self.square_canvas.setParent(right)
+        self.square_canvas=SquareCanvasHost(self.canvas);self.square_canvas.setParent(self)
         self._embedded_figure=self.figure;self._embedded_canvas=self.canvas
         self.square_canvas.hide()
-        self._figure_placeholder=QLabel('Figures open in their own windows. Each figure keeps its own data and options.')
-        self._figure_placeholder.setWordWrap(True);layout.addWidget(self._figure_placeholder,1)
-        reopen=QPushButton('Show latest figure');reopen.clicked.connect(self.show_latest_figure);layout.addWidget(reopen)
-        self.preview=QTableWidget(); self.preview.setMaximumHeight(170); self.preview.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers); layout.addWidget(self.preview)
+        self.data_table_window=AnalysisDataWindow(self)
+        self.preview=self.data_table_window.view
+        self.show_data_table.toggled.connect(self._toggle_data_table)
+        self.data_table_window.hidden.connect(self._data_table_hidden)
         self.status=QLabel('Load analysis results or extract real spatial profiles to start.'); self.status.setWordWrap(True); outer.addWidget(self.status)
         for combo in [self.kind,*self.fields.values(),self.cmap,self.normalization]: combo.currentTextChanged.connect(self.mark_dirty)
         for edit in [self.title,self.minimum,self.maximum,self.filter_value]: edit.textChanged.connect(self.mark_dirty)
         self.relative_position.toggled.connect(self.mark_dirty);self.show_maxima_points.toggled.connect(self.mark_dirty)
         self.maxima_source.currentIndexChanged.connect(self.mark_dirty)
         self.bins.valueChanged.connect(self.mark_dirty); self.confirm.toggled.connect(self.mark_dirty)
+
+    def _toggle_data_table(self, checked):
+        if checked:
+            self.data_table_window.set_tables(self.sheet.currentText())
+            self.data_table_window.show();self.data_table_window.raise_();self.data_table_window.activateWindow()
+        else:
+            self.data_table_window.hide()
+
+    def _data_table_hidden(self):
+        from PyQt6 import sip
+        if sip.isdeleted(self.show_data_table):return
+        self.show_data_table.blockSignals(True)
+        self.show_data_table.setChecked(False)
+        self.show_data_table.blockSignals(False)
 
     def mark_dirty(self,*_):
         self.export.setEnabled(False)
@@ -121,15 +161,12 @@ class FigureAnalysisTab(QWidget):
     def change_sheet(self,*_):
         self.mark_dirty()
         table=self.tables.get(self.sheet.currentText())
+        self.data_table_window.set_tables(self.sheet.currentText())
         if table is None:return
         columns=list(table.columns)
         for combo in self.fields.values():
             combo.clear(); combo.addItem(''); combo.addItems(columns)
-        self.preview.setColumnCount(len(columns)); self.preview.setHorizontalHeaderLabels(columns)
-        self.preview.setRowCount(min(100,len(table)))
-        for i,row in enumerate(table.head(100).itertuples(index=False,name=None)):
-            for j,value in enumerate(row):self.preview.setItem(i,j,QTableWidgetItem(str(value)))
-        self.status.setText(f'{len(table):,} rows · {len(columns)} columns · preview: first 100 rows. Each workbook sheet is separate to avoid mixing cells, foci and summaries.')
+        self.status.setText(f'{len(table):,} rows · {len(columns)} columns. Figures open in separate windows. Show data table opens the read-only source values.')
         self.suggest()
 
     def suggest(self,*_):
@@ -213,4 +250,5 @@ class FigureAnalysisTab(QWidget):
             QMessageBox.information(self,'Profile extraction running','Wait for profile extraction to finish before closing.')
             event.ignore(); return
         self.close_figure_windows()
+        self.show_data_table.setChecked(False)
         super().closeEvent(event)
