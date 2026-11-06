@@ -16,10 +16,7 @@ def _settle(qapp):
         qapp.processEvents()
 
 
-def _table_is_not_overlapped(table, history, details):
-    parent = table.parentWidget()
-    assert table.y() + table.height() <= history.mapTo(parent, QPoint()).y()
-    assert history.mapTo(parent, QPoint()).y() + history.height() <= details.mapTo(parent, QPoint()).y()
+def _table_has_ten_rows(table):
     assert table.height() >= (table.horizontalHeader().height()
                               + 10 * table.verticalHeader().defaultSectionSize())
 
@@ -67,16 +64,32 @@ def test_bounded_filtering_tables_fields_and_detach_roundtrips(tmp_path, qapp, w
                 assert content.isVisible()
                 assert content.height() >= content.minimumSizeHint().height()
                 if index == 0:
-                    _table_is_not_overlapped(panel.table, panel.history, panel.details)
+                    _table_has_ten_rows(panel.table)
+                    assert not content.isAncestorOf(panel.history)
+                    assert not content.isAncestorOf(panel.details)
                     # All ten rows are accessible without scrolling the entire page.
                     assert panel.table.mapTo(area.viewport(), QPoint()).y() + panel.table.height() <= area.viewport().height()
                 elif index == 1:
                     from PyQt6.QtWidgets import QComboBox, QTextEdit
-                    _table_is_not_overlapped(panel.foci_table,
-                        content.findChild(QComboBox, 'FociHistory'), content.findChild(QTextEdit))
+                    _table_has_ten_rows(panel.foci_table)
+                    assert content.findChild(QComboBox, 'FociHistory') is None
+                    assert content.findChild(QTextEdit) is None
                 else:
-                    card = content
+                    from PyQt6.QtWidgets import QComboBox, QTextEdit
+                    card = content.findChild(QGroupBox, 'FilterCellGroup' if index == 2 else 'FilterFociGroup')
                     assert isinstance(card, QGroupBox)
+                    history = content.findChild(QComboBox, 'CellHistory' if index == 2 else 'FociHistory')
+                    details = content.findChild(QTextEdit)
+                    assert history is not None and details is not None
+                    assert history.isVisible() and details.isVisible()
+                    assert history.maxVisibleItems() == 10
+                    assert card.y() + card.height() <= history.mapTo(content, QPoint()).y()
+                    assert history.mapTo(content, QPoint()).y() + history.height() <= details.mapTo(content, QPoint()).y()
+                    assert history.count() == panel.history.count() and history.count() > 0
+                    history.setCurrentIndex(0)
+                    assert history.currentData() == panel.history.currentData()
+                    assert details.toPlainText() == panel.details.toPlainText()
+                    assert tabs.currentIndex() == index
                     for spin in card.findChildren(QDoubleSpinBox):
                         assert spin.isVisible()
                         assert spin.height() >= spin.minimumSizeHint().height()

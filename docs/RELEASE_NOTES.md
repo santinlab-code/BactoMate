@@ -1,12 +1,27 @@
 # BactoMate Custom — release and development notes
 
-Documentation updated **5 November 2026**, extending the November 1
+Documentation updated **6 November 2026**, extending the November 1
 code reference **`811d5b6`**.
 Active custom branch: **BactoMate_Custom_New-Analyses**.
 The package still reports upstream version 2.9.5; custom milestones below are Git
 commits, not newly assigned upstream release numbers. These notes consolidate
 the custom history; [the change summary](../MODIFICATIONS_BACTOMATE_EN.md) defines
 current behavior and [the manual](BACTOMATE_USER_MANUAL.md) describes its use.
+
+## 6 November 2026 — filter histories in settings pages
+
+Cell and Foci histories and their details appear below the respective Cell filters
+and Foci filters settings. Table pages keep the data rows; the two history views
+remain synchronized, retain ten visible choices and continue to update after
+filtering/curation and mask/frame changes. Small-viewport overflow and attached/
+detached layouts remain available. The reference word “VDemo” is removed from
+Demograph layout choices in the guide and advanced controls; calculations are
+unchanged.
+
+Validation: 15 targeted Linux tests passed (three existing pandas warnings),
+including normal/enlarged fonts, repeated attach/detach, both filter histories
+and their synchronization after object edits, plus Figure guide regressions.
+Styled attached/detached pages were also inspected off-screen.
 
 ## 5 November 2026 — length-envelope demographs and curved-cell maps
 

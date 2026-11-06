@@ -1,6 +1,6 @@
 # BactoMate Custom — installation and acceptance tests
 
-Updated: **5 November 2026**, branch
+Updated: **6 November 2026**, branch
 **BactoMate_Custom_New-Analyses**. [French edition](GUIDE_TEST_BACTOMATE_FR.md)
 · [Consolidated changes](MODIFICATIONS_BACTOMATE_EN.md)
 
@@ -76,7 +76,8 @@ The saved view is rendered RGB, not a new scientific label mask.
 
 Open Filtering and choose **Mask / XY position**. Inspect **Cell table**,
 **Foci table**, **Cell filters** and **Foci filters**. Expect ten table rows with
-history below, intact fields and no large empty detached-image area. Import/Save
+history below the settings on the respective filter pages, intact fields and no
+large empty detached-image area. Import/Save
 presets appear on the filter pages. Try normal/larger fonts, resize the pane,
 attach/detach twice and drag the image/pages divider. No controls or rows may
 overlap; overflow must remain accessible if the viewport is too small.

@@ -71,7 +71,7 @@ class FigureAnalysisTab(QWidget):
         self.sampling=QComboBox();self.sampling.addItem('24 segments','fixed');self.sampling.addItem('Native → 24 positions','native')
         self.orientation=QComboBox(); self.orientation.addItems(['geometric','bright pole'])
         self.demograph_layout=QComboBox()
-        self.demograph_layout.addItem('Length-scaled columns (VDemo)','length-scaled columns')
+        self.demograph_layout.addItem('Length-scaled columns','length-scaled columns')
         self.demograph_layout.addItem('Normalized rows','normalized rows')
         self.cell_map_shape=QComboBox();self.cell_map_shape.addItem('Reference cell','capsule');self.cell_map_shape.addItem('Rectangular matrix','rectangle')
         self.map_background=QComboBox();self.map_background.addItems(['white','black'])

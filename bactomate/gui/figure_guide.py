@@ -112,7 +112,7 @@ class FigureGuide(QWizard):
         for text,value in [('Keep absolute fluorescence','raw'),('Scale each cell to its maximum','per-cell max'),('Scale each cell from 0 to 1','per-cell min-max')]:self.normalization.addItem(text,value)
         look.form.addRow('Intensity',self.normalization)
         self.demograph_layout=QComboBox()
-        self.demograph_layout.addItem('Length-scaled columns — cells ordered by length (VDemo)','length-scaled columns')
+        self.demograph_layout.addItem('Length-scaled columns — cells ordered by length','length-scaled columns')
         self.demograph_layout.addItem('Normalized rows — each cell has equal displayed length','normalized rows')
         look.form.addRow('Demograph layout',self.demograph_layout)
         self.demograph_value=QComboBox();self.demograph_value.addItem('Fluorescence intensity','intensity')

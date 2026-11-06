@@ -1,6 +1,6 @@
 # BactoMate Custom — bilan consolidé des modifications
 
-Mise à jour : **5 novembre 2026**. Le code de référence du 1 novembre était
+Mise à jour : **6 novembre 2026**. Le code de référence du 1 novembre était
 **`811d5b6`** ; la section 13 décrit l’harmonisation suivante.
 Base : BactoMate **2.9.5**, commit **`2dfd181`**.
 Branche active : **BactoMate_Custom_New-Analyses**.
@@ -44,8 +44,9 @@ fenêtre ouverte. Une fermeture réussie réintègre le canevas.
 ## 3. Filtering : disposition et mesures
 
 Les tables Cell/Foci et les filtres Cell/Foci ont chacun leur page fixe. La
-hauteur suit les polices et en-têtes pour réserver dix lignes, avec l’historique
-en dessous. Une petite zone offre un débordement accessible sans superposition.
+hauteur suit les polices et en-têtes pour réserver dix lignes. Les historiques et
+leurs détails sont sous les réglages Cell/Foci filters respectifs, avec les mêmes
+événements synchronisés. Une petite zone offre un débordement accessible sans superposition.
 L’image attachée est à côté ; la détacher rend toute la largeur aux pages.
 Les commandes Import/Save en double à gauche ont été retirées ; elles apparaissent
 quand une page de filtres est choisie. Les commandes

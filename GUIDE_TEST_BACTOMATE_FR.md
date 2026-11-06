@@ -1,6 +1,6 @@
 # BactoMate Custom — installation et parcours de test
 
-Mise à jour : **5 novembre 2026**, branche
+Mise à jour : **6 novembre 2026**, branche
 **BactoMate_Custom_New-Analyses**.
 [Version anglaise](GUIDE_TEST_BACTOMATE_EN.md) · [Bilan des changements](MODIFICATIONS_BACTOMATE_FR.md)
 
@@ -77,7 +77,8 @@ pas un masque scientifique.
 ## 5. Filtering : objets et tableaux
 
 Choisir Mask / XY position. Tester les pages Cell table, Foci table, Cell filters
-et Foci filters : dix lignes, historique en dessous et champs intacts. Import/Save
+et Foci filters : dix lignes dans les tables, historiques sous les réglages des
+pages de filtres respectives, champs intacts. Import/Save
 apparaissent sur les pages de filtres. Tester des polices plus grandes, redimensionner,
 attacher/détacher deux fois et déplacer le séparateur image/pages. Aucun chevauchement ;
 le contenu doit rester accessible si la zone est trop petite, sans grand vide après détachement. Nouvelles recettes :

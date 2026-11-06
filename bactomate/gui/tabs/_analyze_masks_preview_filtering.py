@@ -929,7 +929,7 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         foci_table, lambda: _active_foci_channel_key(), _curation_changed, _focus_curated_cell)
     # Keep manual decisions accessible below the cell filter card.
     settings_outer.insertWidget(settings_outer.indexOf(cell_group) + 1, curation_panel.manual_controls)
-    curation_section = CollapsibleSection('Cell table / History', curation_panel,
+    curation_section = CollapsibleSection('Cell table', curation_panel,
                                          parent=settings_host, expanded=False, compact=True)
     settings_outer.addWidget(curation_section)
 
@@ -966,8 +966,28 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
     foci_history_details.setFixedHeight(2 * foci_history_details.fontMetrics().lineSpacing() + 16)
     curation_panel.details.textChanged.connect(lambda: foci_history_details.setPlainText(curation_panel.details.toPlainText()))
     foci_history_details.setPlainText(curation_panel.details.toPlainText())
-    foci_table_lay.addWidget(foci_history)
-    foci_table_lay.addWidget(foci_history_details)
+    curation_panel.history.setObjectName('CellHistory')
+    curation_panel.layout().removeWidget(curation_panel.history)
+    curation_panel.layout().removeWidget(curation_panel.details)
+    curation_panel.layout().setAlignment(Qt.AlignmentFlag.AlignTop)
+    foci_table_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+    def _filter_page(card, history, details):
+        page = QWidget(settings_host)
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(card)
+        history_group = QGroupBox('Filter history — current frame', page)
+        history_layout = QVBoxLayout(history_group)
+        history.setMinimumContentsLength(0)
+        history.setMinimumWidth(0)
+        history.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        history_layout.addWidget(history)
+        history_layout.addWidget(details)
+        layout.addWidget(history_group)
+        return page
+
     from bactomate.gui.filtering_workspace import FilteringWorkspaceTabs
     table_tabs = FilteringWorkspaceTabs(settings_host)
     table_tabs.setObjectName('FilteringTables')
@@ -976,9 +996,11 @@ def show_filter_preview(tab, path_text: str, *, masks_preloaded: Optional[np.nda
         section.set_expanded(True)
         section._header.hide()
         table_tabs.addTab(section,title)
-    for card, title in ((cell_group, 'Cell filters'), (foci_group, 'Foci filters')):
+    for card, title, history, details in (
+            (cell_group, 'Cell filters', curation_panel.history, curation_panel.details),
+            (foci_group, 'Foci filters', foci_history, foci_history_details)):
         settings_outer.removeWidget(card)
-        table_tabs.addTab(card, title)
+        table_tabs.addTab(_filter_page(card, history, details), title)
     table_tabs.setTabVisible(3, has_foci_image_files)
     def _workspace_page_changed(index):
         preset_bar.setVisible(index >= 2)

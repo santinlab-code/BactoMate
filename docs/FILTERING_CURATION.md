@@ -1,6 +1,6 @@
 # Filtering: tables, selection and manual curation
 
-Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 4 November 2026.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 6 November 2026.
 [Settings](FILTERING_PRESETS.md) · [Batch/output review](FILTERING_REVIEW.md)
 
 ## Workspace and measurements
@@ -9,7 +9,9 @@ Open Filtering after segmentation/foci detection. **Mask / XY position** above
 the tables chooses the image, labels, detections and curation to inspect.
 Use the fixed **Cell table**, **Foci table**, **Cell filters** and **Foci filters**
 pages instead of stacking every form and history above the image. Tables reserve
-ten rows; their history selector/details stay below the rows. Import/Save presets
+ten rows. History selectors/details sit below the settings in **Cell filters**
+and **Foci filters**, leaving both table pages for data. The two history views
+stay synchronized and show the same current-frame curation events. Import/Save presets
 appear on the filter pages. A narrow/short viewport provides overflow without
 squeezing fields or drawing history over table rows. Checkboxes/buttons wrap as
 whole controls, and table sizing follows the actual font/header sizes.

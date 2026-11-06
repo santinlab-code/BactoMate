@@ -2,7 +2,7 @@
 
 **Branch:** BactoMate_Custom_New-Analyses
 
-**Updated:** 5 November 2026; see the active branch for its current commit
+**Updated:** 6 November 2026; see the active branch for its current commit
 
 **Upstream baseline/package version:** BactoMate 2.9.5 (`2dfd181`)
 
@@ -161,7 +161,9 @@ See [segmentation previews](SEGMENTATION_CONTOURS.md).
 Open Filtering after detection. **Cell table**, **Foci table**, **Cell filters**
 and **Foci filters** are separate fixed pages, keeping rows and history from
 being squeezed together. Tables reserve ten rows using the current font/header
-sizes. Import/Save filter presets appear on the filter pages. Very small panes
+sizes. History selectors/details are below the settings on **Cell filters** and
+**Foci filters**, with synchronized current-frame events. Table pages show the
+data only. Import/Save filter presets appear on the filter pages. Very small panes
 provide overflow rather than clipping fields or overlapping widgets.
 
 The attached image sits beside the pages with an adjustable divider; detaching

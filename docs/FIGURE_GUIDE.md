@@ -1,6 +1,6 @@
 # Figure guide: practical recipes
 
-Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 5 November 2026.
+Current custom branch: **BactoMate_Custom_New-Analyses**. Reviewed 6 November 2026.
 [Simple Analysis](NEW_ANALYSIS.md) · [Methods and exports](ANALYSIS.md)
 
 ## Four steps
@@ -46,7 +46,7 @@ unless a deliberate brighter-pole alignment is appropriate. Brighter pole places
 the end with greater mean terminal-quarter signal at left/top; it does not identify
 an old/new pole and changes the apparent population pattern.
 
-The default **Length-scaled columns — cells ordered by length (VDemo)** puts one
+The default **Length-scaled columns — cells ordered by length** puts one
 cell observation in each column, shortest to longest. Its profile is centered at
 zero and displayed with its measured centerline length. Y is centered axial
 distance divided by half the longest cell's length; the longest cell spans −1…1.

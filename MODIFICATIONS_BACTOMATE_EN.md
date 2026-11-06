@@ -1,6 +1,6 @@
 # BactoMate Custom — consolidated changes
 
-Updated: **5 November 2026**. The November 1 code reference was **`811d5b6`**;
+Updated: **6 November 2026**. The November 1 code reference was **`811d5b6`**;
 section 13 describes the subsequent harmonization.
 Baseline: upstream BactoMate **2.9.5**, commit **`2dfd181`** in this repository.
 Active branch: **BactoMate_Custom_New-Analyses**.
@@ -42,7 +42,8 @@ saving keeps the window open. Closing successfully reattaches the canvas.
 ## 3. Filtering layout and calibrated tables
 
 Cell/Foci tables and Cell/Foci filters now have independent fixed pages, with
-room for ten table rows and history below them. Font/header-aware sizing and
+room for ten table rows. History selectors/details sit below the respective Cell/
+Foci filter settings, with the same synchronized events. Font/header-aware sizing and
 small-viewport overflow prevent overlaps. The attached image is beside the pages;
 detaching it returns the whole width to the workspace. Duplicate Import/Save
 controls were removed from the left interface; **Import filter settings…** and
